@@ -177,7 +177,7 @@ pub async fn plugin_wallet_transfer_consignment_accept(
 
     let client = reqwest::Client::new();
 
-	let mut req = client
+	let req = client
 		.post(rpc_url)
         .bearer_auth("")
 		.header("Content-Type", "application/octet-stream")

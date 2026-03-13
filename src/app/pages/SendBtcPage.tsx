@@ -745,7 +745,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
         </CardContent>
       </Card>
 
-      <Card className="mt-3">
+      {/* <Card className="mt-3">
         <CardHeader>
           <CardTitle>Onchain Invoice Send</CardTitle>
         </CardHeader>
@@ -799,7 +799,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
             }
          </div>
         </CardContent>
-      </Card>
+      </Card> */}
     </div>
   );
 }

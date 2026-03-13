@@ -11,7 +11,6 @@ use crate::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use serde::Serialize;
-use serde_json::Value;
 use tauri::AppHandle;
 use tauri::State;
 use std::collections::{HashMap, HashSet};
@@ -2418,7 +2417,7 @@ pub async fn node_lock(
 
 #[tauri::command]
 pub async fn plugin_wallet_asset_export(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     contract_id: String,
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
     let bytes = wallet::plugin_wallet_asset_export(&contract_id).await?;
@@ -2434,7 +2433,7 @@ pub async fn plugin_wallet_asset_export(
 
 #[tauri::command]
 pub async fn plugin_wallet_transfer_consignment_export(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     payment_id: String,
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
     let bytes = wallet::plugin_wallet_transfer_consignment_export(&payment_id).await?;
@@ -2561,7 +2560,7 @@ pub async fn node_rgb_onchain_send(
 
 #[tauri::command]
 pub async fn plugin_wallet_transfer_consignment_accept(
-    state: State<'_, AppState>,
+    _state: State<'_, AppState>,
     consignment_base64: String,
 ) -> Result<String, CommandError> {
 		let bytes = general_purpose::STANDARD

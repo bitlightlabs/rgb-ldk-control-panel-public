@@ -33,7 +33,7 @@ export default function IssuerList(props: IProps) {
         throw new Error("No active node selected");
       }
 
-      const filename = filePath.split('/').pop() || 'demo-issuer';
+      const filename = 'demo-issuer';
       const fileContents = await readFile(filePath);
       await nodeRgbIssuersImport(activeNodeId, filename, fileContents)
     },
@@ -58,7 +58,7 @@ export default function IssuerList(props: IProps) {
           <CardTitle className="flex justify-between">
             <span>RGB Issuers List</span>
             <div className="flex gap-3">
-              <Button disabled={issuerImportMutation.isPending} variant="secondary" size="sm" onClick={selectFile}>Import Issuers</Button>
+              {/* <Button disabled={issuerImportMutation.isPending} variant="secondary" size="sm" onClick={selectFile}>Import Issuers</Button> */}
             </div>
           </CardTitle>
         </CardHeader>

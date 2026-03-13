@@ -10,13 +10,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getGradientStyle } from "@/lib/utils";
+import { base64ToUint8Array, getGradientStyle } from "@/lib/utils";
 import ImportAssetDialog from "./ImportAssetDialog";
-import { useQuery } from "@tanstack/react-query";
-import { nodeRgbContracts } from "@/lib/commands";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { nodeRgbContractExportBundle, nodeRgbContracts } from "@/lib/commands";
 import AssetBalance from "./AssetBalance";
 import { RgbContractDto } from "@/lib/sdk/types";
 import IssueAsset from "./IssueAsset";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
+import ImportContract from "./ImportContract";
 
 export type Asset = RgbContractDto;
 
@@ -33,6 +37,27 @@ function AssetAvatar({ name }: { name: string }) {
 }
 
 function AssetDetails({ activeNodeId, asset, onBack }: { activeNodeId: string, asset: Asset; onBack: () => void }) {
+  const exportContract = useMutation({
+    mutationFn: async () => {
+      if(!activeNodeId) throw new Error("No active node selected");
+
+      const data = await nodeRgbContractExportBundle(activeNodeId, asset.contract_id)
+
+      // Svae file
+      const path = await save({
+        defaultPath: asset.contract_id + ".raw"
+      });
+      if (!path) {
+        throw new Error("File save cancelled by user");
+      };
+      const bytes = base64ToUint8Array(data.archive_base64);
+      await writeFile(path, bytes);
+    },
+    onSuccess: () => {
+      toast.success("Contract exported successfully");
+    }
+  })
+
   return (
     <div className="space-y-4">
       <Button
@@ -58,12 +83,6 @@ function AssetDetails({ activeNodeId, asset, onBack }: { activeNodeId: string, a
               <div className="text-xs ui-muted">Contract ID</div>
               <div className="mt-1 break-all font-mono text-xs">{asset.contract_id}</div>
             </div>
-            {/* <div className="rounded-lg border ui-border p-3">
-              <div className="text-xs ui-muted">Issuer</div>
-              <div className="mt-1 break-all font-mono text-xs">
-                {asset.issuer}
-              </div>
-            </div> */}
             <div className="rounded-lg border ui-border p-3">
               <div className="text-xs ui-muted">Asset ID</div>
               <div className="mt-1 break-all font-mono text-xs">
@@ -92,23 +111,17 @@ function AssetDetails({ activeNodeId, asset, onBack }: { activeNodeId: string, a
                 />
               </span>
             </div>
-            {/* <div className="flex items-center justify-between">
-              <span className="ui-muted">Confirmed</span>
-              <span className="font-medium">{asset.confirmed}</span>
-            </div> */}
             <div className="flex items-center justify-between">
               <span className="ui-muted">Precision</span>
               <span className="font-medium">{asset.precision}</span>
             </div>
-            {/* <div className="flex items-center justify-between">
-              <span className="ui-muted">Block</span>
-              <span className="font-medium">{asset.block}</span>
-            </div> */}
-            {/* <div className="flex items-center justify-between">
-              <span className="ui-muted">Circulating</span>
-              <span className="font-medium">{asset.circulating}</span>
-            </div>
-            <div className="pt-1 text-xs ui-muted">Created At: {createdAt}</div> */}
+            {/* <Button
+              variant="secondary"
+              size="sm"
+              className="w-full mt-3"
+              disabled={exportContract.isPending}
+              onClick={() => exportContract.mutate()}
+            >Export Contract</Button> */}
           </CardContent>
         </Card>
       </div>
@@ -151,6 +164,7 @@ export function AssetExplorer({
 
   const [showIssue, setShowIssue] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showImportLocalContract, setShowImportlocalContract] = useState(false);
   const [innerSelectedAssetId, setInnerSelectedAssetId] = useState<
     string | null
   >(null);
@@ -246,8 +260,9 @@ export function AssetExplorer({
             <span>{title}</span>
             <div className="flex gap-3">
               <Button disabled={rgbContractsQuery.isPending} variant="secondary" onClick={() => rgbContractsQuery.refetch()}>Refresh</Button>
-              <Button variant="secondary" onClick={() => setShowIssue(true)}>Issue Asset</Button>
-              <Button variant="secondary" onClick={() => setShowImport(true)}>Import Onchain Asset</Button>
+              {/* <Button variant="secondary" onClick={() => setShowIssue(true)}>Issue Asset</Button>
+              <Button variant="secondary" onClick={() => setShowImport(true)}>Import Onchain Asset</Button> */}
+              {/* <Button variant="secondary" onClick={() => setShowImportlocalContract(true)}>Import Asset Contract</Button> */}
             </div>
           </CardTitle>
         </CardHeader>
@@ -267,6 +282,15 @@ export function AssetExplorer({
         showIssue ? (
           <IssueAsset
             onClose={() => setShowIssue(false)}
+            activeNodeId={activeNodeId}
+            onSuccess={() => rgbContractsQuery.refetch()}
+          />) : null
+      }
+
+      {
+        showImportLocalContract ? (
+          <ImportContract
+            onClose={() => setShowImportlocalContract(false)}
             activeNodeId={activeNodeId}
             onSuccess={() => rgbContractsQuery.refetch()}
           />) : null

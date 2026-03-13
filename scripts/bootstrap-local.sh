@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose.yml}"
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-COMPOSE_FILE="$ROOT/docker-compose.yml"
+COMPOSE_FILE="$ROOT/$COMPOSE_FILE_NAME"
 EXAMPLE_DIR="$ROOT/example"
 NODE1_SECRETS="$EXAMPLE_DIR/node1/secrets"
 NODE2_SECRETS="$EXAMPLE_DIR/node2/secrets"
@@ -49,8 +51,8 @@ cat >"$EXAMPLE_DIR/contexts.json" <<CTX
   "version": 1,
   "contexts": [
     {
-      "node_id": "node-1",
-      "display_name": "Node 1",
+      "node_id": "alex",
+      "display_name": "Alex",
       "main_api_base_url": "http://127.0.0.1:8501/",
       "main_api_token_file_path": "$NODE1_SECRETS/http.token",
       "control_api_base_url": "http://127.0.0.1:8551/",
@@ -60,8 +62,8 @@ cat >"$EXAMPLE_DIR/contexts.json" <<CTX
       "allow_non_loopback": false
     },
     {
-      "node_id": "node-2",
-      "display_name": "Node 2",
+      "node_id": "bob",
+      "display_name": "Bob",
       "main_api_base_url": "http://127.0.0.1:8602/",
       "main_api_token_file_path": "$NODE2_SECRETS/http.token",
       "control_api_base_url": "http://127.0.0.1:8653/",

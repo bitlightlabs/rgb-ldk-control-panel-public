@@ -106,11 +106,6 @@ pub struct RgbOnchainSendResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RgbOnchainReceiveRequest {
-	pub consignment_key: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RgbOnchainReceiveResponse {
 	pub asset_id: String,
 	#[serde(with = "serde_u64_decimal_string")]

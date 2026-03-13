@@ -104,7 +104,7 @@ export function OpenChannelDialog({
 
   const [peerNodeId, setPeerNodeId] = useState("");
   const [address, setAddress] = useState("");
-  const [channelAmountSats, setChannelAmountSats] = useState("100000"); // 0.001 BTC default
+  const [channelAmountSats, setChannelAmountSats] = useState("200000"); // 0.002 BTC default
   const [announce, setAnnounce] = useState(false);
   const [connectFirst, setConnectFirst] = useState(true);
   const [persistPeer, setPersistPeer] = useState(false);
@@ -124,7 +124,7 @@ export function OpenChannelDialog({
     setTargetContextId(null);
     setPeerNodeId("");
     setAddress("");
-    setChannelAmountSats("100000");
+    setChannelAmountSats("200000");
     setAnnounce(false);
     setConnectFirst(true);
     setPersistPeer(false);
@@ -183,6 +183,7 @@ export function OpenChannelDialog({
           );
         }
       }
+
       if (connectFirst) {
         const peerId = peerNodeId.trim();
         const addr = address.trim();
@@ -198,6 +199,10 @@ export function OpenChannelDialog({
           });
         }
       }
+
+      const selectAsset = rgbContractsQuery.data?.contracts.find((c) => c.asset_id === rgbAssetId) ?? null;
+      const precision = selectAsset?.precision ?? 0;
+
       const req: OpenChannelRequest = {
         node_id: peerNodeId.trim(),
         address: address.trim(),
@@ -207,7 +212,7 @@ export function OpenChannelDialog({
         rgb: rgbEnabled
           ? {
               asset_id: rgbAssetId.trim(),
-              asset_amount: u64(rgbAssetAmount.trim()),
+              asset_amount: u64(Number(rgbAssetAmount.trim()) * 10 ** precision),
               color_context_data: rgbContextData.trim(),
             }
           : null,
@@ -259,14 +264,15 @@ export function OpenChannelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Open channel</DialogTitle>
+          <DialogTitle>Open channel1</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 gap-3">
-          <div className="grid gap-2">
+        <div className="max-h-[60vh] overflow-y-auto grid grid-cols-1 gap-4">
+          <div className="grid gap-3">
             <Label>Target node</Label>
             <div className="flex items-center gap-2">
               <Button
+                size="sm"
                 variant={targetMode === "context" ? "default" : "outline"}
                 type="button"
                 onClick={() => setTargetMode("context")}
@@ -274,6 +280,7 @@ export function OpenChannelDialog({
                 Local node
               </Button>
               <Button
+                size="sm"
                 variant={targetMode === "external" ? "default" : "outline"}
                 type="button"
                 onClick={() => setTargetMode("external")}
@@ -360,7 +367,7 @@ export function OpenChannelDialog({
             )}
           </div>
 
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             <Label htmlFor="peer_node_id">Peer node_id</Label>
             <Input
               id="peer_node_id"
@@ -376,7 +383,7 @@ export function OpenChannelDialog({
             ) : null}
           </div>
 
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             <Label htmlFor="peer_address">Peer address</Label>
             <Input
               id="peer_address"
@@ -387,14 +394,14 @@ export function OpenChannelDialog({
             />
           </div>
 
-          <div className="grid gap-2">
+          <div className="grid gap-3">
             <Label htmlFor="channel_amount_sats">Channel amount (sats)</Label>
             <Input
               id="channel_amount_sats"
               className="font-mono"
               value={channelAmountSats}
               onChange={(e) => setChannelAmountSats(e.currentTarget.value)}
-              placeholder="e.g. 100000"
+              placeholder="e.g. 200000"
               inputMode="numeric"
             />
             {rgbEnabled ? (

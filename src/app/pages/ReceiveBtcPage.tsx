@@ -42,7 +42,7 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
   const [step, setStep] = useState<ReceiveStep>("select");
   const [mode, setMode] = useState<ReceiveMode | null>(null);
-  const [amountMsat, setAmountMsat] = useState("1000000");
+  const [amountMsat, setAmountMsat] = useState("5000000");
   const [description, setDescription] = useState("Receive BTC");
   const [createdValue, setCreatedValue] = useState("");
   const [createdAmountMsat, setCreatedAmountMsat] = useState("");
@@ -252,7 +252,7 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                 RGB Lightning Invoice
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </Button>
-              <Button
+              {/* <Button
                 type="button"
                 variant="secondary"
                 className="w-full justify-between px-2.5"
@@ -265,7 +265,7 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
               >
                 RGB OnChain Invoice
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Button>
+              </Button> */}
             </div>
           ) : null}
 
@@ -390,7 +390,7 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                       value={amountMsat}
                       onChange={(e) => setAmountMsat(e.currentTarget.value)}
                       inputMode="numeric"
-                      placeholder="1000000"
+                      placeholder="5000000"
                     />
                   </Field>
                 ) : null}

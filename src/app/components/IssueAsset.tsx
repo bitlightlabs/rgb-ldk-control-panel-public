@@ -29,12 +29,17 @@ export default function IssueAsset(props: IProps) {
     mutationFn: async () => {
       const form = document.getElementById('issue-asset-form') as HTMLFormElement
       const formData = new FormData(form)
+
+      const precision = parseInt(formData.get('precision') as string);
+      const total = formData.get('issued_supply') as string;
+      const issued_supply = (BigInt(total) * BigInt(10 ** precision)).toString();
+
       const data = {
         issuer_name: formData.get('issuer_name') as string,
         contract_name: formData.get('contract_name') as string,
         ticker: formData.get('ticker') as string,
-        issued_supply: formData.get('issued_supply') as string,
-        precision: parseInt(formData.get('precision') as string),
+        issued_supply,
+        precision
       }
 
       if(!activeNodeId) {

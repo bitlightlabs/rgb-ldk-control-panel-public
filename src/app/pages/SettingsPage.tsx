@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { contextsPath, logUi, logsPath, logsTail } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
+import { getDirname } from "@/lib/utils";
 
 export function SettingsPage() {
   const logsPathQuery = useQuery({
@@ -88,7 +89,8 @@ export function SettingsPage() {
               disabled={!contextsPathQuery.data}
               onClick={async () => {
                 if (!contextsPathQuery.data) return;
-                await openPath(contextsPathQuery.data);
+                const dir = getDirname(contextsPathQuery.data)
+                await openPath(dir);
               }}
               type="button"
             >
@@ -124,7 +126,8 @@ export function SettingsPage() {
               disabled={!logsPathQuery.data}
               onClick={async () => {
                 if (!logsPathQuery.data) return;
-                await openPath(logsPathQuery.data);
+                const dir = getDirname(logsPathQuery.data)
+                await openPath(dir);
               }}
               type="button"
             >

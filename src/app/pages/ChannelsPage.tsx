@@ -278,7 +278,7 @@ export function ChannelsPage() {
             </DialogTitle>
             <DialogDescription>
               {confirmAction === "force"
-                ? "Use only if peer is offline/uncooperative."
+                ? "Use only if peer is offline/uncooperative. Force closing a channel will delay the settlement of funds."
                 : "Cooperative close of the selected channel."}
             </DialogDescription>
           </DialogHeader>

@@ -45,3 +45,9 @@ export function base64ToUint8Array(base64: string): Uint8Array {
 
   return bytes;
 }
+
+export function getDirname(dir: string): string {
+  dir = dir.replace(/\\/g, '/').replace(/\/[^\/]*\/?$/, '');
+
+  return '' === dir ? '/' : dir;
+}

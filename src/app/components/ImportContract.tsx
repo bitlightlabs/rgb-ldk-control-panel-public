@@ -4,6 +4,9 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { nodeRgbContractImportBundle, pluginWalletAssetExport } from "@/lib/commands";
 import { toast } from "sonner";
+import { open } from '@tauri-apps/plugin-dialog';
+import { readFile } from '@tauri-apps/plugin-fs';
+import { uint8ArrayToBase64 } from "@/lib/utils";
 
 interface IProps {
   activeNodeId: string;
@@ -11,26 +14,32 @@ interface IProps {
   onSuccess: () => void;
 }
 
-export default function ImportAsset(props: IProps) {
+export default function ImportContract(props: IProps) {
   const [posting, setPosting] = useState(false);
   const [contractId, setContractId] = useState('');
+  const [filePath, setFilePath] = useState<string>('');
+
+  const selectFile = async () => {
+    const selected = await open({
+      multiple: false
+    });
+    if (selected) {
+      setFilePath(selected)
+    }
+  }
 
   const upload = async () => {
-    if(!contractId || !props.activeNodeId) {
+    if(!contractId || !props.activeNodeId || !filePath) {
       return
     }
 
     try {
       setPosting(true);
-
-      // Download asset consignment
-      const contract = await pluginWalletAssetExport(contractId);
-      if(!contract.archive_base64) {
-        throw new Error((contract as any).message || 'Failed')
-      }
-
+      // Read file
+      const fileContents = await readFile(filePath);
+      const base64 = uint8ArrayToBase64(fileContents);
       // Import asset
-      await nodeRgbContractImportBundle(props.activeNodeId, contractId, contract.archive_base64);
+      await nodeRgbContractImportBundle(props.activeNodeId, contractId, base64);
 
       props.onClose()
       props.onSuccess()
@@ -53,6 +62,14 @@ export default function ImportAsset(props: IProps) {
           <div className="flex flex-col gap-2">
             <label className='block'>Contract ID</label>
             <Input type="text" id="contractId" onChange={(e) => setContractId(e.target.value)} />
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            <label className='block'>Contract File</label>
+            {
+              filePath ? (
+                <span>{filePath}</span>
+              ) : <Button type="button" size="sm" variant="secondary" onClick={selectFile}>Select file</Button>
+            }
           </div>
 
           <DialogFooter>
