@@ -1,0 +1,217 @@
+name: release on tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-14
+            tauriBuildArgs: "--target universal-apple-darwin"
+
+          - platform: ubuntu-22.04
+            tauriBuildArgs: ""
+
+          - platform: windows-latest
+            tauriBuildArgs: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    env:
+      DISPLAY: ":99"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust targets (macOS)
+        if: matrix.platform == 'macos-14'
+        run: |
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xvfb
+
+      - name: Start virtual display (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x24 > /tmp/xvfb.log 2>&1 &
+          echo "Xvfb started on :99"
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build with tauri-action (Artifact only)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Only local signing, no remote notarization to avoid hanging
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        with:
+          args: ${{ matrix.tauriBuildArgs }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-${{ matrix.platform }}
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/*/*.rpm
+            src-tauri/target/release/bundle/*/*.deb
+            src-tauri/target/release/bundle/*/*.AppImage
+            src-tauri/target/release/bundle/*/*.msi
+            src-tauri/target/release/bundle/*/*.exe
+
+  release:
+    name: "Release on tag"
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binaries-*
+          path: raw_artifacts
+          merge-multiple: true
+
+      - name: Create checksum files
+        # This step moves the downloaded files to a release-assets directory and creates a checksum.txt file with the SHA256 checksums of the files for later use in the release description.
+        run: |
+          # list the contents of the raw_artifacts directory for debugging
+          echo "Contents of raw_artifacts:"
+          ls -l raw_artifacts
+          
+          mkdir -p release-assets
+          # find all files start with RGB in the raw_artifacts directory and move them to release-assets, while generating checksums
+          find raw_artifacts -type f -name 'RGB*' | while read -r file; do
+            echo "Processing file: $file"
+            if [ -f "$file" ]; then
+              # Extract the filename from the path and move it to release-assets, replacing spaces with underscores
+              filename=$(basename "$file" | tr ' ' _)
+              echo "Moving $file to release-assets/$filename"
+              mv "$file" "release-assets/$filename"
+            else
+              echo "Warning: File $file not found, skipping."
+            fi
+          done
+          
+          # Generate checksums without path prefix
+          cd release-assets
+          sha256sum * > checksum.txt
+          cd ..
+          
+          echo "Generated checksum.txt:"
+          cat release-assets/checksum.txt
+
+      - name: Reuse Tag Name from Git Ref
+        if: github.ref_type == 'tag'
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "Using tag name from git ref: $TAG_NAME"
+
+      - name: Generate release body from template
+        run: |
+          CHECKSUMS="$(cat release-assets/checksum.txt 2>/dev/null || echo 'No checksums available')"
+
+          # Build asset table rows
+          ASSET_TABLE=""
+          for file in release-assets/*; do
+            [ -f "$file" ] || continue
+            filename="$(basename "$file")"
+            case "$filename" in
+              *.dmg)       platform="macOS" ;;
+              *.deb)       platform="Linux (deb)" ;;
+              *.rpm)       platform="Linux (rpm)" ;;
+              *.AppImage)  platform="Linux (AppImage)" ;;
+              *.msi)       platform="Windows (msi)" ;;
+              *.exe)       platform="Windows (exe)" ;;
+              checksum.txt) continue ;;
+              *)           platform="Other" ;;
+            esac
+            ASSET_TABLE="${ASSET_TABLE}| ${platform} | \`${filename}\` |
+          "
+          done
+
+          # Generate release body using heredoc
+          cat > release-body.md <<RELEASE_EOF
+          ## RGB Lightning Node ${TAG_NAME}
+
+          ### 📦 Downloads
+
+          | Platform | File |
+          |----------|------|
+          ${ASSET_TABLE}
+
+          ### 🔐 Checksums (SHA-256)
+
+          Verify downloaded files against the checksums below:
+
+          \`\`\`
+          ${CHECKSUMS}
+          \`\`\`
+          RELEASE_EOF
+
+          # Remove leading whitespace introduced by YAML indentation (10 spaces)
+          sed -i 's/^          //' release-body.md
+
+      - name: Display Generated Release Body
+        run: |
+          echo "--- Generated Release Body ---"
+          cat release-body.md
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        id: create_public_release
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: RGB Lightning Node ${{ env.TAG_NAME }}
+          body_path: release-body.md
+          draft: true
+          prerelease: false
+          files: |
+            release-assets/*
+
+      - name: Output Public Release URL
+        run: |
+          echo "Release created at URL: ${{ steps.create_public_release.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

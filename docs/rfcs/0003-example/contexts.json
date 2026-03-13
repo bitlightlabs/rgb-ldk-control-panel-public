@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "contexts": [
+    {
+      "node_id": "node-1",
+      "display_name": "Node 1",
+      "main_api_base_url": "http://127.0.0.1:8501/",
+      "main_api_token_file_path": "/Users/ricky/Documents/bitlightlabs/rgb-ldk-control-panel/docs/rfcs/0003-example/node1/secrets/http.token",
+      "control_api_base_url": "http://127.0.0.1:8551/",
+      "control_api_token_file_path": "/Users/ricky/Documents/bitlightlabs/rgb-ldk-control-panel/docs/rfcs/0003-example/node1/secrets/control-http.token",
+      "data_dir": "/Users/ricky/Documents/bitlightlabs/rgb-ldk-control-panel/docs/rfcs/0003-example/node1/data",
+      "p2p_listen": "rgb-node-alice:9735",
+      "allow_non_loopback": false
+    },
+    {
+      "node_id": "node-2",
+      "display_name": "Node 2",
+      "main_api_base_url": "http://127.0.0.1:8602/",
+      "main_api_token_file_path": "/Users/ricky/Documents/bitlightlabs/rgb-ldk-control-panel/docs/rfcs/0003-example/node2/secrets/http.token",
+      "control_api_base_url": "http://127.0.0.1:8653/",
+      "control_api_token_file_path": "/Users/ricky/Documents/bitlightlabs/rgb-ldk-control-panel/docs/rfcs/0003-example/node2/secrets/control-http.token",
+      "data_dir": "/Users/ricky/Documents/bitlightlabs/rgb-ldk-control-panel/docs/rfcs/0003-example/node2/data",
+      "p2p_listen": "rgb-node-bob:9735",
+      "allow_non_loopback": false
+    }
+  ]
+}

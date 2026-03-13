@@ -1,0 +1,467 @@
+// TypeScript DTOs mirroring src/http/dto.rs
+
+export { U64 } from "./u64.js";
+import type { U64 } from "./u64.js";
+
+export interface UnlockedStatusDto {
+  is_running: boolean;
+  is_listening: boolean;
+  best_block_height: number;
+  locked?: false;
+}
+
+export interface LockedStatusDto {
+  ok: boolean;
+  locked: true;
+  running: boolean;
+  checks?: HealthCheckDto[];
+}
+
+export type StatusDto = UnlockedStatusDto | LockedStatusDto;
+
+export interface BalancesDto {
+  btc: {
+    onchain_total_sats: number
+    onchain_spendable_sats: number,
+    anchor_channels_reserve_sats: number,
+    lightning_total_sats: number,
+  },
+  rgb: {
+    l1: unknown[],
+    l2: unknown[],
+  }
+}
+
+export interface PeerDetailsDto {
+  node_id: string;
+  address: string;
+  is_persisted: boolean;
+  is_connected: boolean;
+}
+
+export interface PeerConnectRequest {
+  node_id: string;
+  address: string;
+  persist?: boolean;
+}
+
+export interface PeerDisconnectRequest {
+  node_id: string;
+}
+
+export type PaymentDirection = "Inbound" | "Outbound";
+export type PaymentStatus = "Pending" | "Succeeded" | "Failed";
+export type PaymentKind =
+  | "Bolt11"
+  | "Bolt11Jit"
+  | "Bolt12Offer"
+  | "Bolt12Refund"
+  | "Spontaneous"
+  | "Onchain";
+
+export interface PaymentDetailsDto {
+  id: string;
+  direction: PaymentDirection;
+  status: PaymentStatus;
+  amount_msat: U64 | null;
+  kind: PaymentKind;
+  fee_paid_msat: U64 | null;
+  kind_details?: any;
+}
+
+export interface ChannelDetailsDto {
+  channel_id: string;
+  counterparty_node_id: string;
+  is_channel_ready: boolean;
+  is_announced: boolean;
+}
+
+export interface ChannelDetailsExtendedDto {
+  channel_id: string;
+  user_channel_id: string;
+  counterparty_node_id: string;
+  channel_point: string | null;
+  channel_value_sats: U64;
+  outbound_capacity_msat: U64;
+  inbound_capacity_msat: U64;
+  is_channel_ready: boolean;
+  is_usable: boolean;
+  is_announced: boolean;
+}
+
+export interface OpenChannelRequest {
+  node_id: string;
+  address: string;
+  channel_amount_sats: U64;
+  push_to_counterparty_msat?: U64 | null;
+  announce?: boolean;
+  rgb?: RgbOpenChannelRequest | null;
+}
+
+export interface OpenChannelResponse {
+  user_channel_id: string;
+}
+
+export interface CloseChannelRequest {
+  user_channel_id: string;
+  counterparty_node_id: string;
+}
+
+export interface Bolt11ReceiveRequest {
+  amount_msat: U64;
+  description: string;
+  expiry_secs: number;
+}
+
+export interface Bolt11ReceiveVarRequest {
+  description: string;
+  expiry_secs: number;
+}
+
+export interface Bolt11ReceiveResponse {
+  invoice: string;
+}
+
+export interface Bolt11SendRequest {
+  invoice: string;
+}
+
+export interface Bolt11SendUsingAmountRequest {
+  invoice: string;
+  amount_msat: U64;
+}
+
+export interface SendResponse {
+  payment_id: string;
+}
+
+export interface Bolt11DecodeRequest {
+  invoice: string;
+}
+
+export interface Bolt11DecodeResponse {
+  payment_hash: string;
+  destination: string;
+  amount_msat: U64 | null;
+  expiry_secs: number;
+}
+
+export interface Bolt11PayRequest {
+  invoice: string;
+  amount_msat?: U64 | null;
+}
+
+export interface Bolt11PayResponse {
+  payment_id: string;
+  preimage: string;
+  amount_sats: U64;
+  destination: string;
+  fee_paid_msat: U64 | null;
+}
+
+export interface CustomTlvDto {
+  type: U64; // r#type in Rust
+  value_hex: string;
+}
+
+export interface SpontaneousSendRequest {
+  counterparty_node_id: string;
+  amount_msat: U64;
+  custom_tlvs?: CustomTlvDto[];
+}
+
+export interface OutPointDto {
+  txid: string;
+  vout: number;
+}
+
+export interface RgbPaymentContextDto {
+  asset_id: string; // hex
+  asset_amount: U64;
+  direction: string; // Inbound | Outbound
+  is_swap: boolean;
+}
+
+export type EventDto =
+  | { type: "PaymentSuccessful"; data: { payment_id: string | null; fee_paid_msat: U64 | null } }
+  | { type: "PaymentFailed"; data: { payment_id: string | null } }
+  | {
+    type: "PaymentReceived";
+    data: {
+      payment_id: string | null;
+      payment_hash: string;
+      amount_msat: U64;
+      custom_records?: CustomTlvDto[];
+      rgb?: RgbPaymentContextDto | null;
+    };
+  }
+  | { type: "ChannelPending"; data: { funding_txo: OutPointDto } }
+  | { type: "ChannelReady"; data: { user_channel_id: string } }
+  | {
+    type: "ChannelClosed";
+    data: {
+      channel_id: string;
+      user_channel_id: string;
+      counterparty_node_id?: string | null;
+      reason?: string | null;
+    };
+  }
+  | { type: "Other"; data: { kind: string } };
+
+export interface HealthCheckDto {
+  name: string;
+  ok: boolean;
+  detail?: string | null;
+  hint?: string | null;
+}
+
+export interface OkResponse {
+  ok: boolean;
+  checks?: HealthCheckDto[];
+}
+
+export interface NodeIdResponse {
+  node_id: string;
+}
+
+export interface ListeningAddressesResponse {
+  addresses: string[];
+}
+
+// ---- RGB ----
+
+export interface RgbOpenChannelRequest {
+  asset_id: string; // hex
+  asset_amount: U64;
+  color_context_data: string; // e.g. file://...
+}
+
+export interface RgbNewAddressResponse {
+  address: string;
+}
+
+export interface RgbContractDto {
+  contract_id: string;
+  asset_id: string; // hex 32 bytes
+  name: string | null;
+  ticker: string | null;
+  precision: number | null; // u8
+  issued_supply: U64 | null; // u64
+  details: string | null;
+}
+
+export interface RgbContractsResponse {
+  contracts: RgbContractDto[];
+}
+
+export interface RgbIssuersResponse {
+  issuers: string[];
+}
+
+export interface RgbIssuersImportResponse {
+  ok: boolean;
+  issuer_name: string;
+  checks?: HealthCheckDto[];
+}
+
+export interface RgbContractsImportResponse {
+  ok: boolean;
+  contract_id: string;
+  consignment_key: string;
+  checks?: HealthCheckDto[];
+}
+
+export interface RgbContractsIssueRequest {
+  issuer_name: string;
+  contract_name: string;
+  ticker?: string | null;
+  precision?: number | null; // u8
+  issued_supply: string;
+  utxo?: string | null; // "txid:vout"
+}
+
+export interface RgbContractsIssueResponse {
+  ok: boolean;
+  contract_id: string;
+  asset_id: string; // hex 32 bytes
+  issued_supply: U64;
+  checks?: HealthCheckDto[];
+}
+
+export interface RgbContractsExportRequest {
+  contract_id: string;
+}
+
+export interface RgbContractsExportResponse {
+  ok: boolean;
+  contract_id: string;
+  consignment_key: string;
+  checks?: HealthCheckDto[];
+}
+
+export interface RgbContractBalanceDto {
+  mined: U64;
+  tentative: U64;
+  offchain: U64;
+  archived: U64;
+  total: U64;
+}
+
+export interface RgbContractBalanceResponse {
+  contract_id: string;
+  balance: RgbContractBalanceDto;
+}
+
+export interface RgbLnInvoiceCreateRequest {
+  asset_id: string; // hex
+  asset_amount: U64;
+  description: string;
+  expiry_secs: number;
+  btc_carrier_amount_msat: U64;
+}
+
+export interface RgbLnInvoiceResponse {
+  invoice: string;
+}
+
+export interface RgbLnInvoiceDecodeRequest {
+  invoice: string;
+}
+
+export interface RgbLnInvoiceDecodeResponse {
+  payment_hash: string;
+  destination: string;
+  carrier_amount_msat: U64 | null;
+  expiry_secs: number;
+  asset_id?: string | null;
+  asset_amount?: U64 | null;
+}
+
+export interface RgbLnPayRequest {
+  invoice: string;
+  asset_id?: string | null;
+  asset_amount?: U64 | null;
+}
+
+export interface RgbOnchainInvoiceCreateRequest {
+  contract_id: string;
+  amount: U64;
+  use_witness_utxo?: boolean;
+  nonce?: U64 | null;
+  blinding_utxo: string;
+}
+
+export interface RgbOnchainInvoiceResponse {
+  invoice: string;
+}
+
+export interface RgbOnchainSendRequest {
+  invoice: string;
+  sats_for_fee_and_outputs?: U64 | null;
+  fee_rate_sats_per_vb: number;
+}
+
+export interface RgbOnchainSendResponse {
+  txid: string;
+  consignment_key: string;
+}
+
+export interface RgbOnchainReceiveRequest {
+  consignment_key: string;
+}
+
+export interface RgbOnchainReceiveResponse {
+  asset_id: string;
+  amount: U64;
+}
+
+// ---- BOLT12 (offers + refunds) ----
+
+export interface Bolt12OfferReceiveRequest {
+  amount_msat: U64;
+  description: string;
+  expiry_secs?: number | null;
+  quantity?: U64 | null;
+}
+
+export interface Bolt12OfferReceiveVarRequest {
+  description: string;
+  expiry_secs?: number | null;
+}
+
+export interface Bolt12OfferResponse {
+  offer: string; // bech32 lno...
+}
+
+export interface Bolt12OfferDecodeRequest {
+  offer: string;
+}
+
+export interface Bolt12OfferDecodeResponse {
+  offer_id: string;
+  signing_pubkey?: string | null;
+  description?: string | null;
+  issuer?: string | null;
+  amount_msat?: U64 | null;
+  absolute_expiry_unix_secs?: U64 | null;
+  chain_hashes: string[];
+  paths_count: number;
+  expects_quantity: boolean;
+}
+
+export interface Bolt12OfferSendRequest {
+  offer: string;
+  amount_msat?: U64 | null;
+  quantity?: U64 | null;
+  payer_note?: string | null;
+}
+
+export interface Bolt12RefundInitiateRequest {
+  amount_msat: U64;
+  expiry_secs: number;
+  quantity?: U64 | null;
+  payer_note?: string | null;
+}
+
+export interface Bolt12RefundInitiateResponse {
+  refund: string; // bech32 lnr...
+  payment_id: string;
+}
+
+export interface Bolt12RefundDecodeRequest {
+  refund: string;
+}
+
+export interface Bolt12RefundDecodeResponse {
+  description: string;
+  issuer?: string | null;
+  amount_msat: U64;
+  absolute_expiry_unix_secs?: U64 | null;
+  chain_hash: string;
+  payer_signing_pubkey: string;
+  payer_note?: string | null;
+  quantity?: U64 | null;
+  paths_count: number;
+}
+
+export interface Bolt12RefundRequestPaymentRequest {
+  refund: string;
+}
+
+export interface Bolt12RefundRequestPaymentResponse {
+  invoice: string;
+  invoice_hex: string;
+  payment_id: string;
+}
+
+// ---- Payments (unified) ----
+
+export interface PaymentWaitRequest {
+  timeout_secs?: number | null;
+}
+
+export interface PaymentWaitResponse {
+  ok: boolean;
+  payment: PaymentDetailsDto;
+  checks?: HealthCheckDto[];
+}
