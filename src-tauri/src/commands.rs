@@ -1930,7 +1930,7 @@ pub async fn bootstrap_local_node(
 	.is_ok();
 
 	let image = std::env::var("RGB_LDK_NODE_IMAGE")
-		.unwrap_or_else(|_| "bitlightlabs/rln-ldk-node:main".to_string());
+		.unwrap_or_else(|_| "bitlightlabs/rln-ldk-node:dev-20260313".to_string());
 
 	if exists {
 		let _ = run_command_status(
