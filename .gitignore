@@ -10,6 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+.env
 *.local
 
 # Editor directories and files
@@ -28,3 +29,4 @@ e2e-tests/artifacts
 *-2.sh
 *-2.docker-compose.yml
 vendor
+!.env.example

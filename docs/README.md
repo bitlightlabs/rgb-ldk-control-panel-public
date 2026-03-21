@@ -1,8 +1,8 @@
 # rgb-ldk-control-panel docs
 
-This directory contains project overview notes for the desktop control panel.
+This directory contains project, release, and platform-specific notes for the desktop control panel.
 
-## What we are building
+## What this app is
 
 `rgb-ldk-control-panel` is a Tauri desktop app that acts as a control plane for one host machine:
 
@@ -37,5 +37,9 @@ This directory contains project overview notes for the desktop control panel.
 
 ## Documents
 
+- [Project README](../README.md) — repository overview and development entry points
+- [Contributing Guide](../CONTRIBUTING.md) — development setup, testing, and PR expectations
+- [Security Policy](../SECURITY.md) — private vulnerability reporting guidance
+- [Support Guide](../SUPPORT.md) — where to send support questions and issue reports
 - [Release Workflow](../.github/RELEASE.md) — trigger conditions, CI jobs, and how to publish a release
-- (RFCs removed; see repo root for local Docker Compose setup.)
+- [macOS signing](./macos-signing.md) — local signing prerequisites and CI secrets used by the current workflow

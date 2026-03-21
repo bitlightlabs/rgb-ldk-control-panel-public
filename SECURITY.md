@@ -2,12 +2,21 @@
 
 If you believe you have found a security vulnerability, please report it privately.
 
-Preferred reporting method:
+## Preferred reporting path
 
-- GitHub Security Advisories (if enabled for this repository).
+- Use GitHub Security Advisories for this repository when available.
 
-If Security Advisories are not available:
+## If Security Advisories are unavailable
 
-- Open an issue with minimal details and ask maintainers for a private contact channel.
+- Do not open a public issue with exploit details.
+- Contact the maintainers privately through GitHub and ask for a non-public reporting channel.
+- Wait for acknowledgement before sharing details more broadly.
 
-Please do not include secrets (tokens, passphrases, seed material) in issues or logs.
+## What to include
+
+- Affected component or workflow
+- Reproduction steps
+- Impact assessment
+- Any suggested mitigation or workaround
+
+Please do not include secrets, tokens, passphrases, private keys, or seed material in issues, advisories, or logs.

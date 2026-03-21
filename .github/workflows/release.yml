@@ -1,9 +1,12 @@
-name: release on tag
+name: release
 
 on:
   push:
+    branches:
+      - main # trigger private release on pushes to main, but also allow non-main pushes for testing
     tags:
-      - 'v*'
+      - 'v*' # trigger public release on tag pushes, but also allow non-tag pushes for testing
+  pull_request: # trigger on PRs to main for testing, but allow non-main PRs for testing as well
 
 permissions:
   contents: write
@@ -98,10 +101,10 @@ jobs:
             src-tauri/target/release/bundle/*/*.msi
             src-tauri/target/release/bundle/*/*.exe
 
-  release:
-    name: "Release on tag"
+  release-private:
+    name: "Private Release on Main Branch"
     needs: build
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'branch' && github.ref_name == 'main'
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -143,6 +146,144 @@ jobs:
           echo "Generated checksum.txt:"
           cat release-assets/checksum.txt
 
+      - name: Base tag name on package.json version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Generate New Tag Name based on Version and Date
+        # This step generates a new tag name based on the current package.json version and the current data. The tag name is in the format "v{version}-{date}", e.g., "v1.0.0-2024-06-01".
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          TAG_NAME="v${VERSION}-${DATE}"
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          echo "Generated tag name: $TAG_NAME"
+
+      - name: Generate release body from template
+        run: |
+          CHECKSUMS="$(cat release-assets/checksum.txt 2>/dev/null || echo 'No checksums available')"
+
+          # Build asset table rows
+          ASSET_TABLE=""
+          for file in release-assets/*; do
+            [ -f "$file" ] || continue
+            filename="$(basename "$file")"
+            case "$filename" in
+              *.dmg)       platform="macOS" ;;
+              *.deb)       platform="Linux (deb)" ;;
+              *.rpm)       platform="Linux (rpm)" ;;
+              *.AppImage)  platform="Linux (AppImage)" ;;
+              *.msi)       platform="Windows (msi)" ;;
+              *.exe)       platform="Windows (exe)" ;;
+              checksum.txt) continue ;;
+              *)           platform="Other" ;;
+            esac
+            ASSET_TABLE="${ASSET_TABLE}| ${platform} | \`${filename}\` |
+          "
+          done
+
+          # Generate release body using heredoc
+          cat > release-body.md <<RELEASE_EOF
+          ## RGB Lightning Node ${TAG_NAME}
+
+          ### 📦 Downloads
+
+          | Platform | File |
+          |----------|------|
+          ${ASSET_TABLE}
+
+          ### 🔐 Checksums (SHA-256)
+
+          Verify downloaded files against the checksums below:
+
+          \`\`\`
+          ${CHECKSUMS}
+          \`\`\`
+          RELEASE_EOF
+
+          # Remove leading whitespace introduced by YAML indentation (10 spaces)
+          sed -i 's/^          //' release-body.md
+
+      - name: Display Generated Release Body
+        run: |
+          echo "--- Generated Release Body ---"
+          cat release-body.md
+
+      - name: Create Release (Private)
+        uses: softprops/action-gh-release@v1
+        id: create_public_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # --- Private Release ---
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+          # ----------------------
+          tag_name: ${{ env.TAG_NAME }}
+          name: RGB Lightning Node ${{ env.TAG_NAME }}
+          body_path: release-body.md
+          draft: false
+          prerelease: true
+          files: |
+            release-assets/*
+
+      - name: Output Public Release URL
+        run: |
+          echo "Private release created at URL: ${{ steps.create_public_release.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+
+  release-public:
+    name: "Private/Public Release (Draft) on Tag"
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binaries-*
+          path: raw_artifacts
+          merge-multiple: true
+
+      - name: Create checksum files
+        # This step moves the downloaded files to a release-assets directory and creates a checksum.txt file with the SHA256 checksums of the files for later use in the release description.
+        run: |
+          # list the contents of the raw_artifacts directory for debugging
+          echo "Contents of raw_artifacts:"
+          ls -l raw_artifacts
+          
+          mkdir -p release-assets
+          # find all files start with RGB in the raw_artifacts directory and move them to release-assets, while generating checksums
+          find raw_artifacts -type f -name 'RGB*' | while read -r file; do
+            echo "Processing file: $file"
+            if [ -f "$file" ]; then
+              # Extract the filename from the path and move it to release-assets, replacing spaces with underscores
+              filename=$(basename "$file" | tr ' ' _)
+              echo "Moving $file to release-assets/$filename"
+              mv "$file" "release-assets/$filename"
+            else
+              echo "Warning: File $file not found, skipping."
+            fi
+          done
+          
+          # Generate checksums without path prefix
+          cd release-assets
+          sha256sum * > checksum.txt
+          cd ..
+          
+          echo "Generated checksum.txt:"
+          cat release-assets/checksum.txt
+
+      - name: Base tag name on package.json version
+        id: get_version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      # only if it's a tag push, otherwise use the current date for uniqueness
       - name: Reuse Tag Name from Git Ref
         if: github.ref_type == 'tag'
         run: |
@@ -200,10 +341,42 @@ jobs:
           echo "--- Generated Release Body ---"
           cat release-body.md
 
-      - name: Create Release
+      - name: Create Release (Private)
         uses: softprops/action-gh-release@v1
-        id: create_public_release
+        id: create_private_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # --- Private Release ---
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+          # ----------------------
+          tag_name: ${{ env.TAG_NAME }}
+          name: RGB Lightning Node ${{ env.TAG_NAME }}
+          body_path: release-body.md
+          draft: false
+          prerelease: false
+          files: |
+            release-assets/*
+
+      - name: Output Private Release URL
+        run: |
+          echo "Private release created at URL: ${{ steps.create_private_release.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create Release (Public/Draft)
+        uses: softprops/action-gh-release@v1
+        # Only create the public release if a separate public release repository is configured.
+        if: vars.RELEASE_REPO != '' && vars.RELEASE_REPO != github.repository
+        id: create_public_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+
+        with:
+          # --- Public Release ---
+          repository: ${{ vars.RELEASE_REPO }}
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+          # ----------------------
           tag_name: ${{ env.TAG_NAME }}
           name: RGB Lightning Node ${{ env.TAG_NAME }}
           body_path: release-body.md
@@ -214,4 +387,5 @@ jobs:
 
       - name: Output Public Release URL
         run: |
-          echo "Release created at URL: ${{ steps.create_public_release.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Public release created at URL: ${{ steps.create_public_release.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Please review the release and publish it manually when ready." >> "$GITHUB_STEP_SUMMARY"
