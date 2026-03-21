@@ -82,6 +82,22 @@ impl EventsManager {
 					break;
 				}
 
+				let wait_started = now_ms();
+				manager
+					.push_event(StoredEvent {
+						node_id: node_id_for_task.clone(),
+						received_at_ms: wait_started,
+						event: EventDto::NodeHttp {
+							action: "events.wait_next".to_string(),
+							phase: "request".to_string(),
+							duration_ms: None,
+							request: None,
+							response: None,
+							error: None,
+						},
+					})
+					.await;
+
 				let wait_fut = rgbldkd_http::events_wait_next(&http, &ctx);
 				let ev = tokio::select! {
 					_ = stop_rx.changed() => {
@@ -92,10 +108,38 @@ impl EventsManager {
 
 				let ev = match ev {
 					Ok(v) => {
+						manager
+							.push_event(StoredEvent {
+								node_id: node_id_for_task.clone(),
+								received_at_ms: now_ms(),
+								event: EventDto::NodeHttp {
+									action: "events.wait_next".to_string(),
+									phase: "response".to_string(),
+									duration_ms: Some(now_ms().saturating_sub(wait_started)),
+									request: None,
+									response: None,
+									error: None,
+								},
+							})
+							.await;
 						backoff_ms = 250;
 						v
 					}
 					Err(e) => {
+						manager
+							.push_event(StoredEvent {
+								node_id: node_id_for_task.clone(),
+								received_at_ms: now_ms(),
+								event: EventDto::NodeHttp {
+									action: "events.wait_next".to_string(),
+									phase: "error".to_string(),
+									duration_ms: Some(now_ms().saturating_sub(wait_started)),
+									request: None,
+									response: None,
+									error: serde_json::to_value(&e).ok(),
+								},
+							})
+							.await;
 						manager
 							.set_status_error(&node_id_for_task, Some(e.clone()))
 							.await;
@@ -155,9 +199,38 @@ impl EventsManager {
 				manager.push_event(stored.clone()).await;
 				let _ = app.emit("rgbldk:node_event", stored);
 
+				let handled_started = now_ms();
+				manager
+					.push_event(StoredEvent {
+						node_id: node_id_for_task.clone(),
+						received_at_ms: handled_started,
+						event: EventDto::NodeHttp {
+							action: "events.handled".to_string(),
+							phase: "request".to_string(),
+							duration_ms: None,
+							request: None,
+							response: None,
+							error: None,
+						},
+					})
+					.await;
+
 				match rgbldkd_http::events_handled(&http, &ctx).await {
-					Ok(()) => {}
 					Err(e) => {
+						manager
+							.push_event(StoredEvent {
+								node_id: node_id_for_task.clone(),
+								received_at_ms: now_ms(),
+								event: EventDto::NodeHttp {
+									action: "events.handled".to_string(),
+									phase: "error".to_string(),
+									duration_ms: Some(now_ms().saturating_sub(handled_started)),
+									request: None,
+									response: None,
+									error: serde_json::to_value(&e).ok(),
+								},
+							})
+							.await;
 						manager
 							.set_status_error(&node_id_for_task, Some(e.clone()))
 							.await;
@@ -197,6 +270,22 @@ impl EventsManager {
 						}
 						tokio::time::sleep(std::time::Duration::from_millis(backoff_ms)).await;
 						backoff_ms = (backoff_ms * 2).min(15_000);
+					}
+					Ok(()) => {
+						manager
+							.push_event(StoredEvent {
+								node_id: node_id_for_task.clone(),
+								received_at_ms: now_ms(),
+								event: EventDto::NodeHttp {
+									action: "events.handled".to_string(),
+									phase: "response".to_string(),
+									duration_ms: Some(now_ms().saturating_sub(handled_started)),
+									request: None,
+									response: None,
+									error: None,
+								},
+							})
+							.await;
 					}
 				}
 			}
@@ -241,6 +330,20 @@ impl EventsManager {
 	pub async fn clear(&self, node_id: &str) {
 		let mut buffers = self.buffers.lock().await;
 		buffers.remove(node_id);
+	}
+
+	pub async fn push_external_event(&self, node_id: &str, event: EventDto) {
+		let received_at_ms = SystemTime::now()
+			.duration_since(UNIX_EPOCH)
+			.map(|d| d.as_millis() as u64)
+			.unwrap_or(0);
+		let stored = StoredEvent {
+			node_id: node_id.to_string(),
+			received_at_ms,
+			event,
+		};
+		let manager = self.clone_for_task();
+		manager.push_event(stored).await;
 	}
 
 	pub async fn status(&self, node_id: &str) -> EventsStatus {

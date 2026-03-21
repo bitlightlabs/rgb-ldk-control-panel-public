@@ -14,17 +14,42 @@ use serde::Serialize;
 use tauri::AppHandle;
 use tauri::State;
 use std::collections::{HashMap, HashSet};
+use std::future::Future;
 use std::process::Command;
 use std::time::Duration;
 use std::path::{Path, PathBuf};
+use sha2::{Sha256, Digest};
+use hex;
 
 const DEFAULT_BOOTSTRAP_ISSUER_NAME: &str = "RGB20-Simplest-v0-rLosfg";
 const DEFAULT_BOOTSTRAP_CONTRACT_NAME: &str = "RGB";
 const DEFAULT_BOOTSTRAP_TICKER: &str = "RGB";
 const DEFAULT_BOOTSTRAP_ISSUED_SUPPLY: &str = "1000000";
+const MAX_EVENT_RESPONSE_CHARS: usize = 2048;
 const DEFAULT_BOOTSTRAP_ISSUER_RAW: &[u8] =
 	include_bytes!("../../e2e-tests/fixtures/RGB20-Simplest-v0-rLosfg.issuer");
 const BUILTIN_DOCKER_COMPOSE_YML: &str = include_str!("../../docker-compose.yml");
+
+fn compact_response_value(v: serde_json::Value) -> serde_json::Value {
+	let serialized = match serde_json::to_string(&v) {
+		Ok(s) => s,
+		Err(_) => {
+			return serde_json::json!({
+				"truncated": true,
+				"reason": "serialize_failed",
+			});
+		}
+	};
+	if serialized.len() <= MAX_EVENT_RESPONSE_CHARS {
+		return v;
+	}
+	let preview = serialized.chars().take(MAX_EVENT_RESPONSE_CHARS).collect::<String>();
+	serde_json::json!({
+		"truncated": true,
+		"size_chars": serialized.len(),
+		"preview": preview,
+	})
+}
 
 fn normalize_base_url(field: &str, raw: &str) -> Result<String, CommandError> {
 	let trimmed = raw.trim();
@@ -89,6 +114,66 @@ fn normalize_optional_base_url(
 	Ok(Some(normalize_base_url(field, &trimmed)?))
 }
 
+fn build_consignment_template(base: &str) -> String {
+	let trimmed = base.trim();
+	if trimmed.contains("{txid}") {
+		return trimmed.to_string();
+	}
+	if let Some(path) = trimmed.strip_prefix("file://") {
+		let clean = path.trim_end_matches('/');
+		return format!("file://{clean}/{{txid}}");
+	}
+	let clean = trimmed.trim_end_matches('/');
+	format!("{clean}/{{txid}}?format=zip")
+}
+
+fn extract_host(input: Option<&str>) -> Option<String> {
+	let mut value = input?.trim();
+	if value.is_empty() {
+		return None;
+	}
+	if let Some((_, rest)) = value.split_once("://") {
+		value = rest;
+	}
+	let host_port = value.split('/').next()?.trim();
+	if host_port.is_empty() || host_port.starts_with('[') {
+		return None;
+	}
+	let host = host_port.split(':').next()?.trim();
+	if host.is_empty() {
+		return None;
+	}
+	Some(host.to_string())
+}
+
+fn derive_consignment_template_from_main_api(
+	main_api_base_url: &str,
+	p2p_listen: Option<&str>,
+) -> Option<String> {
+	let url = reqwest::Url::parse(main_api_base_url).ok()?;
+	let mut host = url.host_str()?.to_string();
+	let mut port = url.port();
+
+	if host.eq_ignore_ascii_case("localhost") || host == "127.0.0.1" {
+		if let Some(inferred_host) = extract_host(p2p_listen) {
+			host = inferred_host.clone();
+			// Local bootstrap compose nodes expose main API on 8500 inside docker network.
+			if inferred_host.starts_with("rgb-node-") {
+				port = Some(8500);
+			}
+		}
+	}
+
+	let mut origin = format!("{}://{}", url.scheme(), host);
+	if let Some(p) = port {
+		origin.push(':');
+		origin.push_str(&p.to_string());
+	}
+	Some(format!(
+		"{origin}/api/v1/rgb/consignments/{{txid}}?format=zip"
+	))
+}
+
 fn normalize_context(mut ctx: NodeContext) -> Result<NodeContext, CommandError> {
 	ctx.node_id = ctx.node_id.trim().to_string();
 	if ctx.node_id.is_empty() {
@@ -111,6 +196,14 @@ fn normalize_context(mut ctx: NodeContext) -> Result<NodeContext, CommandError> 
 	ctx.main_api_base_url = normalize_base_url("main_api_base_url", &ctx.main_api_base_url)?;
 	ctx.control_api_base_url =
 		normalize_optional_base_url("control_api_base_url", ctx.control_api_base_url)?;
+	ctx.rgb_consignment_base_url = match ctx.rgb_consignment_base_url.take() {
+		Some(raw) if raw.trim().is_empty() => None,
+		Some(raw) => Some(build_consignment_template(&raw)),
+		None => derive_consignment_template_from_main_api(
+			&ctx.main_api_base_url,
+			ctx.p2p_listen.as_deref(),
+		),
+	};
 
 	if !ctx.allow_non_loopback {
 		let main = reqwest::Url::parse(&ctx.main_api_base_url).map_err(|_| CommandError::InvalidContext {
@@ -204,6 +297,94 @@ async fn get_ctx(store: &ContextStore, node_id: &str) -> Result<NodeContext, Com
 	})
 }
 
+async fn push_http_event(
+	state: &State<'_, AppState>,
+	node_id: &str,
+	action: &str,
+	phase: &str,
+	duration_ms: Option<u64>,
+	request: Option<serde_json::Value>,
+	response: Option<serde_json::Value>,
+	error: Option<serde_json::Value>,
+) {
+	state
+		.events
+		.push_external_event(
+			node_id,
+			rgbldkd_http::EventDto::NodeHttp {
+				action: action.to_string(),
+				phase: phase.to_string(),
+				duration_ms,
+				request,
+				response,
+				error,
+			},
+		)
+		.await;
+}
+
+async fn traced_node_call<T, Fut>(
+	state: &State<'_, AppState>,
+	node_id: &str,
+	action: &str,
+	request: Option<serde_json::Value>,
+	fut: Fut,
+) -> Result<T, CommandError>
+where
+	T: Serialize,
+	Fut: Future<Output = Result<T, CommandError>>,
+{
+	let include_response = *state.http_event_debug_responses.read().await;
+	push_http_event(
+		state,
+		node_id,
+		action,
+		"request",
+		None,
+		request.clone(),
+		None,
+		None,
+	)
+	.await;
+	let started = now_ms();
+	let out = fut.await;
+	let elapsed = now_ms().saturating_sub(started);
+	match &out {
+		Ok(v) => {
+			let response = if include_response {
+				serde_json::to_value(v).ok().map(compact_response_value)
+			} else {
+				None
+			};
+			push_http_event(
+				state,
+				node_id,
+				action,
+				"response",
+				Some(elapsed),
+				None,
+				response,
+				None,
+			)
+			.await;
+		}
+		Err(err) => {
+			push_http_event(
+				state,
+				node_id,
+				action,
+				"error",
+				Some(elapsed),
+				None,
+				None,
+				serde_json::to_value(err).ok(),
+			)
+			.await;
+		}
+	}
+	out
+}
+
 #[tauri::command]
 pub async fn events_start_all(
 	app: AppHandle,
@@ -269,6 +450,20 @@ pub async fn events_status_all(
 	state: State<'_, AppState>,
 ) -> Result<std::collections::HashMap<String, EventsStatus>, CommandError> {
 	Ok(state.events.status_all().await)
+}
+
+#[tauri::command]
+pub async fn events_http_debug_get(state: State<'_, AppState>) -> Result<bool, CommandError> {
+	Ok(*state.http_event_debug_responses.read().await)
+}
+
+#[tauri::command]
+pub async fn events_http_debug_set(
+	state: State<'_, AppState>,
+	enabled: bool,
+) -> Result<(), CommandError> {
+	*state.http_event_debug_responses.write().await = enabled;
+	Ok(())
 }
 
 #[tauri::command]
@@ -792,59 +987,6 @@ fn bitcoin_utxo_for_sent_address(txid: &str, address: &str) -> Result<String, Co
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct RegtestBlockHeightResponse {
-	pub height: u64,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RegtestMineResponse {
-	pub mined_blocks: u32,
-	pub address: String,
-	pub height: u64,
-}
-
-#[tauri::command]
-pub async fn regtest_block_height() -> Result<RegtestBlockHeightResponse, CommandError> {
-	let out = bitcoin_cli(&["getblockcount"])?;
-	let height = out.parse::<u64>().map_err(|_| CommandError::ExternalCommandFailed {
-		command: "bitcoin-cli getblockcount".to_string(),
-		message: Some(format!("unexpected getblockcount response: {out}")),
-		hint: None,
-	})?;
-	Ok(RegtestBlockHeightResponse { height })
-}
-
-#[tauri::command]
-pub async fn regtest_mine(blocks: Option<u32>) -> Result<RegtestMineResponse, CommandError> {
-	let n = blocks.unwrap_or(1);
-	if n == 0 {
-		return Err(CommandError::BadRequest {
-			service: "control-panel",
-			message: Some("blocks must be >= 1".to_string()),
-			hint: Some("Use blocks=1 for a single block.".to_string()),
-		});
-	}
-
-	let address = bitcoin_cli(&["getnewaddress"])?;
-	let blocks_str = n.to_string();
-	bitcoin_cli(&["generatetoaddress", &blocks_str, &address])?;
-	let height_out = bitcoin_cli(&["getblockcount"])?;
-	let height = height_out
-		.parse::<u64>()
-		.map_err(|_| CommandError::ExternalCommandFailed {
-			command: "bitcoin-cli getblockcount".to_string(),
-			message: Some(format!("unexpected getblockcount response: {height_out}")),
-			hint: None,
-		})?;
-
-	Ok(RegtestMineResponse {
-		mined_blocks: n,
-		address,
-		height,
-	})
-}
-
-#[derive(Debug, Clone, Serialize)]
 pub struct DockerEnvironmentResponse {
 	pub installed: bool,
 	pub daemon_running: bool,
@@ -1305,7 +1447,9 @@ pub async fn bootstrap_local_environment(
       "control_api_token_file_path": "{}",
       "data_dir": "{}",
       "p2p_listen": "rgb-node-alice:9735",
-      "allow_non_loopback": false
+		"rgb_consignment_base_url": "http://rgb-node-alice:8500/api/v1/rgb/consignments/{{txid}}?format=zip",
+      "allow_non_loopback": false,
+			"network": "regtest"
     }},
     {{
       "node_id": "bob",
@@ -1316,7 +1460,9 @@ pub async fn bootstrap_local_environment(
       "control_api_token_file_path": "{}",
       "data_dir": "{}",
       "p2p_listen": "rgb-node-bob:9735",
-      "allow_non_loopback": false
+		"rgb_consignment_base_url": "http://rgb-node-bob:8500/api/v1/rgb/consignments/{{txid}}?format=zip",
+      "allow_non_loopback": false,
+			"network": "regtest"
     }}
   ]
 }}"#,
@@ -1348,8 +1494,11 @@ pub async fn bootstrap_local_environment(
 		),
 		data_dir: Some(node1_data.to_string_lossy().to_string()),
 		p2p_listen: Some("rgb-node-alice:9735".to_string()),
-		rgb_consignment_base_url: None,
+		rgb_consignment_base_url: Some(
+			"http://rgb-node-alice:8500/api/v1/rgb/consignments/{txid}?format=zip".to_string(),
+		),
 		allow_non_loopback: false,
+		network: "regtest".to_string()
 	};
 	let bob = NodeContext {
 		node_id: "bob".to_string(),
@@ -1365,8 +1514,11 @@ pub async fn bootstrap_local_environment(
 		),
 		data_dir: Some(node2_data.to_string_lossy().to_string()),
 		p2p_listen: Some("rgb-node-bob:9735".to_string()),
-		rgb_consignment_base_url: None,
+		rgb_consignment_base_url: Some(
+			"http://rgb-node-bob:8500/api/v1/rgb/consignments/{txid}?format=zip".to_string(),
+		),
 		allow_non_loopback: false,
+		network: "regtest".to_string()
 	};
 	state.store.upsert(alex.clone()).await?;
 	state.store.upsert(bob.clone()).await?;
@@ -1612,6 +1764,7 @@ pub async fn bootstrap_local_environment(
 	})
 }
 
+
 #[tauri::command]
 pub async fn bootstrap_local_node(
 	state: State<'_, AppState>,
@@ -1620,6 +1773,8 @@ pub async fn bootstrap_local_node(
 	main_api_port: Option<u16>,
 	control_api_port: Option<u16>,
 	p2p_port: Option<u16>,
+	network: Option<String>,
+	esplora_url: Option<String>,
 ) -> Result<BootstrapLocalNodeResponse, CommandError> {
 	let env = docker_environment().await?;
 	if !env.installed {
@@ -1636,6 +1791,32 @@ pub async fn bootstrap_local_node(
 			hint: Some("Start Docker Desktop/daemon and retry.".to_string()),
 		});
 	}
+
+	// Resolve network and esplora URL.
+	// Frontend passes the network name (mainnet/testnet/testnet4/regtest) and the
+	// corresponding esplora API URL it read from VITE_* env vars.
+	let resolved_network = network
+		.as_deref()
+		.map(str::trim)
+		.filter(|s| !s.is_empty())
+		.unwrap_or("regtest")
+		.to_string();
+	// Validate network value to prevent command injection.
+	let resolved_network = match resolved_network.as_str() {
+		"mainnet" | "testnet" | "testnet4" | "regtest" => resolved_network,
+		other => return Err(CommandError::BadRequest {
+			service: "control-panel",
+			message: Some(format!("unsupported network: {other}")),
+			hint: Some("Allowed values: mainnet, testnet, testnet4, regtest.".to_string()),
+		}),
+	};
+	let resolved_esplora_url = esplora_url
+		.as_deref()
+		.map(str::trim)
+		.filter(|s| !s.is_empty())
+		.map(ToOwned::to_owned)
+		.or_else(|| std::env::var("ESPLORA_URL").ok())
+		.unwrap_or_else(|| "https://btc-regtest-cat.bitlightdev.info".to_string());
 
 	let contexts = state.store.list().await;
 	let used_main_ports: HashSet<u16> = contexts
@@ -1700,7 +1881,11 @@ pub async fn bootstrap_local_node(
 		});
 	}
 
-	let default_name = format!("Local Node {resolved_main_port}");
+	// Each node gets a random suffix so multiple nodes can coexist without
+	// colliding on data directories or container names.
+	let suffix = random_suffix();
+
+	let default_name = format!("Node {suffix}");
 	let display_name = node_name
 		.as_deref()
 		.map(str::trim)
@@ -1708,7 +1893,7 @@ pub async fn bootstrap_local_node(
 		.unwrap_or(&default_name)
 		.to_string();
 
-	let default_container = format!("rgb-node-local-{resolved_main_port}-{}", random_suffix());
+	let default_container = format!("rgb-node-{resolved_network}-{resolved_main_port}-{suffix}");
 	let container_name = container_name
 		.as_deref()
 		.map(str::trim)
@@ -1724,12 +1909,15 @@ pub async fn bootstrap_local_node(
 		});
 	}
 
-	let data_root = app_dirs::data_dir()?.join("local-nodes").join(&slug);
+	// Include the random suffix in the data path so each node has its own
+	// isolated directory even when the same node_name is used multiple times.
+	let dir_key = format!("{slug}-{suffix}");
+	let data_root = app_dirs::data_dir()?.join("local-nodes").join(&dir_key);
 	let secrets_dir = data_root.join("secrets");
 	let http_token = secrets_dir.join("http.token");
 	let control_http_token = secrets_dir.join("control-http.token");
 	let keystore_passphrase = secrets_dir.join("keystore.passphrase");
-	let data_volume_name = format!("rgbldk_node_data_{}", slug.replace('-', "_"));
+	let data_volume_name = format!("rgbldk_node_data_{}", dir_key.replace('-', "_"));
 
 	ensure_secret_file(&http_token, 16)?;
 	ensure_secret_file(&control_http_token, 16)?;
@@ -1743,8 +1931,6 @@ pub async fn bootstrap_local_node(
 
 	let image = std::env::var("RGB_LDK_NODE_IMAGE")
 		.unwrap_or_else(|_| "bitlightlabs/rln-ldk-node:main".to_string());
-	let esplora_url = std::env::var("ESPLORA_URL")
-		.unwrap_or_else(|_| "https://bitcoin-regtest-api.bitlightdev.info".to_string());
 
 	if exists {
 		let _ = run_command_status(
@@ -1766,9 +1952,7 @@ pub async fn bootstrap_local_node(
 			"-p".to_string(),
 			format!("127.0.0.1:{resolved_control_port}:8550"),
 			"-p".to_string(),
-			format!(
-				"127.0.0.1:{resolved_p2p_port}:9735"
-			),
+			format!("127.0.0.1:{resolved_p2p_port}:9735"),
 			"-v".to_string(),
 			format!("{data_volume_name}:/home/rgbldk/.ldk-node"),
 			"--mount".to_string(),
@@ -1807,9 +1991,9 @@ pub async fn bootstrap_local_node(
 			"/run/secrets/rgbldk_keystore_passphrase".to_string(),
 			"--auto-init-keystore".to_string(),
 			"--network".to_string(),
-			"regtest".to_string(),
+			resolved_network.clone(),
 			"--esplora-url".to_string(),
-			esplora_url,
+			resolved_esplora_url,
 			"--ldk-listen".to_string(),
 			"0.0.0.0:9735".to_string(),
 			"--node-alias".to_string(),
@@ -1828,9 +2012,12 @@ pub async fn bootstrap_local_node(
 		})?;
 	}
 
-	let node_id = format!("node-local-{resolved_main_port}-{}", random_suffix());
+	let node_id = format!("node-{resolved_network}-{resolved_main_port}-{suffix}");
 	let main_api_base_url = format!("http://127.0.0.1:{resolved_main_port}/");
 	let control_api_base_url = format!("http://127.0.0.1:{resolved_control_port}/");
+	let p2p_listen = format!("host.docker.internal:{resolved_p2p_port}");
+	let rgb_consignment_base_url =
+		derive_consignment_template_from_main_api(&main_api_base_url, Some(&p2p_listen));
 
 	let context = NodeContext {
 		node_id: node_id.clone(),
@@ -1840,9 +2027,10 @@ pub async fn bootstrap_local_node(
 		control_api_base_url: Some(control_api_base_url.clone()),
 		control_api_token_file_path: Some(control_http_token.display().to_string()),
 		data_dir: Some(format!("docker-volume:{data_volume_name}")),
-		p2p_listen: Some(format!("host.docker.internal:{resolved_p2p_port}")),
-		rgb_consignment_base_url: None,
+		p2p_listen: Some(p2p_listen),
+		rgb_consignment_base_url,
 		allow_non_loopback: false,
+		network: resolved_network,
 	};
 
 	let mut reachable = false;
@@ -1932,6 +2120,7 @@ pub async fn node_main_http(
 	let url = api_base.join(rel).map_err(|_| CommandError::InvalidBaseUrl {
 		url: ctx.main_api_base_url.clone(),
 	})?;
+	let method_name = method.as_str().to_string();
 
 	let mut req = state.http.request(method, url);
 
@@ -1959,10 +2148,60 @@ pub async fn node_main_http(
 		req = req.body(body);
 	}
 
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	push_http_event(
+		&state,
+		&node_id,
+		"main.http_proxy",
+		"request",
+		None,
+		Some(serde_json::json!({
+			"method": method_name,
+			"path": path,
+		})),
+		None,
+		None,
+	)
+	.await;
+
+	let started = now_ms();
+	let resp = match req.send().await {
+		Ok(v) => v,
+		Err(_) => {
+			let err = CommandError::HttpRequestFailed;
+			push_http_event(
+				&state,
+				&node_id,
+				"main.http_proxy",
+				"error",
+				Some(now_ms().saturating_sub(started)),
+				None,
+				None,
+				serde_json::to_value(&err).ok(),
+			)
+			.await;
+			return Err(err);
+		}
+	};
 	let status = resp.status().as_u16();
 	let ok = resp.status().is_success();
 	let body = resp.text().await.unwrap_or_default();
+
+	push_http_event(
+		&state,
+		&node_id,
+		"main.http_proxy",
+		"response",
+		Some(now_ms().saturating_sub(started)),
+		None,
+		Some(compact_response_value(serde_json::json!({
+			"status": status,
+			"ok": ok,
+			"body": body,
+		}))),
+		None,
+	)
+	.await;
+
 	Ok(NodeHttpProxyResponse { status, ok, body })
 }
 
@@ -1972,7 +2211,14 @@ pub async fn node_main_status(
 	node_id: String,
 ) -> Result<MainStatusResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_status(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.status",
+		None,
+		rgbldkd_http::main_status(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -1981,7 +2227,14 @@ pub async fn node_main_version(
 	node_id: String,
 ) -> Result<rgbldkd_http::VersionResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_version(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.version",
+		None,
+		rgbldkd_http::main_version(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -1990,7 +2243,14 @@ pub async fn node_main_node_id(
 	node_id: String,
 ) -> Result<rgbldkd_http::NodeIdResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_node_id(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.node_id",
+		None,
+		rgbldkd_http::main_node_id(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -1999,7 +2259,14 @@ pub async fn node_main_listening_addresses(
 	node_id: String,
 ) -> Result<rgbldkd_http::ListeningAddressesResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_listening_addresses(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.listening_addresses",
+		None,
+		rgbldkd_http::main_listening_addresses(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2008,7 +2275,14 @@ pub async fn node_main_peers(
 	node_id: String,
 ) -> Result<Vec<rgbldkd_http::PeerDetailsDto>, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_peers(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.peers",
+		None,
+		rgbldkd_http::main_peers(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2018,7 +2292,15 @@ pub async fn node_main_peers_connect(
 	request: rgbldkd_http::PeerConnectRequest,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_peers_connect(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.peers_connect",
+		request_json,
+		rgbldkd_http::main_peers_connect(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2028,7 +2310,15 @@ pub async fn node_main_peers_disconnect(
 	request: rgbldkd_http::PeerDisconnectRequest,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_peers_disconnect(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.peers_disconnect",
+		request_json,
+		rgbldkd_http::main_peers_disconnect(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2037,7 +2327,14 @@ pub async fn node_main_balances(
 	node_id: String,
 ) -> Result<rgbldkd_http::BalancesDto, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_balances(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.balances",
+		None,
+		rgbldkd_http::main_balances(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2046,7 +2343,14 @@ pub async fn node_wallet_new_address(
 	node_id: String,
 ) -> Result<rgbldkd_http::WalletNewAddressResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::wallet_new_address(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"wallet.new_address",
+		None,
+		rgbldkd_http::wallet_new_address(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2055,7 +2359,14 @@ pub async fn node_wallet_sync(
 	node_id: String,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::wallet_sync(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"wallet.sync",
+		None,
+		rgbldkd_http::wallet_sync(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2064,7 +2375,14 @@ pub async fn node_rgb_sync(
 	node_id: String,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::rgb_sync(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.sync",
+		None,
+		rgbldkd_http::rgb_sync(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2073,7 +2391,14 @@ pub async fn node_rgb_contracts(
 	node_id: String,
 ) -> Result<rgbldkd_http::RgbContractsResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::rgb_contracts(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.contracts",
+		None,
+		rgbldkd_http::rgb_contracts(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2083,7 +2408,15 @@ pub async fn node_rgb_contract_issue(
 	request: rgbldkd_http::RgbContractsIssueRequest,
 ) -> Result<rgbldkd_http::RgbContractsIssueResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::rgb_contract_issue(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.contract_issue",
+		request_json,
+		rgbldkd_http::rgb_contract_issue(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2095,13 +2428,29 @@ pub async fn node_rgb_contract_export_bundle(
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
 	let fmt = format.unwrap_or_else(|| "raw".to_string());
-	let export = rgbldkd_http::rgb_contract_export(
-		&state.http,
-		&ctx,
-		rgbldkd_http::RgbContractsExportRequest { contract_id: contract_id.clone() },
+	let export = traced_node_call(
+		&state,
+		&node_id,
+		"rgb.contract_export",
+		Some(serde_json::json!({ "contract_id": contract_id })),
+		rgbldkd_http::rgb_contract_export(
+			&state.http,
+			&ctx,
+			rgbldkd_http::RgbContractsExportRequest { contract_id: contract_id.clone() },
+		),
 	)
 	.await?;
-	let bytes = rgbldkd_http::rgb_consignment_download(&state.http, &ctx, &export.consignment_key, &fmt).await?;
+	let bytes = traced_node_call(
+		&state,
+		&node_id,
+		"rgb.consignment_download",
+		Some(serde_json::json!({
+			"consignment_key": export.consignment_key,
+			"format": fmt,
+		})),
+		rgbldkd_http::rgb_consignment_download(&state.http, &ctx, &export.consignment_key, &fmt),
+	)
+	.await?;
 	let archive_base64 = general_purpose::STANDARD.encode(bytes);
 	Ok(rgbldkd_http::RgbContractsExportBundle {
 		contract_id: export.contract_id,
@@ -2128,7 +2477,18 @@ pub async fn node_rgb_contract_import_bundle(
 			message: Some("invalid base64 archive".to_string()),
 			hint: None,
 		})?;
-	rgbldkd_http::rgb_contract_import(&state.http, &ctx, &contract_id, &fmt, &bytes).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.contract_import",
+		Some(serde_json::json!({
+			"contract_id": contract_id,
+			"format": fmt,
+			"archive_size": bytes.len(),
+		})),
+		rgbldkd_http::rgb_contract_import(&state.http, &ctx, &contract_id, &fmt, &bytes),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2138,7 +2498,14 @@ pub async fn node_rgb_contract_balance(
 	contract_id: String,
 ) -> Result<rgbldkd_http::RgbContractBalanceResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::rgb_contract_balance(&state.http, &ctx, &contract_id).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.contract_balance",
+		Some(serde_json::json!({ "contract_id": contract_id })),
+		rgbldkd_http::rgb_contract_balance(&state.http, &ctx, &contract_id),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2148,7 +2515,15 @@ pub async fn node_rgb_ln_invoice_create(
 	request: rgbldkd_http::RgbLnInvoiceCreateRequest,
 ) -> Result<rgbldkd_http::RgbLnInvoiceResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::rgb_ln_invoice_create(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.ln_invoice_create",
+		request_json,
+		rgbldkd_http::rgb_ln_invoice_create(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2158,7 +2533,15 @@ pub async fn node_rgb_ln_pay(
 	request: rgbldkd_http::RgbLnPayRequest,
 ) -> Result<rgbldkd_http::SendResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::rgb_ln_pay(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.ln_pay",
+		request_json,
+		rgbldkd_http::rgb_ln_pay(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2167,7 +2550,14 @@ pub async fn node_main_channels(
 	node_id: String,
 ) -> Result<Vec<rgbldkd_http::ChannelDetailsExtendedDto>, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_channels(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.channels",
+		None,
+		rgbldkd_http::main_channels(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2177,7 +2567,15 @@ pub async fn node_channel_open(
 	request: rgbldkd_http::OpenChannelRequest,
 ) -> Result<rgbldkd_http::OpenChannelResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::channel_open(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.channel_open",
+		request_json,
+		rgbldkd_http::channel_open(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2187,7 +2585,15 @@ pub async fn node_bolt11_receive(
 	request: rgbldkd_http::Bolt11ReceiveRequest,
 ) -> Result<rgbldkd_http::Bolt11ReceiveResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt11_receive(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt11_receive",
+		request_json,
+		rgbldkd_http::bolt11_receive(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2197,7 +2603,15 @@ pub async fn node_bolt11_receive_var(
 	request: rgbldkd_http::Bolt11ReceiveVarRequest,
 ) -> Result<rgbldkd_http::Bolt11ReceiveResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt11_receive_var(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt11_receive_var",
+		request_json,
+		rgbldkd_http::bolt11_receive_var(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2207,7 +2621,15 @@ pub async fn node_bolt11_decode(
 	request: rgbldkd_http::Bolt11DecodeRequest,
 ) -> Result<rgbldkd_http::Bolt11DecodeResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt11_decode(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt11_decode",
+		request_json,
+		rgbldkd_http::bolt11_decode(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2217,7 +2639,15 @@ pub async fn node_bolt11_send(
 	request: rgbldkd_http::Bolt11SendRequest,
 ) -> Result<rgbldkd_http::SendResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt11_send(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt11_send",
+		request_json,
+		rgbldkd_http::bolt11_send(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2227,7 +2657,15 @@ pub async fn node_bolt11_send_using_amount(
 	request: rgbldkd_http::Bolt11SendUsingAmountRequest,
 ) -> Result<rgbldkd_http::SendResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt11_send_using_amount(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt11_send_using_amount",
+		request_json,
+		rgbldkd_http::bolt11_send_using_amount(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2237,7 +2675,15 @@ pub async fn node_bolt11_pay(
 	request: rgbldkd_http::Bolt11PayRequest,
 ) -> Result<rgbldkd_http::Bolt11PayResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt11_pay(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt11_pay",
+		request_json,
+		rgbldkd_http::bolt11_pay(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2247,7 +2693,15 @@ pub async fn node_bolt12_offer_receive(
 	request: rgbldkd_http::Bolt12OfferReceiveRequest,
 ) -> Result<rgbldkd_http::Bolt12OfferResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt12_offer_receive(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt12_offer_receive",
+		request_json,
+		rgbldkd_http::bolt12_offer_receive(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2257,7 +2711,15 @@ pub async fn node_bolt12_offer_receive_var(
 	request: rgbldkd_http::Bolt12OfferReceiveVarRequest,
 ) -> Result<rgbldkd_http::Bolt12OfferResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt12_offer_receive_var(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt12_offer_receive_var",
+		request_json,
+		rgbldkd_http::bolt12_offer_receive_var(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2267,7 +2729,15 @@ pub async fn node_bolt12_offer_decode(
 	request: rgbldkd_http::Bolt12OfferDecodeRequest,
 ) -> Result<rgbldkd_http::Bolt12OfferDecodeResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt12_offer_decode(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt12_offer_decode",
+		request_json,
+		rgbldkd_http::bolt12_offer_decode(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2277,7 +2747,15 @@ pub async fn node_bolt12_offer_send(
 	request: rgbldkd_http::Bolt12OfferSendRequest,
 ) -> Result<rgbldkd_http::SendResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt12_offer_send(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt12_offer_send",
+		request_json,
+		rgbldkd_http::bolt12_offer_send(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2287,7 +2765,15 @@ pub async fn node_bolt12_refund_initiate(
 	request: rgbldkd_http::Bolt12RefundInitiateRequest,
 ) -> Result<rgbldkd_http::Bolt12RefundInitiateResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt12_refund_initiate(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt12_refund_initiate",
+		request_json,
+		rgbldkd_http::bolt12_refund_initiate(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2297,7 +2783,15 @@ pub async fn node_bolt12_refund_decode(
 	request: rgbldkd_http::Bolt12RefundDecodeRequest,
 ) -> Result<rgbldkd_http::Bolt12RefundDecodeResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt12_refund_decode(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt12_refund_decode",
+		request_json,
+		rgbldkd_http::bolt12_refund_decode(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2307,7 +2801,15 @@ pub async fn node_bolt12_refund_request_payment(
 	request: rgbldkd_http::Bolt12RefundRequestPaymentRequest,
 ) -> Result<rgbldkd_http::Bolt12RefundRequestPaymentResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::bolt12_refund_request_payment(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.bolt12_refund_request_payment",
+		request_json,
+		rgbldkd_http::bolt12_refund_request_payment(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2316,7 +2818,14 @@ pub async fn node_payments_list(
 	node_id: String,
 ) -> Result<Vec<rgbldkd_http::PaymentDetailsDto>, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::payments_list(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.payments_list",
+		None,
+		rgbldkd_http::payments_list(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2326,7 +2835,14 @@ pub async fn node_payment_get(
 	payment_id: String,
 ) -> Result<rgbldkd_http::PaymentDetailsDto, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::payment_get(&state.http, &ctx, &payment_id).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.payment_get",
+		Some(serde_json::json!({ "payment_id": payment_id })),
+		rgbldkd_http::payment_get(&state.http, &ctx, &payment_id),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2337,7 +2853,14 @@ pub async fn node_payment_wait(
 	request: rgbldkd_http::PaymentWaitRequest,
 ) -> Result<rgbldkd_http::PaymentWaitResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::payment_wait(&state.http, &ctx, &payment_id, request).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.payment_wait",
+		Some(serde_json::json!({ "payment_id": payment_id, "request": request })),
+		rgbldkd_http::payment_wait(&state.http, &ctx, &payment_id, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2347,7 +2870,14 @@ pub async fn node_payment_abandon(
 	payment_id: String,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::payment_abandon(&state.http, &ctx, &payment_id).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.payment_abandon",
+		Some(serde_json::json!({ "payment_id": payment_id })),
+		rgbldkd_http::payment_abandon(&state.http, &ctx, &payment_id),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2357,7 +2887,15 @@ pub async fn node_channel_close(
 	request: rgbldkd_http::CloseChannelRequest,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::channel_close(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.channel_close",
+		request_json,
+		rgbldkd_http::channel_close(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2367,7 +2905,15 @@ pub async fn node_channel_force_close(
 	request: rgbldkd_http::CloseChannelRequest,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::channel_force_close(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.channel_force_close",
+		request_json,
+		rgbldkd_http::channel_force_close(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2376,7 +2922,14 @@ pub async fn node_main_healthz(
 	node_id: String,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_healthz(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.healthz",
+		None,
+		rgbldkd_http::main_healthz(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2385,7 +2938,14 @@ pub async fn node_main_readyz(
 	node_id: String,
 ) -> Result<OkResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::main_readyz(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"main.readyz",
+		None,
+		rgbldkd_http::main_readyz(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2394,7 +2954,14 @@ pub async fn node_control_status(
 	node_id: String,
 ) -> Result<ControlStatusDto, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::control_status(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"control.status",
+		None,
+		rgbldkd_http::control_status(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2403,7 +2970,14 @@ pub async fn node_unlock(
 	node_id: String,
 ) -> Result<ControlStatusDto, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::control_unlock(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"control.unlock",
+		None,
+		rgbldkd_http::control_unlock(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2412,15 +2986,23 @@ pub async fn node_lock(
 	node_id: String,
 ) -> Result<ControlStatusDto, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::control_lock(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"control.lock",
+		None,
+		rgbldkd_http::control_lock(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
 pub async fn plugin_wallet_asset_export(
     _state: State<'_, AppState>,
     contract_id: String,
+		url: String,
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
-    let bytes = wallet::plugin_wallet_asset_export(&contract_id).await?;
+    let bytes = wallet::plugin_wallet_asset_export(&contract_id, &url).await?;
 
     let archive_base64 = general_purpose::STANDARD.encode(bytes);
     Ok(rgbldkd_http::RgbContractsExportBundle {
@@ -2448,12 +3030,34 @@ pub async fn plugin_wallet_transfer_consignment_export(
 }
 
 #[tauri::command]
+pub async fn download_transfer_consignment_from_link(
+    _state: State<'_, AppState>,
+    link: String,
+) -> Result<rgbldkd_http::TransferConsignment, CommandError> {
+    let bytes = wallet::download_transfer_consignment_from_link(&link).await?;
+
+    let archive_base64 = general_purpose::STANDARD.encode(bytes);
+    Ok(rgbldkd_http::TransferConsignment {
+        archive_base64,
+        format: "raw".to_string(),
+    })
+}
+
+
+#[tauri::command]
 pub async fn node_rgb_utxos_summary(
     state: State<'_, AppState>,
     node_id: String,
 ) -> Result<rgbldkd_http::RgbUtxosSummaryResponse, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
-    rgbldkd_http::rgb_utxos_summary(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.utxos_summary",
+		None,
+		rgbldkd_http::rgb_utxos_summary(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2463,7 +3067,15 @@ pub async fn node_rgb_onchain_invoice_create(
     request: rgbldkd_http::RgbOnchainInvoiceCreateRequest,
 ) -> Result<rgbldkd_http::RgbOnchainInvoiceResponse, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
-    rgbldkd_http::rgb_onchain_invoice_create(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.onchain_invoice_create",
+		request_json,
+		rgbldkd_http::rgb_onchain_invoice_create(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2472,7 +3084,14 @@ pub async fn node_rgb_new_address(
     node_id: String,
 ) -> Result<rgbldkd_http::WalletNewAddressResponse, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
-    rgbldkd_http::rgb_new_address(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.new_address",
+		None,
+		rgbldkd_http::rgb_new_address(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2480,10 +3099,16 @@ pub async fn node_rgb_onchain_transfer_consignment_accept(
     state: State<'_, AppState>,
     node_id: String,
     format: Option<String>,
+		invoice: String,
     transfer_consignment_base64: String,
 ) -> Result<rgbldkd_http::RgbOnchainReceiveResponse, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     let fmt = format.unwrap_or_else(|| "raw".to_string());
+		let mut hasher = Sha256::new();
+    hasher.update(invoice.as_bytes());
+    let payment_id = hasher.finalize();
+		let payment_id_hex = hex::encode(payment_id);
+
     let bytes = general_purpose::STANDARD
         .decode(transfer_consignment_base64.as_bytes())
         .map_err(|_| CommandError::BadRequest {
@@ -2492,7 +3117,18 @@ pub async fn node_rgb_onchain_transfer_consignment_accept(
             hint: None,
         })?;
 
-    rgbldkd_http::rgb_onchain_receive_archive(&state.http, &ctx, &fmt, &bytes).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.onchain_receive_archive",
+		Some(serde_json::json!({
+			"format": fmt,
+			"payment_id": payment_id_hex,
+			"archive_size": bytes.len(),
+		})),
+		rgbldkd_http::rgb_onchain_receive_archive(&state.http, &ctx, &fmt, &payment_id_hex, &bytes),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2512,7 +3148,18 @@ pub async fn node_rgb_contract_issuers_import(
             message: Some("invalid base64 archive".to_string()),
             hint: None,
         })?;
-    rgbldkd_http::rgb_issuers_import(&state.http, &ctx, &name, &fmt, &bytes).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.issuers_import",
+		Some(serde_json::json!({
+			"name": name,
+			"format": fmt,
+			"archive_size": bytes.len(),
+		})),
+		rgbldkd_http::rgb_issuers_import(&state.http, &ctx, &name, &fmt, &bytes),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2521,7 +3168,14 @@ pub async fn node_rgb_issuers(
     node_id: String,
 ) -> Result<rgbldkd_http::RgbIssuersResponse, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
-    rgbldkd_http::rgb_issuers(&state.http, &ctx).await
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.issuers",
+		None,
+		rgbldkd_http::rgb_issuers(&state.http, &ctx),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2534,13 +3188,22 @@ pub async fn node_rgb_onchain_transfer_consignment_download(
     let sender_ctx = get_ctx(&state.store, &node_id).await?;
     let fmt = format.unwrap_or_else(|| "raw".to_string());
 
-    let bytes = rgbldkd_http::rgb_consignment_download(
-        &state.http,
-        &sender_ctx,
-        &consignment_key,
-        &fmt,
-    )
-    .await?;
+	let bytes = traced_node_call(
+		&state,
+		&node_id,
+		"rgb.consignment_download",
+		Some(serde_json::json!({
+			"consignment_key": consignment_key,
+			"format": fmt,
+		})),
+		rgbldkd_http::rgb_consignment_download(
+			&state.http,
+			&sender_ctx,
+			&consignment_key,
+			&fmt,
+		),
+	)
+	.await?;
 
     let archive_base64 = general_purpose::STANDARD.encode(bytes);
     Ok(rgbldkd_http::RgbOnchainTransferConsignment {
@@ -2555,7 +3218,15 @@ pub async fn node_rgb_onchain_send(
 	request: rgbldkd_http::RgbOnchainSendRequest,
 ) -> Result<rgbldkd_http::RgbOnchainSendResponse, CommandError> {
 	let ctx = get_ctx(&state.store, &node_id).await?;
-	rgbldkd_http::rgb_onchain_send(&state.http, &ctx, request).await
+	let request_json = serde_json::to_value(&request).ok();
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.onchain_send",
+		request_json,
+		rgbldkd_http::rgb_onchain_send(&state.http, &ctx, request),
+	)
+	.await
 }
 
 #[tauri::command]
@@ -2572,4 +3243,20 @@ pub async fn plugin_wallet_transfer_consignment_accept(
 		})?;
 
 	wallet::plugin_wallet_transfer_consignment_accept(&bytes).await
+}
+
+#[tauri::command]
+pub async fn rgb_onchain_payments(
+	state: State<'_, AppState>,
+	node_id: String,
+) -> Result<rgbldkd_http::RgbOnchainPaymentsResponse, CommandError> {
+	let ctx = get_ctx(&state.store, &node_id).await?;
+	traced_node_call(
+		&state,
+		&node_id,
+		"rgb.onchain_payments",
+		None,
+		rgbldkd_http::rgb_onchain_payments(&state.http, &ctx),
+	)
+	.await
 }

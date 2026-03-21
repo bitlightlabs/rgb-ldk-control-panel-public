@@ -12,15 +12,14 @@ const SKIP_MINE = process.env.E2E_SKIP_MINE === "1";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const artifactsDir = path.resolve(__dirname, "../artifacts");
-const statePath = path.resolve(__dirname, "..", "..", ".tmp", "e2e-state.json");
 const progressPath = path.resolve(
   __dirname,
   "..",
   "..",
   ".tmp",
-  "e2e-progress.json"
+  "e2e-progress-btc-l2.json"
 );
-const timingsPath = path.resolve(artifactsDir, "timings.json");
+const timingsPath = path.resolve(artifactsDir, "btc-l2-timings.json");
 
 function nowIso() {
   return new Date().toISOString();
@@ -56,13 +55,13 @@ async function withStep(timings, name, fn) {
     startedAtMs: startedAt,
   });
   try {
-    await uiLog(`e2e.step.start:${name}`);
+    await uiLog(`btc_l2.step.start:${name}`);
     const result = await fn();
     const ms = Date.now() - startedAt;
     timings.push({ name, ms, ok: true });
     writeJsonSync(progressPath, { at: nowIso(), step: name, status: "ok", ms });
     await writeTimings(timings);
-    await uiLog(`e2e.step.ok:${name}`, { ms });
+    await uiLog(`btc_l2.step.ok:${name}`, { ms });
     return result;
   } catch (err) {
     const ms = Date.now() - startedAt;
@@ -77,7 +76,7 @@ async function withStep(timings, name, fn) {
     });
     await writeTimings(timings);
     try {
-      await stepShot(`error_${name}`);
+      await stepShot(`btc_l2_error_${name}`);
     } catch {
       // ignore
     }
@@ -85,18 +84,6 @@ async function withStep(timings, name, fn) {
     e.message = `[${name}] after ${ms}ms: ${e.message}`;
     throw e;
   }
-}
-
-async function readIssuerName() {
-  if (process.env.E2E_ISSUER_NAME) return process.env.E2E_ISSUER_NAME;
-  try {
-    const raw = await fs.readFile(statePath, "utf8");
-    const data = JSON.parse(raw);
-    if (data?.issuerName) return data.issuerName;
-  } catch {
-    // ignore
-  }
-  return "RGB20-Simplest-v0-rLosfg";
 }
 
 async function runScript(scriptRel, args = []) {
@@ -171,8 +158,9 @@ async function invokeTauri(command, payload) {
   return browser.executeAsync(
     (cmd, data, done) => {
       const invoke = window.__TAURI_INTERNALS__?.invoke;
-      if (!invoke)
+      if (!invoke) {
         return done({ ok: false, error: "tauri invoke not available" });
+      }
       invoke(cmd, data)
         .then((res) => done({ ok: true, value: res }))
         .catch((err) =>
@@ -248,7 +236,7 @@ async function tryWaitForEvent(
 
 async function listChannels(nodeId = "alex") {
   const channels = await invokeTauriOrThrow("node_main_channels", { nodeId });
-  await uiLog(`e2e.list_channels:${nodeId}`, {
+  await uiLog(`btc_l2.list_channels:${nodeId}`, {
     count: channels.length,
     ids: channels.map((c) => c?.channel_id),
   });
@@ -293,23 +281,32 @@ async function waitForChannelReady(nodeId = "alex", existingChannelIds = []) {
     },
     { timeout: 120000, interval: 1000, timeoutMsg: "channel not ready" }
   );
-  await uiLog("e2e.channel.snapshot", { nodeId, channels: lastSnapshot });
+  await uiLog("btc_l2.channel.snapshot", { nodeId, channels: lastSnapshot });
 }
 
 function toBigIntU64(v) {
   const s = String(v ?? "").trim();
-  if (!/^\d+$/.test(s))
+  if (!/^\d+$/.test(s)) {
     throw new Error(`invalid u64 string: ${JSON.stringify(v)}`);
+  }
   return BigInt(s);
 }
 
-describe("rgb ln e2e", () => {
-  it("issue → export/import → invoice → pay (UI)", async () => {
+async function getBalances(nodeId) {
+  return invokeTauriOrThrow("node_main_balances", { nodeId });
+}
+
+describe("btc l2 e2e", () => {
+  it("open channel → lightning invoice → pay → close", async () => {
     const timings = [];
-    await uiLog("e2e.start");
+    const invoiceAmountMsat = 5_000_000n;
+    const invoiceAmountSats = invoiceAmountMsat / 1000n;
+
+    await uiLog("btc_l2.start");
+
     await withStep(timings, "app_loaded", async () => {
       await browser.url("tauri://localhost");
-      await stepShot("app_loaded");
+      await stepShot("btc_l2_app_loaded");
     });
 
     await withStep(timings, "contexts_loaded", async () => {
@@ -330,104 +327,37 @@ describe("rgb ln e2e", () => {
 
       await navTo("Nodes");
       await clickTestId("pick-node-alex", { timeout: 20000 });
-      await stepShot("node_1_active");
-      await stepShot("contexts_loaded");
+      await stepShot("btc_l2_nodes_ready");
     });
 
-    const { contractId, assetId } = await withStep(
-      timings,
-      "issue_export_import",
-      async () => {
-        const issuerName = await readIssuerName();
-        const contractName = `DemoRGB20${Date.now()}`;
-        const issueResp = await invokeTauriOrThrow("node_rgb_contract_issue", {
-          nodeId: "alex",
-          request: {
-            issuer_name: issuerName,
-            contract_name: contractName,
-            ticker: "RGB20",
-            precision: 0,
-            issued_supply: "1000000",
-            utxo: null,
-          },
-        });
-        const contractId = String(issueResp?.contract_id ?? "");
-        const assetId = String(issueResp?.asset_id ?? "");
-        assert.ok(contractId.length > 10, "contract_id should be available");
-        assert.ok(assetId.length > 10, "asset_id should be available");
-
-        const exportResp = await invokeTauriOrThrow(
-          "node_rgb_contract_export_bundle",
-          {
-            nodeId: "alex",
-            contractId,
-            format: null,
-          }
-        );
-        const archiveBase64 = String(exportResp?.archive_base64 ?? "");
-        assert.ok(
-          archiveBase64.length > 100,
-          "exported archive_base64 should be available"
-        );
-
-        await invokeTauriOrThrow("node_rgb_contract_import_bundle", {
-          nodeId: "bob",
-          contractId,
-          format: null,
-          archiveBase64,
-        });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "alex" });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "bob" });
-
-        await browser.waitUntil(
-          async () => {
-            const res = await invokeTauri("node_rgb_contracts", {
-              nodeId: "bob",
-            });
-            if (!res?.ok) return false;
-            const list = Array.isArray(res?.value?.contracts)
-              ? res.value.contracts
-              : [];
-            return list.some(
-              (c) => String(c?.contract_id ?? "") === String(contractId)
-            );
-          },
-          {
-            timeout: 60000,
-            interval: 500,
-            timeoutMsg: "receiver contract not visible after import",
-          }
-        );
-        await uiLog("e2e.imported", { contractId, assetId });
-        await stepShot("contract_ready_for_ui");
-
-        return { contractId, assetId };
-      }
+    const beforeAlex = await getBalances("alex");
+    const beforeBob = await getBalances("bob");
+    const beforeBobOnchain = toBigIntU64(beforeBob?.btc?.onchain_spendable_sats);
+    const beforeBobLightning = toBigIntU64(beforeBob?.btc?.lightning_total_sats);
+    assert.ok(
+      toBigIntU64(beforeAlex?.btc?.onchain_spendable_sats) >= 1_000_000n,
+      "alex should have enough spendable sats to open a channel"
     );
 
     let initialChannelIds = [];
     let initialChannelIds2 = [];
-    await withStep(timings, "open_rgb_channel_dialog", async () => {
+    await withStep(timings, "open_btc_channel_dialog", async () => {
       await navTo("Channels");
-      await stepShot("channels_tab");
       const initialChannels = await listChannels("alex");
-      initialChannelIds = initialChannels.map((ch) => ch.channel_id);
       const initialChannels2 = await listChannels("bob");
+      initialChannelIds = initialChannels.map((ch) => ch.channel_id);
       initialChannelIds2 = initialChannels2.map((ch) => ch.channel_id);
+
       const openBtn = await $("button=Open Channel");
       await openBtn.waitForDisplayed({ timeout: 10000 });
-
       await openBtn.click();
-      await stepShot("open_channel_dialog");
 
       const dialog = await $('div[role="dialog"]');
       const localNodeBtn = await dialog.$("button=Local node");
       await localNodeBtn.waitForDisplayed({ timeout: 10000 });
       await localNodeBtn.click();
-      await stepShot("target_mode_local");
 
       await clickTestId("open-channel-target-hack-bob");
-      await stepShot("node_2_selected");
 
       const addressInput = await $("input#peer_address");
       await addressInput.waitForEnabled({ timeout: 10000 });
@@ -456,30 +386,10 @@ describe("rgb ln e2e", () => {
         }
       );
 
-      // Align with integration tests; use a funding size that consistently yields ChannelPending/Ready.
       const channelAmtInput = await $("input#channel_amount_sats");
       await channelAmtInput.waitForEnabled({ timeout: 10000 });
       await channelAmtInput.setValue("1000000");
-
-      await clickTestId("open-channel-rgb-toggle");
-      const rgbAssetTrigger = await $('[data-testid="open-channel-rgb-asset-id"]');
-      await rgbAssetTrigger.waitForDisplayed({ timeout: 10000 });
-      await browser.waitUntil(
-        async () => {
-          const text = String((await rgbAssetTrigger.getText()) ?? "").trim();
-          return text.length > 0 && !text.includes("Pick RGB asset");
-        },
-        {
-          timeout: 30000,
-          interval: 500,
-          timeoutMsg: `RGB asset was not auto-selected for contract ${contractId}`,
-        }
-      );
-      const rgbAmountInput = await $(
-        '[data-testid="open-channel-rgb-asset-amount"]'
-      );
-      await rgbAmountInput.setValue("100");
-      await stepShot("rgb_channel_configured");
+      await stepShot("btc_l2_open_channel_dialog");
 
       const validationExists = await browser.execute(() =>
         Boolean(
@@ -498,15 +408,14 @@ describe("rgb ln e2e", () => {
       const openChannelBtn = await $("button=Open channel");
       await openChannelBtn.waitForEnabled({ timeout: 20000 });
       await openChannelBtn.click();
-      await stepShot("open_channel_clicked");
     });
 
-    await withStep(timings, "open_rgb_channel_created", async () => {
+    await withStep(timings, "open_btc_channel_created", async () => {
       await waitForNewChannel("alex", initialChannelIds);
       await waitForNewChannel("bob", initialChannelIds2);
     });
 
-    await withStep(timings, "open_rgb_channel_confirmed", async () => {
+    await withStep(timings, "open_btc_channel_confirmed", async () => {
       const hasOpenError = await browser.execute(() => {
         return Boolean(
           document.querySelector('[data-testid="open-channel-error"]')
@@ -527,10 +436,7 @@ describe("rgb ln e2e", () => {
       const pending2 = await tryWaitForEvent("bob", "ChannelPending", {
         timeout: 30000,
       });
-      await uiLog("e2e.channel.pending", { node1: pending1, node2: pending2 });
-      if (pending1 || pending2) {
-        await stepShot("channel_pending_seen");
-      }
+      await uiLog("btc_l2.channel.pending", { node1: pending1, node2: pending2 });
 
       if (!SKIP_MINE) {
         await runScript("scripts/mine-local.sh", ["6"]);
@@ -539,20 +445,15 @@ describe("rgb ln e2e", () => {
       try {
         await invokeTauriOrThrow("node_wallet_sync", { nodeId: "alex" });
         await invokeTauriOrThrow("node_wallet_sync", { nodeId: "bob" });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "alex" });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "bob" });
       } catch {
         // ignore
       }
 
       await waitForEvent("alex", "ChannelReady", { timeout: 180000 });
       await waitForEvent("bob", "ChannelReady", { timeout: 180000 });
-      await stepShot("channel_ready_seen");
       await waitForChannelReady("alex", initialChannelIds);
       await waitForChannelReady("bob", initialChannelIds2);
-
-      await uiLog("e2e.channel_ready");
-      await stepShot("channel_ready");
+      await stepShot("btc_l2_channel_ready");
     });
 
     await withStep(timings, "invoice_pay_balances", async () => {
@@ -561,15 +462,14 @@ describe("rgb ln e2e", () => {
       await navTo("Dashboard");
       await (await $("button=Receive")).waitForDisplayed({ timeout: 20000 });
       await (await $("button=Receive")).click();
-      await (await $("button=RGB Lightning Invoice")).waitForDisplayed({
+      await (await $("button=Lightning Invoice")).waitForDisplayed({
         timeout: 20000,
       });
-      await (await $("button=RGB Lightning Invoice")).click();
-      const invoiceAmountInput = await $("#recv_rgb_amount");
+      await (await $("button=Lightning Invoice")).click();
+
+      const invoiceAmountInput = await $("#recv_amount_msat");
       await invoiceAmountInput.waitForDisplayed({ timeout: 30000 });
-      await invoiceAmountInput.setValue("21");
-      const invoiceCarrierInput = await $("#recv_rgb_carrier");
-      await invoiceCarrierInput.setValue("5000000");
+      await invoiceAmountInput.setValue(String(invoiceAmountMsat));
       const createBtn = await $("button=Create");
       await createBtn.waitForEnabled({ timeout: 30000 });
       await createBtn.click();
@@ -593,17 +493,14 @@ describe("rgb ln e2e", () => {
         }
       );
       assert.ok(String(invoice).length > 10, "invoice should be created");
-      await stepShot("invoice_created");
-      await uiLog("e2e.invoice_created", {
-        assetId,
-        invoicePrefix: String(invoice).slice(0, 16),
-      });
+      await stepShot("btc_l2_invoice_created");
 
       await navTo("Nodes");
       await clickTestId("pick-node-alex", { timeout: 20000 });
       await navTo("Dashboard");
       await (await $("button=Send")).waitForDisplayed({ timeout: 20000 });
       await (await $("button=Send")).click();
+
       const payloadInput = await $("#send_payload");
       await payloadInput.waitForDisplayed({ timeout: 20000 });
       await payloadInput.setValue(String(invoice));
@@ -627,8 +524,28 @@ describe("rgb ln e2e", () => {
           timeoutMsg: "payment result did not show Payment ID",
         }
       );
-      await uiLog("e2e.paid");
-      await stepShot("invoice_paid");
+      await stepShot("btc_l2_payment_success");
+
+      await waitForEvent("bob", "PaymentReceived", {
+        timeout: 120000,
+        predicate: (data) =>
+          String(data?.amount_msat ?? "") === String(invoiceAmountMsat),
+      });
+
+      let lastBobLightning = null;
+      await browser.waitUntil(
+        async () => {
+          const balances = await getBalances("bob");
+          const value = toBigIntU64(balances?.btc?.lightning_total_sats);
+          lastBobLightning = value.toString();
+          return value >= beforeBobLightning + invoiceAmountSats;
+        },
+        {
+          timeout: 120000,
+          interval: 1000,
+          timeoutMsg: `bob lightning balance did not reflect payment; last=${lastBobLightning}`,
+        }
+      );
 
       const channelsAfterPay = await listChannels("alex");
       const active =
@@ -639,6 +556,7 @@ describe("rgb ln e2e", () => {
         active?.counterparty_node_id,
         "expected channel counterparty_node_id"
       );
+
       await invokeTauriOrThrow("node_channel_close", {
         nodeId: "alex",
         request: {
@@ -656,8 +574,6 @@ describe("rgb ln e2e", () => {
       try {
         await invokeTauriOrThrow("node_wallet_sync", { nodeId: "alex" });
         await invokeTauriOrThrow("node_wallet_sync", { nodeId: "bob" });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "alex" });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "bob" });
       } catch {
         // ignore
       }
@@ -669,46 +585,29 @@ describe("rgb ln e2e", () => {
       try {
         await invokeTauriOrThrow("node_wallet_sync", { nodeId: "alex" });
         await invokeTauriOrThrow("node_wallet_sync", { nodeId: "bob" });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "alex" });
-        await invokeTauriOrThrow("node_rgb_sync", { nodeId: "bob" });
       } catch {
         // ignore
       }
 
-      await stepShot("balances_visible");
-
-      const expectedSupply = 1000000n;
-      const expectedPayment = 21n;
-      let lastObserved = null;
+      let lastBobOnchain = null;
       await browser.waitUntil(
         async () => {
-          const b1 = await invokeTauriOrThrow("node_rgb_contract_balance", {
-            nodeId: "alex",
-            contractId,
-          });
-          const b2 = await invokeTauriOrThrow("node_rgb_contract_balance", {
-            nodeId: "bob",
-            contractId,
-          });
-          const issuerTotal = toBigIntU64(b1?.balance?.total);
-          const receiverTotal = toBigIntU64(b2?.balance?.total);
-          lastObserved = {
-            issuer: b1?.balance,
-            receiver: b2?.balance,
-          };
-          return (
-            issuerTotal === expectedSupply - expectedPayment &&
-            receiverTotal === expectedPayment
-          );
+          const balances = await getBalances("bob");
+          const value = toBigIntU64(balances?.btc?.onchain_spendable_sats);
+          lastBobOnchain = value.toString();
+          return value >= beforeBobOnchain + invoiceAmountSats;
         },
         {
           timeout: 240000,
           interval: 2000,
-          timeoutMsg: `final balances did not converge after close; last=${
-            lastObserved ? JSON.stringify(lastObserved) : "null"
-          }`,
+          timeoutMsg: `bob onchain balance did not settle after close; last=${lastBobOnchain}`,
         }
       );
+
+      await navTo("Nodes");
+      await clickTestId("pick-node-bob", { timeout: 20000 });
+      await navTo("Dashboard");
+      await stepShot("btc_l2_final_balances");
     });
 
     await writeTimings(timings);

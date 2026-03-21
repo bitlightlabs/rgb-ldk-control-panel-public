@@ -2,131 +2,10 @@
 # Start here: read GET-STARTED.md.
 
 services:
-  bitcoind:
-    image: ruimarinho/bitcoin-core:24.0.1
-    container_name: bitcoind
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:18443:18443"
-    volumes:
-      - bitcoin_data:/home/bitcoin/.bitcoin
-    command:
-      - -printtoconsole
-      - -regtest=1
-      - -server=1
-      - -rest=1
-      - -rpcuser=btcuser
-      - -rpcpassword=btcpass
-      - -rpcallowip=0.0.0.0/0
-      - -rpcbind=0.0.0.0
-      - -txindex=1
-      - -wallet=devwallet
-      - -fallbackfee=0.0001
-    healthcheck:
-      test: >
-        bitcoin-cli -regtest -rpcuser=btcuser -rpcpassword=btcpass getblockchaininfo || exit 1
-      interval: 5s
-      retries: 20
-    networks:
-      - rln_network
-
-  bitcoind-init:
-    image: ruimarinho/bitcoin-core:24.0.1
-    container_name: bitcoind-init
-    depends_on:
-      bitcoind:
-        condition: service_healthy
-    volumes:
-      - bitcoin_data:/home/bitcoin/.bitcoin
-    networks:
-      - rln_network
-    entrypoint:
-      - /bin/sh
-      - -ec
-      - |
-        bcli() {
-          bitcoin-cli -regtest -rpcconnect=bitcoind -rpcuser=btcuser -rpcpassword=btcpass "$@";
-        }
-
-        echo "Ensuring wallet devwallet exists..."
-        bcli createwallet devwallet >/dev/null 2>&1 || true
-        bcli loadwallet devwallet >/dev/null 2>&1 || true
-
-        BLOCK_COUNT=$$(bcli getblockcount)
-        if [ -z "$$BLOCK_COUNT" ]; then
-          BLOCK_COUNT=0
-        fi
-        if [ "$$BLOCK_COUNT" -lt 101 ]; then
-          ADDR=$$(bcli -rpcwallet=devwallet getnewaddress)
-          echo "Mining 101 blocks to $$ADDR..."
-          bcli generatetoaddress 101 "$$ADDR" >/dev/null
-        fi
-
-        echo "Initialization complete: height=$$(bcli getblockcount)"
-
-  esplora:
-    image: bitlightlabs/esplora-api-rln:v0.3.0
-    container_name: esplora
-    restart: unless-stopped
-    depends_on:
-      bitcoind:
-        condition: service_healthy
-    ports:
-      - "127.0.0.1:3003:3000"
-      - "127.0.0.1:50005:50001"
-    volumes:
-      - bitcoin_data:/data/.bitcoin
-    networks:
-      - rln_network
-    command:
-      - -vvvv
-      - --network
-      - regtest
-      - --daemon-dir
-      - /data/.bitcoin
-      - --daemon-rpc-addr
-      - bitcoind:18443
-      - --cors
-      - "*"
-      - --cookie
-      - "btcuser:btcpass"
-      - --http-addr
-      - "0.0.0.0:3000"
-      - --electrum-rpc-addr
-      - 0.0.0.0:50001
-
-  wait-esplora:
-    image: curlimages/curl:8.12.1
-    container_name: wait-esplora
-    restart: "no"
-    depends_on:
-      esplora:
-        condition: service_started
-      bitcoind-init:
-        condition: service_completed_successfully
-    networks:
-      - rln_network
-    command:
-      - sh
-      - -ec
-      - |
-        for _ in $(seq 1 120); do
-          if curl -sSf "${ESPLORA_HEALTH_URL:-http://esplora:3000/fee-estimates}" >/dev/null; then
-            echo "esplora ready"
-            exit 0
-          fi
-          sleep 0.5
-        done
-        echo "esplora not ready after timeout" >&2
-        exit 1
-
   rgbldk_node_1:
     image: bitlightlabs/rln-ldk-node:main-23050940640
     container_name: rgb-node-alice
     restart: unless-stopped
-    depends_on:
-      wait-esplora:
-        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8501:8500" # main API
       - "127.0.0.1:8551:8550" # control HTTP
@@ -159,7 +38,7 @@ services:
       - --network
       - regtest
       - --esplora-url
-      - ${ESPLORA_URL:-http://esplora:3000}
+      - https://btc-regtest-cat.bitlightdev.info
       - --ldk-listen
       - 0.0.0.0:9735
       - --node-alias
@@ -175,9 +54,6 @@ services:
     image: bitlightlabs/rln-ldk-node:main-23050940640
     container_name: rgb-node-bob
     restart: unless-stopped
-    depends_on:
-      wait-esplora:
-        condition: service_completed_successfully
     ports:
       - "127.0.0.1:8602:8500" # main API
       - "127.0.0.1:8653:8550" # control HTTP
@@ -210,7 +86,7 @@ services:
       - --network
       - regtest
       - --esplora-url
-      - ${ESPLORA_URL:-http://esplora:3000}
+      - https://btc-regtest-cat.bitlightdev.info
       - --ldk-listen
       - 0.0.0.0:9735
       - --node-alias
@@ -227,6 +103,5 @@ networks:
     driver: bridge
 
 volumes:
-  bitcoin_data:
   node1_data:
   node2_data:

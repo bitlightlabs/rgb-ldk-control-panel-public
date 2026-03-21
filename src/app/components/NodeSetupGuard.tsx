@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { InitialSetupPage } from "@/app/pages/InitialSetupPage";
+import { InitialSetupPage } from "@/app/pages/setup/InitialSetupPage";
 import type {
-  BootstrapLocalEnvironmentResponse,
+  BootstrapLocalNodeRequest,
+  BootstrapLocalNodeResponse,
   DockerEnvironmentResponse,
   NodeContext,
 } from "@/lib/domain";
@@ -46,10 +47,10 @@ export function NodeSetupGuard({
   dockerEnvironmentPending,
   dockerEnvironmentChecking,
   onRefreshDockerEnvironment,
-  onCreateEnvironment,
-  creatingEnvironment,
-  createEnvironmentError,
-  bootstrapEnvironmentResult,
+  onCreateNode,
+  creatingNode,
+  createNodeError,
+  createNodeResult,
   onEnterWallet,
   children,
 }: {
@@ -61,10 +62,12 @@ export function NodeSetupGuard({
   dockerEnvironmentPending: boolean;
   dockerEnvironmentChecking: boolean;
   onRefreshDockerEnvironment: () => void;
-  onCreateEnvironment: () => Promise<BootstrapLocalEnvironmentResponse>;
-  creatingEnvironment: boolean;
-  createEnvironmentError?: unknown;
-  bootstrapEnvironmentResult?: BootstrapLocalEnvironmentResponse;
+  onCreateNode: (
+    req: BootstrapLocalNodeRequest
+  ) => Promise<BootstrapLocalNodeResponse>;
+  creatingNode: boolean;
+  createNodeError?: unknown;
+  createNodeResult?: BootstrapLocalNodeResponse;
   onEnterWallet: () => void;
   children: ReactNode;
 }) {
@@ -89,22 +92,22 @@ export function NodeSetupGuard({
     return () => clearInterval(timer);
   }, [checksSettled]);
   useEffect(() => {
-    if (!bootstrapEnvironmentResult) {
+    if (!createNodeResult) {
       setWalletEntered(false);
     }
-  }, [bootstrapEnvironmentResult]);
+  }, [createNodeResult]);
 
   const hasContexts = contexts.length > 0;
   const dockerInstalled = dockerEnvironmentData?.installed === true;
   const dockerRunning = dockerEnvironmentData?.daemon_running === true;
-  const waitingForEnterWallet = !!bootstrapEnvironmentResult && !walletEntered;
+  const waitingForEnterWallet = !!createNodeResult && !walletEntered;
   const needInitialSetup =
     waitingForEnterWallet ||
     !hasContexts ||
     !dockerInstalled ||
     !dockerRunning ||
-    creatingEnvironment ||
-    !!createEnvironmentError;
+    creatingNode ||
+    !!createNodeError;
 
   if (!checksSettled) {
     return <StartupLoadingScreen progress={progress} stepText={stepText} />;
@@ -116,10 +119,10 @@ export function NodeSetupGuard({
         dockerEnvironment={dockerEnvironmentData}
         dockerEnvironmentLoading={dockerEnvironmentChecking}
         onRefreshDockerEnvironment={onRefreshDockerEnvironment}
-        creatingEnvironment={creatingEnvironment}
-        createEnvironmentError={createEnvironmentError}
-        bootstrapEnvironmentResult={bootstrapEnvironmentResult}
-        onCreateEnvironment={onCreateEnvironment}
+        creatingNode={creatingNode}
+        createNodeError={createNodeError}
+        createNodeResult={createNodeResult}
+        onCreateNode={onCreateNode}
         onEnterWallet={() => {
           setWalletEntered(true);
           onEnterWallet();

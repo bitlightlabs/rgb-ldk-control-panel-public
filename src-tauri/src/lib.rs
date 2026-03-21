@@ -10,12 +10,15 @@ mod wallet;
 use context_store::ContextStore;
 use events_manager::EventsManager;
 use logger::FileLogger;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 pub struct AppState {
 	pub(crate) store: ContextStore,
 	pub(crate) http: reqwest::Client,
 	pub(crate) events: EventsManager,
 	pub(crate) logger: FileLogger,
+	pub(crate) http_event_debug_responses: Arc<RwLock<bool>>,
 }
 
 impl AppState {
@@ -30,6 +33,7 @@ impl AppState {
 			http,
 			events: EventsManager::new(),
 			logger: FileLogger::new_default().expect("failed to init file logger"),
+			http_event_debug_responses: Arc::new(RwLock::new(false)),
 		}
 	}
 }
@@ -60,14 +64,14 @@ pub fn run() {
 			commands::events_clear,
 			commands::events_status,
 			commands::events_status_all,
+			commands::events_http_debug_get,
+			commands::events_http_debug_set,
 			commands::logs_path,
 			commands::logs_tail,
 			commands::log_ui,
 			commands::docker_environment,
 			commands::bootstrap_local_node,
 			commands::bootstrap_local_environment,
-			commands::regtest_block_height,
-			commands::regtest_mine,
 			commands::node_main_http,
 			commands::node_main_status,
 			commands::node_main_version,
@@ -124,6 +128,8 @@ pub fn run() {
 			commands::node_rgb_onchain_transfer_consignment_download,
 			commands::node_rgb_onchain_send,
 			commands::plugin_wallet_transfer_consignment_accept,
+			commands::download_transfer_consignment_from_link,
+			commands::rgb_onchain_payments,
 		])
 		.run(tauri::generate_context!())
 		.expect("error while running tauri application");

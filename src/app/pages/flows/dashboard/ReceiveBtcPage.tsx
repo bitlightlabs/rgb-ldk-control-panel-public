@@ -20,25 +20,31 @@ import {
   nodeRgbContracts,
   nodeRgbLnInvoiceCreate,
   nodeRgbOnchainInvoiceCreate,
-  nodeRgbOnchainTransferConsignmentAccept,
   nodeRgbSync,
+  nodeWalletNewAddress,
   // nodeUnlock,
-  pluginWalletTransferConsignmentExport,
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
 import { u64 } from "@/lib/sdk";
 import { ArrowLeft, ArrowRight, Check, Copy } from "lucide-react";
-import RgbUtxoSelect from "../components/RgbUtxoSelect";
+import RgbUtxoSelect from "@/app/components/RgbUtxoSelect";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
-type ReceiveMode = "invoice" | "offer" | "rgb_invoice" | "rgb_onchain_invoice";
+type ReceiveMode =
+  | "invoice"
+  | "offer"
+  | "rgb_invoice"
+  | "rgb_onchain_invoice"
+  | "btc_onchain_address";
 type ReceiveStep = "select" | "form" | "result";
 
 function isDigits(s: string): boolean {
   return /^\d+$/.test(s.trim());
 }
 
-export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
+export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
+  const navigate = useNavigate();
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
   const [step, setStep] = useState<ReceiveStep>("select");
   const [mode, setMode] = useState<ReceiveMode | null>(null);
@@ -60,7 +66,9 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
       await nodeRgbSync(activeNodeId!);
       return nodeRgbContracts(activeNodeId!);
     },
-    enabled: !!activeNodeId && (mode === "rgb_invoice" || mode === "rgb_onchain_invoice"),
+    enabled:
+      !!activeNodeId &&
+      (mode === "rgb_invoice" || mode === "rgb_onchain_invoice"),
     refetchInterval: false,
   });
 
@@ -71,6 +79,22 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
       ) ?? null,
     [rgbAssetId, rgbContractsQuery.data?.contracts]
   );
+  const selectedOnchainRgbContract = useMemo(
+    () =>
+      (rgbContractsQuery.data?.contracts ?? []).find(
+        (c) => c.contract_id === currentContractId
+      ) ?? null,
+    [currentContractId, rgbContractsQuery.data?.contracts]
+  );
+  const createdRgbAmountUnit = useMemo(() => {
+    if (mode === "rgb_invoice") {
+      return selectedRgbContract?.ticker?.trim() || "RGB";
+    }
+    if (mode === "rgb_onchain_invoice") {
+      return selectedOnchainRgbContract?.ticker?.trim() || "RGB";
+    }
+    return "RGB";
+  }, [mode, selectedOnchainRgbContract?.ticker, selectedRgbContract?.ticker]);
 
   useEffect(() => {
     if (mode !== "rgb_invoice") return;
@@ -82,27 +106,37 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
   }, [mode, rgbAssetId, rgbContractsQuery.data?.contracts]);
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (targetMode?: ReceiveMode) => {
       if (!activeNodeId) throw new Error("No active node selected");
+      const receiveMode = targetMode ?? mode;
       const amount = amountMsat.trim();
       const desc = description.trim() || "Receive BTC";
 
-      if (mode === 'rgb_onchain_invoice') {
-        const asset = rgbContractsQuery.data?.contracts.find(c => c.contract_id === currentContractId);
+      if (receiveMode === "rgb_onchain_invoice") {
+        const asset = rgbContractsQuery.data?.contracts.find(
+          (c) => c.contract_id === currentContractId
+        );
         const precision = asset?.precision ?? 0;
 
         const resp = await nodeRgbOnchainInvoiceCreate(activeNodeId, {
           contract_id: currentContractId,
           amount: u64(Number(rgbAssetAmount.trim()) * 10 ** precision),
           use_witness_utxo: false,
-          blinding_utxo: currentRgbUtxo.trim()
+          blinding_utxo: currentRgbUtxo.trim(),
         });
 
         return { value: resp.invoice, amount: rgbAssetAmount.trim() };
       }
 
-      if (mode === "rgb_invoice") {
-        const asset = rgbContractsQuery.data?.contracts.find(c => c.asset_id === rgbAssetId);
+      if (receiveMode === "btc_onchain_address") {
+        const resp = await nodeWalletNewAddress(activeNodeId);
+        return { value: resp.address, amount: "" };
+      }
+
+      if (receiveMode === "rgb_invoice") {
+        const asset = rgbContractsQuery.data?.contracts.find(
+          (c) => c.asset_id === rgbAssetId
+        );
         const precision = asset?.precision ?? 0;
 
         const resp = await nodeRgbLnInvoiceCreate(activeNodeId, {
@@ -114,7 +148,7 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
         });
         return { value: resp.invoice, amount: rgbAssetAmount.trim() };
       }
-      if (mode === "invoice") {
+      if (receiveMode === "invoice") {
         const resp = await nodeBolt11Receive(activeNodeId, {
           amount_msat: u64(amount),
           description: desc,
@@ -150,6 +184,7 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
         return "BTC carrier must be greater than 0.";
       return null;
     }
+    if (mode === "btc_onchain_address") return null;
     if (mode === "offer") return null;
     const amount = amountMsat.trim();
     if (!amount) return "Amount (msat) is required.";
@@ -178,8 +213,18 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
         ? "Create RGB Lightning invoice"
         : mode === "rgb_onchain_invoice"
         ? "Create RGB OnChain invoice"
+        : mode === "btc_onchain_address"
+        ? "Create BTC OnChain address"
         : ""
       : "Receive BTC / RGB";
+
+  const goBackRoot = () => {
+    if (onBackRoot) {
+      onBackRoot();
+      return;
+    }
+    navigate("/dashboard");
+  };
 
   return (
     <div className="space-y-4">
@@ -188,10 +233,15 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
         variant="outline"
         onClick={() => {
           if (step === "select") {
-            onBackRoot();
+            goBackRoot();
             return;
           }
           if (step === "form") {
+            setStep("select");
+            setMode(null);
+            return;
+          }
+          if (mode === "btc_onchain_address") {
             setStep("select");
             setMode(null);
             return;
@@ -211,69 +261,93 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
         </CardHeader>
         <CardContent className="space-y-4">
           {step === "select" ? (
-            <div className="space-y-4">
-              <Button
-                type="button"
-                variant="secondary"
-                size="lg"
-                className="w-full justify-between px-2.5"
-                onClick={() => {
-                  setMode("invoice");
-                  setStep("form");
-                }}
-              >
-                Lightning Invoice
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full justify-between px-2.5"
-                size="lg"
-                onClick={() => {
-                  setMode("offer");
-                  setStep("form");
-                }}
-              >
-                Lightning Offer
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                className="w-full justify-between px-2.5"
-                size="lg"
-                onClick={() => {
-                  setMode("rgb_invoice");
-                  setDescription("Receive RGB");
-                  setStep("form");
-                }}
-              >
-                RGB Lightning Invoice
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Button>
-              {/* <Button
-                type="button"
-                variant="secondary"
-                className="w-full justify-between px-2.5"
-                size="lg"
-                onClick={() => {
-                  setMode("rgb_onchain_invoice");
-                  setDescription("Receive RGB OnChain");
-                  setStep("form");
-                }}
-              >
-                RGB OnChain Invoice
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </Button> */}
+            <div className="grid grid-cols-1 gap-4">
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="text-sm font-semibold tracking-wide text-muted-foreground">
+                  Lightning
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-between px-2.5"
+                  size="lg"
+                  onClick={() => {
+                    setMode("rgb_invoice");
+                    setDescription("Receive RGB");
+                    setStep("form");
+                  }}
+                >
+                  RGB Lightning Invoice
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="w-full justify-between px-2.5"
+                  onClick={() => {
+                    setMode("invoice");
+                    setStep("form");
+                  }}
+                >
+                  BTC Lightning Invoice
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-between px-2.5"
+                  size="lg"
+                  onClick={() => {
+                    setMode("offer");
+                    setStep("form");
+                  }}
+                >
+                  BTC Lightning Offer
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="text-sm font-semibold tracking-wide text-muted-foreground">
+                  OnChain
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-between px-2.5"
+                  size="lg"
+                  onClick={() => {
+                    setMode("btc_onchain_address");
+                    setDescription("Receive BTC OnChain");
+                    createMutation.mutate("btc_onchain_address");
+                  }}
+                >
+                  BTC OnChain Address
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full justify-between px-2.5"
+                  size="lg"
+                  onClick={() => {
+                    setMode("rgb_onchain_invoice");
+                    setDescription("Receive RGB OnChain");
+                    setStep("form");
+                  }}
+                >
+                  RGB OnChain Invoice
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
             </div>
           ) : null}
 
           {step === "form" ? (
             <>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {
-                  mode === "rgb_onchain_invoice" ? (
+                {mode === "rgb_onchain_invoice" ? (
                   <>
                     <Field>
                       <FieldLabel htmlFor="recv_rgb_contract_id">
@@ -283,7 +357,10 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                         value={currentContractId || undefined}
                         onValueChange={setCurrentContractId}
                       >
-                        <SelectTrigger id="recv_rgb_contract_id" className="h-10">
+                        <SelectTrigger
+                          id="recv_rgb_contract_id"
+                          className="h-10"
+                        >
                           <SelectValue placeholder="Pick RGB asset..." />
                         </SelectTrigger>
                         <SelectContent>
@@ -319,12 +396,12 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                         Blinding Utxo
                       </FieldLabel>
                       <RgbUtxoSelect
-                        nodeId={activeNodeId ?? ''}
+                        nodeId={activeNodeId ?? ""}
                         onChangeUtxo={setCurrentRgbUtxo}
                       />
                     </Field>
                   </>
-                  ) : mode === "rgb_invoice" ? (
+                ) : mode === "rgb_invoice" ? (
                   <>
                     <Field>
                       <FieldLabel htmlFor="recv_rgb_asset_id">
@@ -395,15 +472,17 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                   </Field>
                 ) : null}
 
-                <Field>
-                  <FieldLabel htmlFor="recv_desc">Description</FieldLabel>
-                  <Input
-                    id="recv_desc"
-                    value={description}
-                    onChange={(e) => setDescription(e.currentTarget.value)}
-                    placeholder="Receive BTC"
-                  />
-                </Field>
+                {mode !== "btc_onchain_address" ? (
+                  <Field>
+                    <FieldLabel htmlFor="recv_desc">Description</FieldLabel>
+                    <Input
+                      id="recv_desc"
+                      value={description}
+                      onChange={(e) => setDescription(e.currentTarget.value)}
+                      placeholder="Receive BTC"
+                    />
+                  </Field>
+                ) : null}
               </div>
 
               {validationError ? (
@@ -434,12 +513,10 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                 type="button"
                 className="w-full mt-4"
                 disabled={!!validationError || createMutation.isPending}
-                onClick={() => createMutation.mutate()}
+                onClick={() => createMutation.mutate(mode ?? undefined)}
               >
                 {createMutation.isPending ? "Creating..." : "Create"}
               </Button>
-
-              {mode === "rgb_onchain_invoice" ? <CheckPayment activeNodeId={activeNodeId} /> : null}
             </>
           ) : null}
 
@@ -450,14 +527,17 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
               </div>
 
               <div className="space-y-2">
-                <div className="text-sm">
-                  Amount:{" "}
-                  {(mode === "rgb_invoice" || mode === "rgb_onchain_invoice")
-                    ? `${createdAmountMsat} RGB`
-                    : mode === "offer"
-                    ? "Variable amount"
-                    : `${createdAmountMsat} msat`}
-                </div>
+                {createdAmountMsat || createdAmountMsat ? (
+                  <div className="text-sm">
+                    Amount:{" "}
+                    {mode === "rgb_invoice" || mode === "rgb_onchain_invoice"
+                      ? `${createdAmountMsat} ${createdRgbAmountUnit}`
+                      : mode === "offer"
+                      ? "Variable amount"
+                      : `${createdAmountMsat} msat`}
+                  </div>
+                ) : null}
+
                 {mode === "rgb_invoice" && selectedRgbContract ? (
                   <div className="text-sm">
                     Asset:{" "}
@@ -468,15 +548,16 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                 ) : null}
                 <div className="flex gap-2">
                   <div className="text-sm">
-                    {mode === "offer" ? "Offer:" : "Invoice:"}
+                    {mode === "offer"
+                      ? "Offer:"
+                      : mode === "btc_onchain_address"
+                      ? "Address:"
+                      : "Invoice:"}
                   </div>
-                  <code className="block break-all rounded-md text-xs">
+                  <code className="block break-all rounded-md text-sm">
                     {createdValue}
                   </code>
                 </div>
-              </div>
-              <div>
-                {mode === "rgb_onchain_invoice" ? <CheckPayment activeNodeId={activeNodeId} /> : null}
               </div>
 
               <div className="space-y-2">
@@ -495,14 +576,18 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
-                  {copied ? "Copied" : "Copy Invoice"}
+                  {copied
+                    ? "Copied"
+                    : mode === "btc_onchain_address"
+                    ? "Copy Address"
+                    : "Copy Invoice"}
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   className="w-full"
                   onClick={async () => {
-                    onBackRoot();
+                    goBackRoot();
                   }}
                 >
                   Back
@@ -514,53 +599,4 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
       </Card>
     </div>
   );
-}
-
-function CheckPayment(props: {activeNodeId: string | null}) {
-  const [paymentId, setPaymentId] = useState("");
-
-   const acceptPaymentMutation = useMutation({
-    mutationFn: async () => {
-      if(!props.activeNodeId) {
-        throw new Error("No active node selected");
-      }
-      if(!paymentId) {
-        throw new Error("Payment ID is required");
-      }
-
-      // Download consignment
-      const data = await pluginWalletTransferConsignmentExport(paymentId);
-      if(!data.archive_base64) {
-        throw new Error((data as any).message || "Failed to download consignment");
-      }
-
-      // Accept payment
-      return nodeRgbOnchainTransferConsignmentAccept(props.activeNodeId, data.archive_base64)
-    },
-    onSuccess: () => {
-      toast.success(`Payment accepted`);
-      setPaymentId("");
-    },
-    onError: (e) => {
-      toast.error((e as Error).message);
-    }
-  })
-
-  return (
-    <>
-      <Field className="mt-4">
-        <FieldLabel>Payment ID</FieldLabel>
-        <Input value={paymentId} onChange={(e) => setPaymentId(e.target.value)} />
-      </Field>
-      <Button
-        type="button"
-        variant="secondary"
-        className="w-full mt-4"
-        disabled={!paymentId || acceptPaymentMutation.isPending}
-        onClick={() => acceptPaymentMutation.mutate()}
-      >
-        {acceptPaymentMutation.isPending ? "Accepting..." : "Accept Onchain Payment After Paid"}
-      </Button>
-    </>
-  )
 }

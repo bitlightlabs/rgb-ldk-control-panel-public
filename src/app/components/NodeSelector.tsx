@@ -53,7 +53,7 @@ export function NodeSelector({
     queryKey: ["node_selector_events_status", activeNodeId],
     queryFn: () => eventsStatus(activeNodeId!),
     enabled: !!activeNodeId,
-    refetchInterval: 2_000,
+    refetchInterval: 10_000,
     retry: 0,
   });
 

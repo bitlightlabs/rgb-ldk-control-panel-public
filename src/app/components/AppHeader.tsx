@@ -5,14 +5,15 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
-import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { regtestBlockHeight, regtestMine } from "@/lib/commands";
 import type { NodeContext } from "@/lib/domain";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Hammer } from "lucide-react";
-import { toast } from "sonner";
+
+function networkFromNodeId(nodeId: string | null): string {
+  if (!nodeId) return "UNKNOWN";
+  const m = nodeId.match(/^node-(mainnet|testnet4|testnet|regtest)-/i);
+  return m ? m[1].toUpperCase() : "UNKNOWN";
+}
 
 export function AppHeader({
   activeLabel,
@@ -25,23 +26,9 @@ export function AppHeader({
   activeNodeId: string | null;
   onPickNode: (nodeId: string | null) => void;
 }) {
-  const blockHeightQuery = useQuery({
-    queryKey: ["header_regtest_block_height"],
-    queryFn: regtestBlockHeight,
-    refetchInterval: 10_000,
-  });
-  const mineMutation = useMutation({
-    mutationFn: () => regtestMine(20),
-    onSuccess: async () => {
-      await blockHeightQuery.refetch();
-      toast.success("Mined 20 block");
-    },
-  });
-  const blockHeightText = blockHeightQuery.isLoading
-    ? "..."
-    : blockHeightQuery.isError
-    ? "N/A"
-    : String(blockHeightQuery.data?.height ?? "N/A");
+  const activeContext =
+    contexts.find((c) => c.node_id === activeNodeId) ?? null;
+  const networkText = networkFromNodeId(activeContext?.node_id ?? null);
 
   return (
     <header className="sticky top-0 z-40 flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border/60 bg-gradient-to-b from-background/95 via-background/85 to-background/70 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -62,19 +49,7 @@ export function AppHeader({
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
             <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
           </span>
-          <span className="font-medium">NETWORK: REGTEST</span>
-          <Separator orientation="vertical" className="h-3" />
-          <span className="font-medium">Block: {blockHeightText}</span>
-          <Button
-            type="button"
-            className="h-5 w-5 rounded-sm bg-sidebar cursor-pointer hover:bg-sidebar-hover data-[state=open]:bg-sidebar-hover"
-            aria-label="Mine 20 blocks"
-            title="Mine 20 blocks"
-            disabled={mineMutation.isPending}
-            onClick={() => mineMutation.mutate()}
-          >
-            <Hammer className="h-3 w-3" />
-          </Button>
+          <span className="font-medium">NETWORK: {networkText}</span>
         </div>
         <Separator orientation="vertical" className="h-4" />
         <NodeSelector

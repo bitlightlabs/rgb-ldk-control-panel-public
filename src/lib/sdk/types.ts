@@ -465,3 +465,23 @@ export interface PaymentWaitResponse {
   payment: PaymentDetailsDto;
   checks?: HealthCheckDto[];
 }
+
+export interface RgbOnchainPaymentDto {
+  id: string;
+  kind: string;
+  status: string;
+  created_at_unix_secs: string;
+  latest_update_timestamp: string;
+  expires_at_unix_secs?: string;
+  invoice?: string;
+  contract_id?: string;
+  amount?: string;
+  txid?: string;
+  consignment_key?: string;
+  consignment_download_path?: string;
+  asset_id?: string;
+}
+
+export interface RgbOnchainPaymentsResponse {
+  payments: RgbOnchainPaymentDto[];
+}

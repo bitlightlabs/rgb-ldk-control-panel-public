@@ -51,3 +51,31 @@ export function getDirname(dir: string): string {
 
   return '' === dir ? '/' : dir;
 }
+
+export function trimChar(str: string, char: string): string {
+  if(!str) {
+    return '';
+  }
+  if (char === str.charAt(0)) {
+    str = str.substring(1);
+  }
+  if (str.length > 0 && char === str.charAt(str.length - 1)) {
+    str = str.substring(0, str.length - 1);
+  }
+
+  return str;
+}
+
+export function formatAddress(address: string | undefined, show = 20): string {
+  if (!address) {
+    return '';
+  }
+
+  const len = address.length;
+  if (len <= show) {
+    return address;
+  }
+
+  const half = Math.floor(show / 2);
+  return `${address.substring(0, half)}...${address.substring(len - half)}`;
+}

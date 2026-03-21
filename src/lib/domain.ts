@@ -11,6 +11,7 @@ export type NodeContext = {
   p2p_listen?: string | null;
   rgb_consignment_base_url?: string | null;
   allow_non_loopback?: boolean | null;
+  network: string
 };
 
 export type ControlStatusDto = {
@@ -31,8 +32,6 @@ export type VersionResponse = {
 };
 
 export type WalletNewAddressResponse = { address: string };
-export type RegtestBlockHeightResponse = { height: number };
-export type RegtestMineResponse = { mined_blocks: number; address: string; height: number };
 export type DockerEnvironmentResponse = {
   installed: boolean;
   daemon_running: boolean;
@@ -50,12 +49,22 @@ export type BootstrapLocalNodeResponse = {
   p2p_port: number;
   created: boolean;
 };
+export type BitcoinNetwork = "mainnet" | "testnet" | "testnet4" | "regtest";
+
+export type NetworkOption = {
+  value: BitcoinNetwork;
+  label: string;
+  esploraUrl: string;
+};
+
 export type BootstrapLocalNodeRequest = {
   nodeName?: string;
   containerName?: string;
   mainApiPort?: number;
   controlApiPort?: number;
   p2pPort?: number;
+  network?: BitcoinNetwork;
+  esploraUrl?: string;
 };
 
 export type BootstrapLocalEnvironmentNode = {
@@ -95,15 +104,26 @@ export type EventDto =
   | { type: "ChannelPending"; data: { funding_txo: OutPointDto } }
   | { type: "ChannelReady"; data: { user_channel_id: string } }
   | {
-      type: "ChannelClosed";
-      data: {
-        channel_id: string;
-        user_channel_id: string;
-        counterparty_node_id?: string | null;
-        reason?: string | null;
-      };
-    }
-  | { type: "Other"; data: { kind: string } };
+    type: "ChannelClosed";
+    data: {
+      channel_id: string;
+      user_channel_id: string;
+      counterparty_node_id?: string | null;
+      reason?: string | null;
+    };
+  }
+  | { type: "Other"; data: { kind: string } }
+  | {
+    type: "NodeHttp";
+    data: {
+      action: string;
+      phase: "request" | "response" | "error";
+      duration_ms?: number | null;
+      request?: unknown;
+      response?: unknown;
+      error?: { code?: string; message?: string; hint?: string } | null;
+    };
+  };
 
 export type StoredEvent = {
   node_id: string;

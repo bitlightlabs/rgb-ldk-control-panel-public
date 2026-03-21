@@ -29,6 +29,8 @@ import {
   nodeChannelClose,
   nodeChannelForceClose,
   nodeMainChannels,
+  nodeRgbSync,
+  nodeWalletSync,
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
 import {
@@ -39,7 +41,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ArrowLeft, ChevronRight, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
 
 function truncateMiddle(s: string, head = 10, tail = 10): string {
   if (s.length <= head + tail + 3) return s;
@@ -95,7 +97,7 @@ export function ChannelsPage() {
   const contextsQuery = useQuery({
     queryKey: ["contexts"],
     queryFn: contextsList,
-    refetchInterval: 10_000,
+    refetchInterval: false,
   });
   const contexts = contextsQuery.data ?? [];
 
@@ -145,6 +147,21 @@ export function ChannelsPage() {
     },
     onSuccess: async () => {
       await channelsQuery.refetch();
+    },
+  });
+
+  const refreshNodeMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeNodeId) return;
+      await nodeWalletSync(activeNodeId);
+      await nodeRgbSync(activeNodeId);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        channelsQuery.refetch(),
+        eventsQuery.refetch(),
+        eventsStatusQuery.refetch(),
+      ]);
     },
   });
 
@@ -486,6 +503,22 @@ export function ChannelsPage() {
                   <Button
                     size="sm"
                     type="button"
+                    variant="outline"
+                    disabled={refreshNodeMutation.isPending}
+                    onClick={() => refreshNodeMutation.mutate()}
+                  >
+                    <RefreshCw
+                      className={
+                        refreshNodeMutation.isPending
+                          ? "h-4 w-4 animate-spin"
+                          : "h-4 w-4"
+                      }
+                    />
+                    Refresh Node
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="button"
                     onClick={() => setOpenDialogOpen(true)}
                   >
                     <Plus className="h-4 w-4" />
@@ -549,6 +582,22 @@ export function ChannelsPage() {
                   <AlertTitle>Channel operation failed</AlertTitle>
                   <AlertDescription>
                     {errorToText(closeChannelMutation.error)}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {refreshNodeMutation.isError ? (
+                <Alert variant="destructive">
+                  <AlertTitle>Refresh node failed</AlertTitle>
+                  <AlertDescription>
+                    {errorToText(refreshNodeMutation.error)}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              {refreshNodeMutation.isSuccess ? (
+                <Alert>
+                  <AlertTitle>Node refreshed</AlertTitle>
+                  <AlertDescription>
+                    Wallet and RGB state synced, channel/event data updated.
                   </AlertDescription>
                 </Alert>
               ) : null}

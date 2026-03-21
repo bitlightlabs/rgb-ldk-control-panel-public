@@ -92,6 +92,22 @@ pub struct RgbOnchainInvoiceResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RgbOnchainInvoiceDecodeRequest {
+	pub invoice: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RgbOnchainInvoiceDecodeResponse {
+	pub contract_id: String,
+	#[serde(with = "serde_u64_decimal_string")]
+	pub amount: u64,
+	pub beneficiary: String,
+	pub use_witness_utxo: bool,
+	#[serde(default, with = "serde_opt_u64_decimal_string")]
+	pub expiry_unix_secs: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RgbOnchainSendRequest {
 	pub invoice: String,
 	#[serde(default, with = "serde_opt_u64_decimal_string")]
@@ -328,6 +344,12 @@ pub struct RgbContractsImportResponse {
 pub struct RgbContractsExportBundle {
 	pub contract_id: String,
 	pub consignment_key: String,
+	pub archive_base64: String,
+	pub format: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TransferConsignment {
 	pub archive_base64: String,
 	pub format: String,
 }
@@ -596,6 +618,42 @@ pub struct PaymentDetailsDto {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RgbOnchainPaymentsResponse {
+	pub payments: Vec<RgbOnchainPaymentDto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RgbOnchainPaymentDto {
+	pub id: String,
+	/// One of: invoice_created | onchain_sent | onchain_received
+	pub kind: String,
+	/// One of: pending | succeeded | failed | expired
+	pub status: String,
+	#[serde(with = "serde_u64_decimal_string")]
+	pub created_at_unix_secs: u64,
+	#[serde(with = "serde_u64_decimal_string")]
+	pub latest_update_timestamp: u64,
+	#[serde(default, with = "serde_opt_u64_decimal_string")]
+	pub expires_at_unix_secs: Option<u64>,
+
+	// Common payload fields (vary by kind)
+	#[serde(default)]
+	pub invoice: Option<String>,
+	#[serde(default)]
+	pub contract_id: Option<String>,
+	#[serde(default, with = "serde_opt_u64_decimal_string")]
+	pub amount: Option<u64>,
+	#[serde(default)]
+	pub txid: Option<String>,
+	#[serde(default)]
+	pub consignment_key: Option<String>,
+	#[serde(default)]
+	pub consignment_download_path: Option<String>,
+	#[serde(default)]
+	pub asset_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentWaitRequest {
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub timeout_secs: Option<u32>,
@@ -678,6 +736,18 @@ pub enum EventDto {
 	},
 	Other {
 		kind: String,
+	},
+	NodeHttp {
+		action: String,
+		phase: String,
+		#[serde(skip_serializing_if = "Option::is_none")]
+		duration_ms: Option<u64>,
+		#[serde(skip_serializing_if = "Option::is_none")]
+		request: Option<serde_json::Value>,
+		#[serde(skip_serializing_if = "Option::is_none")]
+		response: Option<serde_json::Value>,
+		#[serde(skip_serializing_if = "Option::is_none")]
+		error: Option<serde_json::Value>,
 	},
 }
 
@@ -2143,6 +2213,37 @@ pub async fn rgb_onchain_invoice_create(
         .map_err(|_| CommandError::HttpRequestFailed)
 }
 
+pub async fn rgb_onchain_invoice_decode(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	req_body: RgbOnchainInvoiceDecodeRequest,
+) -> Result<RgbOnchainInvoiceDecodeResponse, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base
+		.join("api/v1/rgb/onchain/invoice/decode")
+		.map_err(|_| CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		})?;
+
+	let mut req = client.post(url).json(&req_body);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req
+		.send()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<RgbOnchainInvoiceDecodeResponse>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
 pub async fn rgb_new_address(
     client: &reqwest::Client,
     ctx: &NodeContext,
@@ -2177,11 +2278,12 @@ pub async fn rgb_onchain_receive_archive(
     client: &reqwest::Client,
     ctx: &NodeContext,
     format: &str,
+		payment_id: &str,
     archive: &[u8],
 ) -> Result<RgbOnchainReceiveResponse, CommandError> {
     let base = parse_base_url(&ctx.main_api_base_url)?;
     let url = base
-        .join(&format!("api/v1/rgb/onchain/receive?format={format}"))
+        .join(&format!("api/v1/rgb/onchain/receive?format={format}&payment_id={payment_id}"))
         .map_err(|_| CommandError::InvalidBaseUrl {
             url: ctx.main_api_base_url.clone(),
         })?;
@@ -2300,6 +2402,33 @@ pub async fn rgb_onchain_send(
 	}
 
 	resp.json::<RgbOnchainSendResponse>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn rgb_onchain_payments(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<RgbOnchainPaymentsResponse, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/rgb/onchain/payments").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.get(url);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<RgbOnchainPaymentsResponse>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }

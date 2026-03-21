@@ -25,7 +25,9 @@ export default function RgbUtxoSelect(props: {nodeId: string, onChangeUtxo: (utx
       </SelectTrigger>
       <SelectContent>
         {
-          utxos.map((c) => {
+          utxos.length === 0 ? (
+            <SelectItem value="null" disabled>loading...</SelectItem>
+          ) : utxos.map((c) => {
             return <SelectItem key={c.outpoint} value={c.outpoint}>{c.outpoint}</SelectItem>
           })
         }

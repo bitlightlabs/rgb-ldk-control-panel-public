@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose.yml}"
+COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose-regtest.yml}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT/$COMPOSE_FILE_NAME"

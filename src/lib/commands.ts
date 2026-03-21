@@ -7,8 +7,6 @@ import type {
   EventsStatus,
   NodeHttpProxyResponse,
   NodeContext,
-  RegtestBlockHeightResponse,
-  RegtestMineResponse,
   StoredEvent,
   VersionResponse,
   WalletNewAddressResponse,
@@ -63,6 +61,7 @@ import type {
   RgbOnchainInvoiceResponse,
   RgbIssuersResponse,
   RgbOnchainSendResponse,
+  RgbOnchainPaymentsResponse,
 } from "./sdk/types";
 import { tauriInvoke } from "./tauri";
 import type { RgbContractsExportBundle } from "./domain";
@@ -94,14 +93,6 @@ export async function logUi(level: UiLogLevel, message: string, context?: unknow
   return tauriInvoke("log_ui", { level, message, context: context ?? null });
 }
 
-export async function regtestBlockHeight(): Promise<RegtestBlockHeightResponse> {
-  return tauriInvoke("regtest_block_height");
-}
-
-export async function regtestMine(blocks = 1): Promise<RegtestMineResponse> {
-  return tauriInvoke("regtest_mine", { blocks });
-}
-
 export async function dockerEnvironment(): Promise<DockerEnvironmentResponse> {
   return tauriInvoke("docker_environment");
 }
@@ -113,6 +104,8 @@ export async function bootstrapLocalNode(request?: BootstrapLocalNodeRequest): P
     mainApiPort: request?.mainApiPort ?? null,
     controlApiPort: request?.controlApiPort ?? null,
     p2pPort: request?.p2pPort ?? null,
+    network: request?.network ?? null,
+    esploraUrl: request?.esploraUrl ?? null,
   });
 }
 
@@ -164,6 +157,14 @@ export async function eventsStatus(nodeId: string): Promise<EventsStatus> {
 
 export async function eventsStatusAll(): Promise<Record<string, EventsStatus>> {
   return tauriInvoke("events_status_all");
+}
+
+export async function eventsHttpDebugGet(): Promise<boolean> {
+  return tauriInvoke("events_http_debug_get");
+}
+
+export async function eventsHttpDebugSet(enabled: boolean): Promise<void> {
+  return tauriInvoke("events_http_debug_set", { enabled });
 }
 
 export async function contextsUpsert(context: NodeContext): Promise<void> {
@@ -392,28 +393,34 @@ export async function nodeLock(nodeId: string): Promise<ControlStatusDto> {
   return tauriInvoke("node_lock", { nodeId: nodeId });
 }
 
-export async function pluginWalletAssetExport(contractId: string): Promise<RgbContractsExportBundle> {
-  return tauriInvoke("plugin_wallet_asset_export", { contractId });
+export async function pluginWalletAssetExport(contractId: string, url: string): Promise<RgbContractsExportBundle> {
+  return tauriInvoke("plugin_wallet_asset_export", { contractId, url });
 }
 
 export async function pluginWalletTransferConsignmentExport(paymentId: string): Promise<RgbContractsExportBundle> {
   return tauriInvoke("plugin_wallet_transfer_consignment_export", { paymentId });
 }
 
+export async function downloadTransferConsignmentFromLink(link: string): Promise<RgbContractsExportBundle> {
+  return tauriInvoke("download_transfer_consignment_from_link", { link });
+}
+
 export async function nodeRgbOnchainTransferConsignmentAccept(
   nodeId: string,
+  invoice: string,
   fileData: string,
   format?: "raw" | "gzip" | "zip",
-): Promise<{asset_id: string, amount: string}> {
+): Promise<{ asset_id: string, amount: string }> {
   return tauriInvoke("node_rgb_onchain_transfer_consignment_accept", {
     nodeId: nodeId,
     format: format ?? null,
+    invoice: invoice,
     transferConsignmentBase64: fileData,
   });
 }
 
 export async function node_rgb_utxos_summary(nodeId: string,): Promise<{
-  utxos: {outpoint: string, value_sats: number}[]
+  utxos: { outpoint: string, value_sats: number }[]
 }> {
   return tauriInvoke("node_rgb_utxos_summary", { nodeId });
 }
@@ -452,7 +459,7 @@ export async function nodeRgbOnchainTransferConsignmentDownload(
   nodeId: string,
   consignmentKey: string,
   format = 'raw'
-): Promise<{archive_base64: string}> {
+): Promise<{ archive_base64: string }> {
   return tauriInvoke("node_rgb_onchain_transfer_consignment_download", {
     nodeId,
     consignmentKey,
@@ -460,11 +467,15 @@ export async function nodeRgbOnchainTransferConsignmentDownload(
   });
 }
 
-export async function nodeRgbOnchainSend(nodeId: string, request: {invoice: string, fee_rate_sats_per_vb: number}): Promise<RgbOnchainSendResponse> {
+export async function nodeRgbOnchainSend(nodeId: string, request: { invoice: string, fee_rate_sats_per_vb: number }): Promise<RgbOnchainSendResponse> {
   return tauriInvoke("node_rgb_onchain_send", { nodeId: nodeId, request });
 }
 
 export async function pluginWalletTransferConsignmentAccept(consignment: string): Promise<any> {
   const res = await tauriInvoke("plugin_wallet_transfer_consignment_accept", { consignmentBase64: consignment });
   return res as any
+}
+
+export async function nodeRgbOnchainPayments(nodeId: string): Promise<RgbOnchainPaymentsResponse> {
+  return tauriInvoke("rgb_onchain_payments", { nodeId: nodeId });
 }

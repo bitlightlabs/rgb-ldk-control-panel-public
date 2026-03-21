@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { NodeContext } from "@/lib/domain";
@@ -53,12 +60,6 @@ function buildConsignmentTemplate(base: string): string {
 
 function defaultRgbContextData(source: NodeContext | null): string {
   if (!source) return "";
-  if (source.node_id === "alex") {
-    return "http://rgb-node-alice:8500/api/v1/rgb/consignments/{txid}?format=zip";
-  }
-  if (source.node_id === "bob") {
-    return "http://rgb-node-bob:8500/api/v1/rgb/consignments/{txid}?format=zip";
-  }
   if (source.rgb_consignment_base_url) {
     return buildConsignmentTemplate(source.rgb_consignment_base_url);
   }
@@ -149,7 +150,10 @@ export function OpenChannelDialog({
 
   useEffect(() => {
     if (!rgbEnabled) return;
-    if (isDigits(channelAmountSats) && Number(channelAmountSats) < MIN_RGB_CHANNEL_SATS) {
+    if (
+      isDigits(channelAmountSats) &&
+      Number(channelAmountSats) < MIN_RGB_CHANNEL_SATS
+    ) {
       setChannelAmountSats(String(MIN_RGB_CHANNEL_SATS));
     }
   }, [channelAmountSats, rgbEnabled]);
@@ -200,7 +204,10 @@ export function OpenChannelDialog({
         }
       }
 
-      const selectAsset = rgbContractsQuery.data?.contracts.find((c) => c.asset_id === rgbAssetId) ?? null;
+      const selectAsset =
+        rgbContractsQuery.data?.contracts.find(
+          (c) => c.asset_id === rgbAssetId
+        ) ?? null;
       const precision = selectAsset?.precision ?? 0;
 
       const req: OpenChannelRequest = {
@@ -212,7 +219,9 @@ export function OpenChannelDialog({
         rgb: rgbEnabled
           ? {
               asset_id: rgbAssetId.trim(),
-              asset_amount: u64(Number(rgbAssetAmount.trim()) * 10 ** precision),
+              asset_amount: u64(
+                Number(rgbAssetAmount.trim()) * 10 ** precision
+              ),
               color_context_data: rgbContextData.trim(),
             }
           : null,
@@ -236,7 +245,10 @@ export function OpenChannelDialog({
       return "Channel amount must be a whole number (sats).";
     if (channelAmountSats.trim() === "0") return "Channel amount must be > 0.";
     if (rgbEnabled) {
-      if (isDigits(channelAmountSats) && Number(channelAmountSats) < MIN_RGB_CHANNEL_SATS) {
+      if (
+        isDigits(channelAmountSats) &&
+        Number(channelAmountSats) < MIN_RGB_CHANNEL_SATS
+      ) {
         return `RGB channels require at least ${MIN_RGB_CHANNEL_SATS} sats channel amount.`;
       }
       if (!rgbAssetId.trim()) return "Missing RGB asset_id.";
@@ -264,7 +276,7 @@ export function OpenChannelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle>Open channel1</DialogTitle>
+          <DialogTitle>Open channel</DialogTitle>
         </DialogHeader>
 
         <div className="max-h-[60vh] overflow-y-auto grid grid-cols-1 gap-4">
@@ -479,61 +491,48 @@ export function OpenChannelDialog({
             {rgbEnabled ? (
               <div className="grid gap-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="rgb_asset_id">asset_id</Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        id="rgb_asset_id"
-                        variant="outline"
-                        type="button"
-                        className="justify-between"
-                        data-testid="open-channel-rgb-asset-id"
-                      >
-                        <span className="truncate font-mono text-xs">
-                          {selectedRgbContract
-                            ? `${selectedRgbContract.name ?? selectedRgbContract.ticker ?? selectedRgbContract.contract_id.slice(0, 12)} (${selectedRgbContract.contract_id.slice(0, 12)}...)`
-                            : "Pick RGB asset…"}
-                        </span>
-                        <span className="ml-2 shrink-0 text-xs ui-muted">
-                          {rgbContractsQuery.isPending
-                            ? "Loading"
-                            : (rgbContractsQuery.data?.contracts?.length ?? 0) > 0
-                            ? `${rgbContractsQuery.data?.contracts?.length ?? 0}`
-                            : "0"}
-                        </span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-[520px]" align="start">
-                      <DropdownMenuLabel>Pick RGB asset</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      {rgbContractsQuery.isPending ? (
-                        <DropdownMenuItem disabled>Loading RGB assets…</DropdownMenuItem>
-                      ) : rgbContractsQuery.isError ? (
-                        <DropdownMenuItem disabled>
-                          Failed: {errorToText(rgbContractsQuery.error)}
-                        </DropdownMenuItem>
-                      ) : (rgbContractsQuery.data?.contracts?.length ?? 0) === 0 ? (
-                        <DropdownMenuItem disabled>No RGB assets found</DropdownMenuItem>
-                      ) : (
-                        rgbContractsQuery.data!.contracts.map((c) => (
-                          <DropdownMenuItem
-                            key={c.contract_id}
-                            onClick={() => setRgbAssetId(c.asset_id)}
-                            data-testid={`open-channel-rgb-asset-item-${c.contract_id}`}
-                          >
-                            <div className="min-w-0">
-                              <div className="truncate text-sm">
-                                {c.name ?? c.ticker ?? c.contract_id.slice(0, 12)}
-                              </div>
-                              <div className="truncate font-mono text-xs ui-muted">
-                                {c.asset_id}
-                              </div>
-                            </div>
-                          </DropdownMenuItem>
-                        ))
-                      )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Label htmlFor="rgb_asset_id">Asset</Label>
+                  <Select
+                    value={rgbAssetId || undefined}
+                    onValueChange={setRgbAssetId}
+                    disabled={
+                      rgbContractsQuery.isPending ||
+                      rgbContractsQuery.isError ||
+                      (rgbContractsQuery.data?.contracts?.length ?? 0) === 0
+                    }
+                  >
+                    <SelectTrigger
+                      id="rgb_asset_id"
+                      className="w-full"
+                      data-testid="open-channel-rgb-asset-id"
+                    >
+                      <SelectValue
+                        placeholder={
+                          rgbContractsQuery.isPending
+                            ? "Loading RGB assets..."
+                            : rgbContractsQuery.isError
+                            ? "Failed to load RGB assets"
+                            : "Pick RGB asset..."
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(rgbContractsQuery.data?.contracts ?? []).map((c) => (
+                        <SelectItem
+                          key={c.contract_id}
+                          value={c.asset_id}
+                          data-testid={`open-channel-rgb-asset-item-${c.contract_id}`}
+                        >
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {rgbContractsQuery.isError ? (
+                    <div className="text-xs ui-danger">
+                      {errorToText(rgbContractsQuery.error)}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="rgb_asset_amount">asset amount</Label>
@@ -546,10 +545,6 @@ export function OpenChannelDialog({
                     placeholder="e.g. 100"
                     data-testid="open-channel-rgb-asset-amount"
                   />
-                </div>
-                <div className="text-xs ui-muted">
-                  color_context_data will be auto-filled:
-                  <div className="mt-1 font-mono">{rgbContextData || "-"}</div>
                 </div>
               </div>
             ) : null}

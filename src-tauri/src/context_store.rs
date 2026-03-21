@@ -17,6 +17,7 @@ pub struct NodeContext {
 	pub rgb_consignment_base_url: Option<String>,
 	#[serde(default)]
 	pub allow_non_loopback: bool,
+	pub network: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

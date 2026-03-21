@@ -1,8 +1,9 @@
 import { AssetExplorer } from "@/app/components/AssetExplorer";
+import RgbPaymentsList from "@/app/components/RgbPaymentsList";
 import { useAssetsStore } from "@/app/stores/assetsStore";
-import { useNavStore } from "@/app/stores/navStore";
 import { useNodeStore } from "@/app/stores/nodeStore";
-import IssuerList from "../components/IssuerList";
+import { useNavigate } from "react-router-dom";
+// import IssuerList from "@/app/components/IssuerList";
 
 export function AssetsPage() {
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
@@ -10,7 +11,7 @@ export function AssetsPage() {
   const detailOrigin = useAssetsStore((s) => s.detailOrigin);
   const clearSelectedAssetId = useAssetsStore((s) => s.clearSelectedAssetId);
   const setSelectedAssetId = useAssetsStore((s) => s.setSelectedAssetId);
-  const setActiveTab = useNavStore((s) => s.setActiveTab);
+  const navigate = useNavigate();
 
   return (
     <div className="space-y-4">
@@ -20,16 +21,17 @@ export function AssetsPage() {
         onBackFromDetails={() => {
           if (detailOrigin === "dashboard") {
             clearSelectedAssetId();
-            setActiveTab("dashboard");
+            navigate("/dashboard");
             return;
           }
           clearSelectedAssetId();
         }}
         inlineDetails
-        activeNodeId={activeNodeId ?? ''}
+        activeNodeId={activeNodeId ?? ""}
       />
 
-      <IssuerList activeNodeId={activeNodeId} />
+      {/* <IssuerList activeNodeId={activeNodeId} /> */}
+      {/* <RgbPaymentsList activeNodeId={activeNodeId} /> */}
     </div>
   );
 }

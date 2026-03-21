@@ -28,6 +28,7 @@ function defaultDraft(): NodeContext {
     p2p_listen: null,
     rgb_consignment_base_url: null,
     allow_non_loopback: false,
+    network: "regtest"
   };
 }
 

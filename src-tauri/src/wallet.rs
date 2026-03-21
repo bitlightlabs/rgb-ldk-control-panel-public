@@ -125,8 +125,9 @@ static WALLET_RPC: &str = "https://core-regtest-stag.bitlightdev.info";
 
 pub async fn plugin_wallet_asset_export(
    contract_id: &str,
+   url: &str,
 ) -> Result<Vec<u8>, CommandError> {
-    let rpc_url = format!("{}/staff/contract/consignment?contract_id={}", WALLET_RPC, contract_id);
+    let rpc_url = format!("{}/staff/contract/consignment?contract_id={}", url, contract_id);
 
     let client = reqwest::Client::new();
     let resp = client
@@ -155,6 +156,27 @@ pub async fn plugin_wallet_transfer_consignment_export(
     let client = reqwest::Client::new();
     let resp = client
         .get(rpc_url)
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+
+    if !resp.status().is_success() {
+        return Err(rgbldkd_http::classify_non_success("main", resp).await?);
+    }
+
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+    Ok(bytes.to_vec())
+}
+
+pub async fn download_transfer_consignment_from_link(
+   link: &str,
+) -> Result<Vec<u8>, CommandError> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(link)
         .send()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)?;

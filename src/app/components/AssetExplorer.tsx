@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -10,8 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { base64ToUint8Array, getGradientStyle } from "@/lib/utils";
-import ImportAssetDialog from "./ImportAssetDialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  base64ToUint8Array,
+  cn,
+  formatAddress,
+  getGradientStyle,
+} from "@/lib/utils";
+import ImportOnchainAsset from "./ImportOnchainAssetDialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { nodeRgbContractExportBundle, nodeRgbContracts } from "@/lib/commands";
 import AssetBalance from "./AssetBalance";
@@ -20,7 +26,9 @@ import IssueAsset from "./IssueAsset";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
-import ImportContract from "./ImportContract";
+import ImportLocalContract from "./ImportContract";
+import AcceptOnChainPaymentDialog from "./AcceptOnChainPaymentDialog";
+import CopyText from "./CopyText";
 
 export type Asset = RgbContractDto;
 
@@ -36,27 +44,38 @@ function AssetAvatar({ name }: { name: string }) {
   );
 }
 
-function AssetDetails({ activeNodeId, asset, onBack }: { activeNodeId: string, asset: Asset; onBack: () => void }) {
+function AssetDetails({
+  activeNodeId,
+  asset,
+  onBack,
+}: {
+  activeNodeId: string;
+  asset: Asset;
+  onBack: () => void;
+}) {
   const exportContract = useMutation({
     mutationFn: async () => {
-      if(!activeNodeId) throw new Error("No active node selected");
+      if (!activeNodeId) throw new Error("No active node selected");
 
-      const data = await nodeRgbContractExportBundle(activeNodeId, asset.contract_id)
+      const data = await nodeRgbContractExportBundle(
+        activeNodeId,
+        asset.contract_id
+      );
 
       // Svae file
       const path = await save({
-        defaultPath: asset.contract_id + ".raw"
+        defaultPath: asset.contract_id + ".raw",
       });
       if (!path) {
         throw new Error("File save cancelled by user");
-      };
+      }
       const bytes = base64ToUint8Array(data.archive_base64);
       await writeFile(path, bytes);
     },
     onSuccess: () => {
       toast.success("Contract exported successfully");
-    }
-  })
+    },
+  });
 
   return (
     <div className="space-y-4">
@@ -74,14 +93,16 @@ function AssetDetails({ activeNodeId, asset, onBack }: { activeNodeId: string, a
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-3 text-base">
-              <AssetAvatar name={asset.name ?? ''} />
+              <AssetAvatar name={asset.name ?? ""} />
               <span>{asset.name}</span>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
             <div className="rounded-lg border ui-border p-3">
               <div className="text-xs ui-muted">Contract ID</div>
-              <div className="mt-1 break-all font-mono text-xs">{asset.contract_id}</div>
+              <div className="mt-1 break-all font-mono text-xs">
+                {asset.contract_id}
+              </div>
             </div>
             <div className="rounded-lg border ui-border p-3">
               <div className="text-xs ui-muted">Asset ID</div>
@@ -137,7 +158,8 @@ export function AssetExplorer({
   onSelectAsset,
   onBackFromDetails,
   inlineDetails = true,
-  activeNodeId = '',
+  tableHeight,
+  activeNodeId = "",
 }: {
   title?: string;
   withCard?: boolean;
@@ -146,7 +168,8 @@ export function AssetExplorer({
   onSelectAsset?: (assetId: string) => void;
   onBackFromDetails?: () => void;
   inlineDetails?: boolean;
-  activeNodeId: string
+  tableHeight?: number;
+  activeNodeId: string;
 }) {
   const rgbContractsQuery = useQuery({
     queryKey: ["dashboard_rgb_contracts", activeNodeId],
@@ -164,6 +187,7 @@ export function AssetExplorer({
 
   const [showIssue, setShowIssue] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showAcceptDialog, setShowAcceptDialog] = useState(false);
   const [showImportLocalContract, setShowImportlocalContract] = useState(false);
   const [innerSelectedAssetId, setInnerSelectedAssetId] = useState<
     string | null
@@ -175,7 +199,8 @@ export function AssetExplorer({
     onBackFromDetails ?? (() => setInnerSelectedAssetId(null));
 
   const selectedAsset = useMemo(
-    () => contracts.find((item) => item.contract_id === resolvedSelectedId) ?? null,
+    () =>
+      contracts.find((item) => item.contract_id === resolvedSelectedId) ?? null,
     [contracts, resolvedSelectedId]
   );
 
@@ -190,64 +215,72 @@ export function AssetExplorer({
   }
 
   const table = (
-    <Table className="border">
-      <TableHeader>
-        <TableRow>
-          <TableHead>Asset Name</TableHead>
-          <TableHead>Asset ID</TableHead>
-          <TableHead>Ticker</TableHead>
-          <TableHead>Amount</TableHead>
-          <TableHead className="w-[40px]" />
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {
-          rgbContractsQuery.isPending && (
+    <ScrollArea
+      className="w-full"
+      style={tableHeight ? { height: `${tableHeight}px` } : undefined}
+    >
+      <Table style={{ width: "max-content" }}>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Asset Name</TableHead>
+            <TableHead>Amount</TableHead>
+            <TableHead>Ticker</TableHead>
+            <TableHead className="w-10" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rgbContractsQuery.isRefetching ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-center py-4">
+              <TableCell colSpan={4} className="text-center py-4">
                 Loading...
               </TableCell>
             </TableRow>
-          )
-        }
-        {rgbContractsQuery.data?.contracts.map((asset) => (
-          <TableRow
-            key={asset.contract_id}
-            className="cursor-pointer"
-            onClick={() => handleSelectAsset(asset.contract_id)}
-          >
-            <TableCell>
-              <div className="flex items-center gap-3 w-[200px]">
-                <AssetAvatar name={asset.name ?? ''} />
-                <div>
-                  <div className="truncate font-medium">{asset.name}</div>
-                  <div className="truncate text-xs text-accent-foreground whitespace-pre-line break-all wrap-anywhere">
-                    {asset.contract_id}
+          ) : (
+            rgbContractsQuery.data?.contracts.map((asset) => (
+              <TableRow
+                key={asset.contract_id}
+                className="cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleSelectAsset(asset.contract_id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleSelectAsset(asset.contract_id);
+                  }
+                }}
+              >
+                <TableCell>
+                  <div className="flex items-start gap-3">
+                    <AssetAvatar name={asset.name ?? ""} />
+                    <div className="min-w-0">
+                      <div className="font-medium">{asset.name}</div>
+                      <div className="flex items-center gap-1 text-xs ui-muted">
+                        <span className="font-mono">
+                          {formatAddress(asset.contract_id)}
+                        </span>
+                        <CopyText text={asset.contract_id} />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </div>
-            </TableCell>
-            <TableCell>
-              <div className="w-[200px] whitespace-pre-line break-all wrap-anywhere">
-                {asset.asset_id}
-              </div>
-            </TableCell>
-            <TableCell>{asset.ticker}</TableCell>
-            <TableCell>
-              <AssetBalance
-                nodeId={activeNodeId}
-                contractId={asset.contract_id}
-                precision={asset.precision ?? 0}
-              />
-            </TableCell>
-
-            <TableCell className="text-right">
-              <ChevronRight className="ml-auto h-4 w-4 ui-muted" />
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+                </TableCell>
+                <TableCell>
+                  <AssetBalance
+                    nodeId={activeNodeId}
+                    contractId={asset.contract_id}
+                    precision={asset.precision ?? 0}
+                  />
+                </TableCell>
+                <TableCell>{asset.ticker}</TableCell>
+                <TableCell>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </ScrollArea>
   );
 
   if (!withCard) return table;
@@ -255,46 +288,61 @@ export function AssetExplorer({
   return (
     <>
       <Card>
-        <CardHeader >
+        <CardHeader>
           <CardTitle className="flex justify-between">
             <span>{title}</span>
             <div className="flex gap-3">
-              <Button disabled={rgbContractsQuery.isPending} variant="secondary" onClick={() => rgbContractsQuery.refetch()}>Refresh</Button>
-              {/* <Button variant="secondary" onClick={() => setShowIssue(true)}>Issue Asset</Button>
-              <Button variant="secondary" onClick={() => setShowImport(true)}>Import Onchain Asset</Button> */}
-              {/* <Button variant="secondary" onClick={() => setShowImportlocalContract(true)}>Import Asset Contract</Button> */}
+              <Button
+                disabled={rgbContractsQuery.isPending}
+                variant="outline"
+                className="h-7 w-7"
+                aria-label="Sync wallet"
+                title="Sync wallet"
+                onClick={() => {
+                  rgbContractsQuery.refetch();
+                }}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5")} />
+              </Button>
             </div>
           </CardTitle>
         </CardHeader>
-        <CardContent>{table}</CardContent>
+        <CardContent>
+          <div className="grid grid-cols-1 w-full">{table}</div>
+        </CardContent>
       </Card>
 
-      {
-        showImport ? (
-          <ImportAssetDialog
-            activeNodeId={activeNodeId}
-            onClose={() => setShowImport(false)}
-            onSuccess={() => rgbContractsQuery.refetch()}
-          />) : null
-      }
+      {showImport ? (
+        <ImportOnchainAsset
+          activeNodeId={activeNodeId}
+          onClose={() => setShowImport(false)}
+          onSuccess={() => rgbContractsQuery.refetch()}
+        />
+      ) : null}
 
-      {
-        showIssue ? (
-          <IssueAsset
-            onClose={() => setShowIssue(false)}
-            activeNodeId={activeNodeId}
-            onSuccess={() => rgbContractsQuery.refetch()}
-          />) : null
-      }
+      {showIssue ? (
+        <IssueAsset
+          onClose={() => setShowIssue(false)}
+          activeNodeId={activeNodeId}
+          onSuccess={() => rgbContractsQuery.refetch()}
+        />
+      ) : null}
 
-      {
-        showImportLocalContract ? (
-          <ImportContract
-            onClose={() => setShowImportlocalContract(false)}
-            activeNodeId={activeNodeId}
-            onSuccess={() => rgbContractsQuery.refetch()}
-          />) : null
-      }
+      {showImportLocalContract ? (
+        <ImportLocalContract
+          onClose={() => setShowImportlocalContract(false)}
+          activeNodeId={activeNodeId}
+          onSuccess={() => rgbContractsQuery.refetch()}
+        />
+      ) : null}
+
+      {showAcceptDialog ? (
+        <AcceptOnChainPaymentDialog
+          activeNodeId={activeNodeId}
+          onSuccess={() => rgbContractsQuery.refetch()}
+          onClose={() => setShowAcceptDialog(false)}
+        />
+      ) : null}
     </>
   );
 }

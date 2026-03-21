@@ -14,19 +14,16 @@ import {
   nodeBolt12OfferDecode,
   nodeBolt12OfferSend,
   nodeMainHttp,
-  nodeRgbLnPay,
+  nodeRgbContracts,
   nodeRgbOnchainSend,
-  nodeRgbOnchainTransferConsignmentDownload,
+  nodeRgbLnPay,
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
 import { u64 } from "@/lib/sdk";
 import { ArrowLeft, Check, CircleCheckBig, Copy } from "lucide-react";
-import { save } from "@tauri-apps/plugin-dialog";
-import { base64ToUint8Array } from "@/lib/utils";
-import { writeFile } from "@tauri-apps/plugin-fs";
-import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
-type PayloadKind = "invoice" | "offer" | "unknown";
+type PayloadKind = "invoice" | "offer" | "onchain_asset" | "unknown";
 type SendStep = "form" | "confirm" | "result";
 type RawBolt11DecodeResponse = {
   amount_msat?: string | null;
@@ -40,6 +37,13 @@ type RawRgbLnInvoiceDecodeResponse = {
   expiry_secs?: string | number;
   asset_id?: string | null;
   asset_amount?: string | null;
+};
+type RawRgbOnchainInvoiceDecodeResponse = {
+  contract_id?: string;
+  amount?: string | number | null;
+  beneficiary?: string;
+  use_witness_utxo?: boolean;
+  expiry_unix_secs?: string | number | null;
 };
 
 function hasRgbInvoiceFields(
@@ -55,6 +59,7 @@ function hasRgbInvoiceFields(
 function detectPayloadKind(value: string): PayloadKind {
   const normalized = value.trim().toLowerCase();
   if (!normalized) return "unknown";
+  if (normalized.startsWith("contract:")) return "onchain_asset";
   if (normalized.startsWith("lno")) return "offer";
   if (normalized.startsWith("ln")) return "invoice";
   return "unknown";
@@ -71,21 +76,55 @@ function isDigits(value: string): boolean {
   return /^[0-9]+$/.test(value.trim());
 }
 
-export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
+function toU64Text(value: string | number | null | undefined): string | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) return null;
+    if (!Number.isSafeInteger(value) || value < 0) return null;
+    return String(value);
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return /^[0-9]+$/.test(trimmed) ? trimmed : null;
+  }
+  return null;
+}
+
+function formatRgbAtomicAmount(amount: string, precision: number): string {
+  const trimmed = amount.trim();
+  if (!/^\d+$/.test(trimmed)) return amount;
+  if (!Number.isSafeInteger(precision) || precision <= 0) return trimmed;
+
+  const scale = 10n ** BigInt(precision);
+  const n = BigInt(trimmed);
+  const integer = n / scale;
+  const fractionRaw = (n % scale).toString().padStart(precision, "0");
+  const fraction = fractionRaw.replace(/0+$/, "");
+  return fraction ? `${integer}.${fraction}` : integer.toString();
+}
+
+export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
+  const navigate = useNavigate();
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
   const [step, setStep] = useState<SendStep>("form");
   const [payload, setPayload] = useState("");
   const [decodePayload, setDecodePayload] = useState("");
   const [description, setDescription] = useState("Pay BTC");
   const [offerAmountMsat, setOfferAmountMsat] = useState("");
+  const [onchainFeeRate, setOnchainFeeRate] = useState("");
   const [paymentId, setPaymentId] = useState("");
   const [sentAmountText, setSentAmountText] = useState("");
   const [sentTypeText, setSentTypeText] = useState("");
   const [sentExtraText, setSentExtraText] = useState("");
   const [copied, setCopied] = useState(false);
-  const [onchainInvoice, setOnchainInvoice] = useState("");
-  const [onchainFeeRate, setOnchainFeeRate] = useState("");
-  const [onchainConsignmentKey, setOnchainConsignmentKey] = useState("");
+
+  const goBackRoot = () => {
+    if (onBackRoot) {
+      onBackRoot();
+      return;
+    }
+    navigate("/dashboard");
+  };
+
   const payloadTrim = useMemo(
     () => normalizeLightningPayload(payload),
     [payload]
@@ -137,6 +176,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     retry: 2,
     retryDelay: 300,
   });
+
   const invoiceRawDecodeQuery = useQuery({
     queryKey: ["send_bolt11_decode_raw", activeNodeId, decodePayload],
     queryFn: async (): Promise<RawBolt11DecodeResponse | null> => {
@@ -194,10 +234,74 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     retry: 1,
     retryDelay: 200,
   });
+  const rgbContractsQuery = useQuery({
+    queryKey: ["send_onchain_rgb_contracts", activeNodeId],
+    queryFn: async () => nodeRgbContracts(activeNodeId!),
+    enabled:
+      !!activeNodeId &&
+      (detectedKind === "onchain_asset" || detectedKind === "invoice"),
+    retry: 1,
+    retryDelay: 200,
+  });
+  const onchainInvoiceDecodeQuery = useQuery({
+    queryKey: ["send_rgb_onchain_invoice_decode", activeNodeId, decodePayload],
+    queryFn: async (): Promise<RawRgbOnchainInvoiceDecodeResponse | null> => {
+      const resp = await nodeMainHttp(activeNodeId!, {
+        method: "POST",
+        path: "/rgb/onchain/invoice/decode",
+        headers: { "content-type": "application/json" },
+        bodyText: JSON.stringify({ invoice: decodePayload }),
+      });
+      if (!resp.ok) {
+        throw new Error(
+          `onchain decode failed: status=${resp.status} body=${resp.body.slice(
+            0,
+            200
+          )}`
+        );
+      }
+      try {
+        return JSON.parse(resp.body) as RawRgbOnchainInvoiceDecodeResponse;
+      } catch {
+        throw new Error("onchain decode returned invalid JSON");
+      }
+    },
+    enabled:
+      !!activeNodeId &&
+      detectedKind === "onchain_asset" &&
+      decodePayload.length > 8,
+    retry: 1,
+    retryDelay: 200,
+  });
   const isRgbInvoice =
-    detectedKind === "invoice" && hasRgbInvoiceFields(rgbInvoiceDecodeQuery.data);
+    detectedKind === "invoice" &&
+    hasRgbInvoiceFields(rgbInvoiceDecodeQuery.data);
+  const isOnchainRgbAsset = detectedKind === "onchain_asset";
+  const onchainContractPrecision = useMemo(() => {
+    const contractId = onchainInvoiceDecodeQuery.data?.contract_id?.trim();
+    if (!contractId) return 0;
+    const contract = (rgbContractsQuery.data?.contracts ?? []).find(
+      (c) => c.contract_id === contractId
+    );
+    return contract?.precision ?? 0;
+  }, [
+    rgbContractsQuery.data?.contracts,
+    onchainInvoiceDecodeQuery.data?.contract_id,
+  ]);
+  const decodedOnchainAmount = useMemo(
+    () => toU64Text(onchainInvoiceDecodeQuery.data?.amount),
+    [onchainInvoiceDecodeQuery.data?.amount]
+  );
+  const decodedOnchainAmountDisplay = useMemo(() => {
+    if (!decodedOnchainAmount) return null;
+    return formatRgbAtomicAmount(
+      decodedOnchainAmount,
+      onchainContractPrecision
+    );
+  }, [decodedOnchainAmount, onchainContractPrecision]);
 
   const decodedAmountMsat = useMemo(() => {
+    if (detectedKind === "onchain_asset") return decodedOnchainAmountDisplay;
     if (isRgbInvoice) return rgbInvoiceDecodeQuery.data?.asset_amount ?? null;
     if (detectedKind === "invoice" && invoiceDecodeQuery.data) {
       return invoiceDecodeQuery.data.amount_msat
@@ -220,6 +324,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     invoiceDecodeQuery.data,
     invoiceRawDecodeQuery.data,
     offerDecodeQuery.data,
+    decodedOnchainAmountDisplay,
   ]);
 
   useEffect(() => {
@@ -233,6 +338,15 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     }
   }, [decodedAmountMsat, detectedKind, offerAmountMsat, step]);
 
+  const resolvedOnchainFeeRate = useMemo(() => {
+    const feeRateText = onchainFeeRate.trim();
+    if (!feeRateText) return 20;
+    if (!isDigits(feeRateText)) return null;
+    const feeRate = Number.parseInt(feeRateText, 10);
+    if (!Number.isSafeInteger(feeRate) || feeRate <= 0) return null;
+    return feeRate;
+  }, [onchainFeeRate]);
+
   const decodedCarrierAmountMsat = useMemo(
     () =>
       isRgbInvoice
@@ -245,6 +359,31 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     () => (isRgbInvoice ? rgbInvoiceDecodeQuery.data?.asset_id ?? null : null),
     [isRgbInvoice, rgbInvoiceDecodeQuery.data?.asset_id]
   );
+  const decodedRgbAmountUnit = useMemo(() => {
+    if (isRgbInvoice) {
+      const assetId = decodedRgbAssetId?.trim();
+      if (!assetId) return "RGB";
+      const asset = (rgbContractsQuery.data?.contracts ?? []).find(
+        (c) => c.asset_id === assetId
+      );
+      return asset?.ticker?.trim() || "RGB";
+    }
+    if (isOnchainRgbAsset) {
+      const contractId = onchainInvoiceDecodeQuery.data?.contract_id?.trim();
+      if (!contractId) return "RGB";
+      const contract = (rgbContractsQuery.data?.contracts ?? []).find(
+        (c) => c.contract_id === contractId
+      );
+      return contract?.ticker?.trim() || "RGB";
+    }
+    return "RGB";
+  }, [
+    decodedRgbAssetId,
+    isOnchainRgbAsset,
+    isRgbInvoice,
+    onchainInvoiceDecodeQuery.data?.contract_id,
+    rgbContractsQuery.data?.contracts,
+  ]);
 
   const decodedDescription = useMemo(() => {
     if (isRgbInvoice) return "(RGB invoice)";
@@ -267,6 +406,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
   ]);
 
   const isDecoding =
+    onchainInvoiceDecodeQuery.isFetching ||
     invoiceDecodeQuery.isFetching ||
     invoiceRawDecodeQuery.isFetching ||
     offerDecodeQuery.isFetching ||
@@ -274,6 +414,8 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
   const invoiceDecodeSucceeded =
     !!invoiceDecodeQuery.data || !!invoiceRawDecodeQuery.data;
   const decodeError = useMemo(() => {
+    if (detectedKind === "onchain_asset")
+      return onchainInvoiceDecodeQuery.error;
     if (detectedKind === "offer") return offerDecodeQuery.error;
     if (detectedKind !== "invoice") return null;
     if (isRgbInvoice || invoiceDecodeSucceeded) return null;
@@ -285,6 +427,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     );
   }, [
     detectedKind,
+    onchainInvoiceDecodeQuery.error,
     isRgbInvoice,
     rgbInvoiceDecodeQuery.error,
     invoiceDecodeQuery.error,
@@ -314,8 +457,27 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
       const kind = detectPayloadKind(body);
       if (kind === "unknown") {
         throw new Error(
-          "Unsupported payment request. Please input a Lightning invoice or offer."
+          "Unsupported payment request. Please input a Lightning invoice, Lightning offer, or RGB onchain invoice."
         );
+      }
+
+      if (kind === "onchain_asset") {
+        const feeRate = resolvedOnchainFeeRate;
+        if (feeRate === null) {
+          throw new Error("Fee rate must be a whole number > 0 (sats/vB).");
+        }
+        const resp = await nodeRgbOnchainSend(activeNodeId, {
+          invoice: body,
+          fee_rate_sats_per_vb: feeRate,
+        });
+        return {
+          paymentId: resp.txid,
+          amountText: decodedAmountMsat
+            ? `${decodedAmountMsat} ${decodedRgbAmountUnit}`
+            : "-",
+          typeText: "RGB Onchain invoice",
+          extraText: `Consignment key: ${resp.consignment_key}`,
+        };
       }
 
       if (kind === "invoice") {
@@ -326,7 +488,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
           const assetId = rgbInvoiceDecodeQuery.data?.asset_id ?? "-";
           return {
             paymentId: resp.payment_id,
-            amountText: `${assetAmount} RGB`,
+            amountText: `${assetAmount} ${decodedRgbAmountUnit}`,
             typeText: "RGB Lightning invoice",
             extraText: `Asset: ${assetId}`,
           };
@@ -355,7 +517,9 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
       const resp = await nodeBolt12OfferSend(activeNodeId, {
         offer: body,
         amount_msat:
-          resolvedOfferAmountMsat !== null ? u64(resolvedOfferAmountMsat) : null,
+          resolvedOfferAmountMsat !== null
+            ? u64(resolvedOfferAmountMsat)
+            : null,
         quantity: null,
         payer_note: description.trim() ? description.trim() : null,
       });
@@ -375,6 +539,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
       setSentExtraText(resp.extraText);
       setPayload("");
       setOfferAmountMsat("");
+      setOnchainFeeRate("");
       setStep("result");
     },
   });
@@ -384,14 +549,18 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     const body = payloadTrim;
     if (!body) return "Invoice / Offer is required.";
     if (detectedKind === "unknown")
-      return "Only Lightning invoice (ln...) or offer (lno...) is supported.";
+      return "Only Lightning invoice (ln...), offer (lno...), or RGB onchain invoice (contract:...) is supported.";
+    if (
+      isOnchainRgbAsset &&
+      onchainFeeRate.trim() &&
+      resolvedOnchainFeeRate === null
+    ) {
+      return "Fee Rate must be a whole number > 0 (sats/vB).";
+    }
     if (isDecoding) return "Decoding payment request...";
     if (decodeHasError && !canSendWithDecodeFailure)
       return `Invalid payment request: ${decodeErrorWithContext}`;
-    if (
-      detectedKind === "offer" &&
-      resolvedOfferAmountMsat === null
-    ) {
+    if (detectedKind === "offer" && resolvedOfferAmountMsat === null) {
       return "Amount is required for variable-amount offer.";
     }
     if (
@@ -401,7 +570,11 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     ) {
       return "Offer amount must be a whole number > 0 (msat).";
     }
-    if (!decodeHasError && detectedKind === "invoice" && decodedAmountMsat === null) {
+    if (
+      !decodeHasError &&
+      detectedKind === "invoice" &&
+      decodedAmountMsat === null
+    ) {
       return "Variable-amount invoice is not supported.";
     }
     return null;
@@ -413,50 +586,13 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
     decodeHasError,
     detectedKind,
     isDecoding,
+    isOnchainRgbAsset,
+    onchainFeeRate,
     offerAmountMsat,
     payloadTrim,
+    resolvedOnchainFeeRate,
     resolvedOfferAmountMsat,
   ]);
-
-  const onChainPayMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-      if (!onchainInvoice.trim()) throw new Error("Onchain invoice is required");
-
-      return nodeRgbOnchainSend(activeNodeId, {
-        invoice: onchainInvoice.trim(),
-        fee_rate_sats_per_vb: onchainFeeRate.trim() ? parseInt(onchainFeeRate.trim()) : 20,
-      })
-    },
-    onSuccess:  (resp) => {
-      setOnchainConsignmentKey(resp.consignment_key)
-    }
-  });
-
-  const deliverOnchainPayConsignment = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-      if (!onchainConsignmentKey) throw new Error("No consignment key available from onchain pay response");
-
-      // Download consignment
-      const data = await nodeRgbOnchainTransferConsignmentDownload(activeNodeId, onchainConsignmentKey)
-      // Svae file
-      const path = await save({
-        defaultPath: "transfer_consignment.raw"
-      });
-      if (!path) {
-        throw new Error("File save cancelled by user");
-      };
-      const bytes = base64ToUint8Array(data.archive_base64);
-      await writeFile(path, bytes);
-    },
-    onSuccess: () => {
-      toast.success("Consignment downloaded successfully.");
-    },
-    onError: (e) => {
-      toast.error((e as Error).message);
-    }
-  });
 
   return (
     <div className="space-y-4">
@@ -465,7 +601,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
         variant="outline"
         onClick={() => {
           if (step === "form") {
-            onBackRoot();
+            goBackRoot();
             return;
           }
           if (step === "confirm") {
@@ -489,13 +625,14 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
             <>
               <Field>
                 <FieldLabel htmlFor="send_payload">
-                  Lightning Invoice / Lightning Offer / RGB Lightning Invoice
+                  Lightning Invoice / Lightning Offer / RGB Lightning Invoice /
+                  RGB Onchain Invoice
                 </FieldLabel>
                 <Textarea
                   id="send_payload"
                   value={payload}
                   onChange={(e) => setPayload(e.currentTarget.value)}
-                  placeholder="Paste lnbcrt... or lno1..."
+                  placeholder="Paste lnbcrt... / lno1... / contract:..."
                   className="min-h-[120px] resize-y"
                 />
               </Field>
@@ -509,6 +646,8 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                         ? isRgbInvoice
                           ? "RGB Lightning invoice"
                           : "Lightning invoice"
+                        : detectedKind === "onchain_asset"
+                        ? "RGB Onchain invoice"
                         : detectedKind === "offer"
                         ? "Lightning offer"
                         : "Unknown"}
@@ -519,6 +658,12 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                     <span className="font-medium">
                       {isDecoding
                         ? "Decoding..."
+                        : isOnchainRgbAsset
+                        ? decodedAmountMsat
+                          ? `${decodedAmountMsat} ${decodedRgbAmountUnit}`
+                          : decodeHasError
+                          ? "Decode failed"
+                          : "-"
                         : decodeHasError
                         ? "Decode failed"
                         : detectedKind === "offer"
@@ -527,7 +672,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                           : "Variable amount"
                         : decodedAmountMsat
                         ? isRgbInvoice
-                          ? `${decodedAmountMsat} RGB`
+                          ? `${decodedAmountMsat} ${decodedRgbAmountUnit}`
                           : `${decodedAmountMsat} msat`
                         : detectedKind === "unknown"
                         ? "-"
@@ -553,7 +698,9 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                   <div>
                     Description:{" "}
                     <span className="font-medium">
-                      {decodedDescription ?? "-"}
+                      {isOnchainRgbAsset
+                        ? "(RGB onchain invoice)"
+                        : decodedDescription ?? "-"}
                     </span>
                   </div>
                   {decodeHasError ? (
@@ -589,6 +736,20 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                         ? decodedAmountMsat
                         : "Required for variable-amount offer"
                     }
+                    inputMode="numeric"
+                  />
+                </Field>
+              ) : null}
+              {isOnchainRgbAsset ? (
+                <Field>
+                  <FieldLabel htmlFor="send_onchain_fee_rate">
+                    Fee Rate (sats/vB)
+                  </FieldLabel>
+                  <Input
+                    id="send_onchain_fee_rate"
+                    value={onchainFeeRate}
+                    onChange={(e) => setOnchainFeeRate(e.currentTarget.value)}
+                    placeholder="20"
                     inputMode="numeric"
                   />
                 </Field>
@@ -631,19 +792,25 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                       ? isRgbInvoice
                         ? "RGB Lightning invoice"
                         : "Lightning invoice"
+                      : detectedKind === "onchain_asset"
+                      ? "RGB Onchain invoice"
                       : "Lightning offer"}
                   </span>
                 </div>
                 <div>
                   Amount:{" "}
                   <span className="font-medium">
-                    {detectedKind === "offer"
+                    {detectedKind === "onchain_asset"
+                      ? decodedAmountMsat
+                        ? `${decodedAmountMsat} ${decodedRgbAmountUnit}`
+                        : "-"
+                      : detectedKind === "offer"
                       ? resolvedOfferAmountMsat
                         ? `${resolvedOfferAmountMsat} msat`
                         : "(unknown)"
                       : decodedAmountMsat
                       ? isRgbInvoice
-                        ? `${decodedAmountMsat} RGB`
+                        ? `${decodedAmountMsat} ${decodedRgbAmountUnit}`
                         : `${decodedAmountMsat} msat`
                       : "(unknown)"}
                   </span>
@@ -667,9 +834,19 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                 <div>
                   Description:{" "}
                   <span className="font-medium">
-                    {decodedDescription ?? "-"}
+                    {isOnchainRgbAsset
+                      ? "(RGB onchain invoice)"
+                      : decodedDescription ?? "-"}
                   </span>
                 </div>
+                {isOnchainRgbAsset ? (
+                  <div>
+                    Fee Rate:{" "}
+                    <span className="font-medium">
+                      {resolvedOnchainFeeRate ?? "-"} sats/vB
+                    </span>
+                  </div>
+                ) : null}
                 <div>
                   Payment Request:
                   <code className="mt-1 block break-all rounded-md text-xs">
@@ -735,7 +912,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
                 variant="outline"
                 className="w-full"
                 onClick={async () => {
-                  onBackRoot();
+                  goBackRoot();
                 }}
               >
                 Back
@@ -744,62 +921,6 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot: () => void }) {
           ) : null}
         </CardContent>
       </Card>
-
-      {/* <Card className="mt-3">
-        <CardHeader>
-          <CardTitle>Onchain Invoice Send</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {
-            onchainConsignmentKey ? (
-              <>
-                <Field>
-                  <FieldLabel>Consignment Key</FieldLabel>
-                  <Input
-                    placeholder="sats/vB (default 20)"
-                    value={onchainConsignmentKey}
-                    onChange={(e) => setOnchainConsignmentKey(e.target.value)}
-                  />
-                </Field>
-                <Button
-                  disabled={!onchainConsignmentKey || deliverOnchainPayConsignment.isPending}
-                  className="mt-4 w-full"
-                  onClick={() => deliverOnchainPayConsignment.mutate()}
-                >Download Transfer Consignment</Button>
-              </>
-            ) : (
-              <>
-                <Field>
-                  <FieldLabel>Onchain Invoice</FieldLabel>
-                  <Textarea
-                    value={onchainInvoice}
-                    placeholder="Paste onchain invoice"
-                    className="min-h-[120px] resize-y"
-                    onChange={(e) => setOnchainInvoice(e.target.value)}
-                    />
-                </Field>
-                <Field>
-                  <FieldLabel>Fee Rate</FieldLabel>
-                  <Input
-                    placeholder="sats/vB (default 20)"
-                    value={onchainFeeRate}
-                    onChange={(e) => setOnchainFeeRate(e.target.value)}
-                  />
-                </Field>
-                <Button disabled={!onchainInvoice || onChainPayMutation.isPending} className="mt-4 w-full" onClick={() => onChainPayMutation.mutate()}>Pay</Button>
-              </>
-            )
-          }
-
-         <div className="mt-3">
-            {
-              onChainPayMutation.isError ? (
-                <span>{onChainPayMutation.error.message}</span>
-              ) : null
-            }
-         </div>
-        </CardContent>
-      </Card> */}
     </div>
   );
 }

@@ -1,4 +1,9 @@
 import { NodeContextDialog } from "@/app/components/NodeContextDialog";
+import {
+  NETWORK_OPTIONS,
+  getDefaultNetworkOption,
+  getNetworkOption,
+} from "@/app/config/networkOptions";
 import { useNodeStore } from "@/app/stores/nodeStore";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -50,7 +56,7 @@ import {
   nodeUnlock,
   eventsStart as startEvents,
 } from "@/lib/commands";
-import type { NodeContext } from "@/lib/domain";
+import type { BitcoinNetwork, NodeContext } from "@/lib/domain";
 import { errorToText } from "@/lib/errorToText";
 import { cn } from "@/lib/utils";
 import {
@@ -67,6 +73,7 @@ import {
   Loader2,
   Lock,
   Play,
+  Plus,
   Square,
   Trash2,
   Unlock,
@@ -82,7 +89,7 @@ export function NodesManagePage() {
   const contextsQuery = useQuery({
     queryKey: ["contexts"],
     queryFn: contextsList,
-    refetchInterval: 10_000,
+    refetchInterval: false,
   });
   const contexts = contextsQuery.data ?? [];
 
@@ -113,6 +120,7 @@ export function NodesManagePage() {
       await eventsStatusAllQuery.refetch();
       setCreateDialogOpen(false);
       setNodeName("");
+      setSelectedNetwork("regtest");
       setValidationError(null);
     },
   });
@@ -148,7 +156,10 @@ export function NodesManagePage() {
   });
 
   const [nodeName, setNodeName] = useState("");
+  const [selectedNetwork, setSelectedNetwork] =
+    useState<BitcoinNetwork>("regtest");
   const [validationError, setValidationError] = useState<string | null>(null);
+  const selectedNetworkOption = getNetworkOption(selectedNetwork);
 
   const eventsToggleMutation = useMutation({
     mutationFn: async ({
@@ -202,8 +213,19 @@ export function NodesManagePage() {
 
   const dockerInstalled = dockerEnvQuery.data?.installed === true;
   const dockerRunning = dockerEnvQuery.data?.daemon_running === true;
+  const isSelectedNetworkEnabled = NETWORK_OPTIONS.some(
+    (item) => item.value === selectedNetwork && item.enabled !== false
+  );
   const canCreate =
-    dockerInstalled && dockerRunning && !bootstrapLocalNodeMutation.isPending;
+    dockerInstalled &&
+    dockerRunning &&
+    !bootstrapLocalNodeMutation.isPending &&
+    isSelectedNetworkEnabled;
+
+  useEffect(() => {
+    if (isSelectedNetworkEnabled) return;
+    setSelectedNetwork(getDefaultNetworkOption().value);
+  }, [isSelectedNetworkEnabled]);
   const dockerInstalledBadge =
     dockerEnvQuery.isLoading || dockerEnvQuery.isFetching
       ? {
@@ -258,12 +280,19 @@ export function NodesManagePage() {
       return nodeUnlock(nodeId);
     },
     onSuccess: async (data, variables) => {
+      if (!variables.nextLocked) {
+        await startEvents(variables.nodeId);
+        await eventsStatusAllQuery.refetch();
+      }
       queryClient.setQueryData(["node_control_status", variables.nodeId], data);
       await queryClient.invalidateQueries({
         queryKey: ["node_control_status", variables.nodeId],
       });
       await queryClient.refetchQueries({
         queryKey: ["node_control_status", variables.nodeId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["events_status_all"],
       });
     },
   });
@@ -320,34 +349,99 @@ export function NodesManagePage() {
       <Dialog
         open={createDialogOpen}
         onOpenChange={(open) => {
-          setCreateDialogOpen(open);
-          if (!open) setValidationError(null);
+          if (!bootstrapLocalNodeMutation.isPending) {
+            setCreateDialogOpen(open);
+          }
+          if (!open) {
+            setValidationError(null);
+            bootstrapLocalNodeMutation.reset();
+          }
         }}
       >
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Create Node</DialogTitle>
             <DialogDescription>
-              Create another local docker node by node name.
+              Start a new Docker container running an RGB Lightning Node.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <Input
-              value={nodeName}
-              onChange={(e) => setNodeName(e.currentTarget.value)}
-              placeholder="Node name"
-            />
+
+          <div className="space-y-4">
+            {/* Node name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="create-node-name">Node Name</Label>
+              <Input
+                id="create-node-name"
+                value={nodeName}
+                onChange={(e) => setNodeName(e.currentTarget.value)}
+                placeholder="e.g. My Node"
+                maxLength={64}
+                disabled={bootstrapLocalNodeMutation.isPending}
+              />
+            </div>
+
+            {/* Network selection */}
+            <div className="space-y-1.5">
+              <Label>Network</Label>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {NETWORK_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    disabled={
+                      bootstrapLocalNodeMutation.isPending ||
+                      opt.enabled === false
+                    }
+                    onClick={() => setSelectedNetwork(opt.value)}
+                    className={[
+                      "flex items-center justify-center gap-1.5 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-white/35",
+                      selectedNetwork === opt.value
+                        ? "border-emerald-400 bg-emerald-400/15 text-emerald-300"
+                        : "border-white/20 bg-white/5 text-white/70 hover:border-white/40 hover:bg-white/10",
+                    ].join(" ")}
+                  >
+                    {opt.iconSrc ? (
+                      <img src={opt.iconSrc} alt="" className="h-3.5 w-3.5" />
+                    ) : null}
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Creating progress bar */}
+            {bootstrapLocalNodeMutation.isPending ? (
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Starting Docker container and initialising node…
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full animate-pulse rounded-full bg-primary"
+                    style={{ width: "60%" }}
+                  />
+                </div>
+              </div>
+            ) : null}
+
             {!dockerInstalled ? (
               <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs">
                 Docker is required. Install Docker Desktop/Engine first.
               </div>
+            ) : !dockerRunning ? (
+              <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-xs">
+                Docker daemon is not running. Start Docker Desktop and re-check.
+              </div>
             ) : null}
+
             {validationError ? (
               <Alert variant="destructive">
                 <AlertTitle>Invalid parameters</AlertTitle>
                 <AlertDescription>{validationError}</AlertDescription>
               </Alert>
             ) : null}
+
             {bootstrapLocalNodeMutation.isError ? (
               <Alert variant="destructive">
                 <AlertTitle>Failed to create node</AlertTitle>
@@ -357,10 +451,12 @@ export function NodesManagePage() {
               </Alert>
             ) : null}
           </div>
+
           <DialogFooter>
             <Button
               variant="outline"
               type="button"
+              disabled={bootstrapLocalNodeMutation.isPending}
               onClick={() => setCreateDialogOpen(false)}
             >
               Cancel
@@ -375,16 +471,26 @@ export function NodesManagePage() {
                   return;
                 }
                 setValidationError(null);
-                bootstrapLocalNodeMutation.mutate({ nodeName: name });
+                bootstrapLocalNodeMutation.mutate({
+                  nodeName: name,
+                  network: selectedNetwork,
+                  esploraUrl: selectedNetworkOption.esploraUrl,
+                });
               }}
             >
-              {bootstrapLocalNodeMutation.isPending
-                ? "Creating Node..."
-                : "Create Node"}
+              {bootstrapLocalNodeMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Creating…
+                </>
+              ) : (
+                "Create Node"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
       <div className="space-y-3">
         <Card>
           <CardHeader>
@@ -399,14 +505,14 @@ export function NodesManagePage() {
                   ) : null}
                 </CardDescription>
               </div>
-              {/* <Button
+              <Button
                 type="button"
                 size="sm"
                 onClick={() => setCreateDialogOpen(true)}
               >
                 <Plus className="h-4 w-4" />
                 Create Node
-              </Button> */}
+              </Button>
             </div>
           </CardHeader>
           <CardContent>

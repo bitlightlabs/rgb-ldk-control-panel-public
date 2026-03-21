@@ -252,7 +252,9 @@ async function waitForSpendableAll(rootDir, minSpendableSats = 100_000) {
       try {
         await postOk(buildUrl(ctx.main_api_base_url, "/api/v1/wallet/sync"), token);
         const b = await getBalances(ctx.main_api_base_url, token);
-        const spendable = Number(b?.spendable_onchain_balance_sats ?? 0);
+        const spendable = Number(
+          b?.btc?.onchain_spendable_sats ?? b?.spendable_onchain_balance_sats ?? 0
+        );
         if (!(spendable >= minSpendableSats)) ok = false;
       } catch {
         ok = false;

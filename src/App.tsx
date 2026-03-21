@@ -2,51 +2,86 @@ import { AppHeader } from "@/app/components/AppHeader";
 import { AppSidebar } from "@/app/components/AppSidebar";
 import { NodeSetupGuard } from "@/app/components/NodeSetupGuard";
 import NoNodesConfigured from "@/app/components/NoNodesConfigured";
-import { sidebarItems } from "@/app/config/sidebarItems";
-import { useNavStore } from "@/app/stores/navStore";
+import {
+  appRoutes,
+  getSidebarActiveId,
+  matchActiveRoute,
+  sidebarItems,
+  type AppRouteConfig,
+} from "@/app/config/appRoutes";
 import { useNodeStore } from "@/app/stores/nodeStore";
 import {
-  bootstrapLocalEnvironment,
+  bootstrapLocalNode,
   contextsList,
   dockerEnvironment,
   eventsStart,
 } from "@/lib/commands";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import { Toaster } from "sonner";
-import "./App.css";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { SidebarInset, SidebarProvider } from "./components/ui/sidebar";
+import "./App.css";
+
+function RouteLoadingFallback() {
+  return (
+    <div className="flex min-h-[240px] items-center justify-center rounded-xl border ui-border ui-muted-10">
+      <div className="text-sm ui-muted">Loading page...</div>
+    </div>
+  );
+}
+
+function RoutePage({
+  route,
+  hasContexts,
+  onGoNodes,
+}: {
+  route: AppRouteConfig;
+  hasContexts: boolean;
+  onGoNodes: () => void;
+}) {
+  const Component = route.component;
+  return (
+    <NoNodesConfigured
+      hasConfiguredNodes={!route.requiresNode || hasContexts}
+      onGoNodes={onGoNodes}
+    >
+      <Component />
+    </NoNodesConfigured>
+  );
+}
 
 function App() {
-  const activeTab = useNavStore((s) => s.activeTab);
-  const setActiveTab = useNavStore((s) => s.setActiveTab);
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
   const setActiveNodeId = useNodeStore((s) => s.setActiveNodeId);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const contextsQuery = useQuery({
     queryKey: ["contexts"],
     queryFn: contextsList,
-    refetchInterval: 10_000,
+    refetchInterval: false,
   });
   const dockerEnvironmentQuery = useQuery({
     queryKey: ["docker_environment"],
     queryFn: dockerEnvironment,
     refetchInterval: 10_000,
   });
-  const bootstrapLocalEnvironmentMutation = useMutation({
-    mutationFn: bootstrapLocalEnvironment,
+
+  const bootstrapLocalNodeMutation = useMutation({
+    mutationFn: bootstrapLocalNode,
     onSuccess: async (result) => {
       await contextsQuery.refetch();
-      const firstNodeId = result.created_nodes[0]?.node_id ?? null;
-      if (firstNodeId) {
-        setActiveNodeId(firstNodeId);
-      }
-      await Promise.all(
-        result.created_nodes.map(async (n) => {
-          await eventsStart(n.node_id);
-        })
-      );
-      setActiveTab("nodes");
+      setActiveNodeId(result.node_id);
+      await eventsStart(result.node_id);
+      navigate("/nodes", { replace: true });
     },
   });
 
@@ -55,13 +90,13 @@ function App() {
   const dockerEnvironmentReady =
     dockerEnvironmentQuery.isSuccess || dockerEnvironmentQuery.isError;
 
-  const allItems = sidebarItems.flatMap((category) => category.items);
-  const activeItem = allItems.find((item) => item.id === activeTab);
-  const ActiveComponent = activeItem?.component;
+  const activeRoute = matchActiveRoute(location.pathname);
+  const activeSidebarId = getSidebarActiveId(location.pathname);
 
   useEffect(() => {
-    if (activeNodeId && contexts.some((c) => c.node_id === activeNodeId))
+    if (activeNodeId && contexts.some((c) => c.node_id === activeNodeId)) {
       return;
+    }
     setActiveNodeId(contexts[0]?.node_id ?? null);
   }, [activeNodeId, contexts, setActiveNodeId]);
 
@@ -79,50 +114,67 @@ function App() {
       onRefreshDockerEnvironment={() => {
         void dockerEnvironmentQuery.refetch();
       }}
-      creatingEnvironment={bootstrapLocalEnvironmentMutation.isPending}
-      createEnvironmentError={
-        bootstrapLocalEnvironmentMutation.isError
-          ? bootstrapLocalEnvironmentMutation.error
+      creatingNode={bootstrapLocalNodeMutation.isPending}
+      createNodeError={
+        bootstrapLocalNodeMutation.isError
+          ? bootstrapLocalNodeMutation.error
           : undefined
       }
-      bootstrapEnvironmentResult={bootstrapLocalEnvironmentMutation.data}
-      onCreateEnvironment={async () =>
-        await bootstrapLocalEnvironmentMutation.mutateAsync()
+      createNodeResult={bootstrapLocalNodeMutation.data}
+      onCreateNode={async (req) =>
+        await bootstrapLocalNodeMutation.mutateAsync(req)
       }
       onEnterWallet={() => {
-        // Clear bootstrap success/error snapshot so setup page can start again
-        // if users later remove all nodes and return to initialization flow.
-        bootstrapLocalEnvironmentMutation.reset();
-        setActiveTab("dashboard");
+        // Clear bootstrap snapshot so setup page can start fresh if all nodes
+        // are later removed and user returns to initialization flow.
+        bootstrapLocalNodeMutation.reset();
+        navigate("/dashboard", { replace: true });
       }}
     >
-      <SidebarProvider>
+      <SidebarProvider className="h-svh overflow-hidden">
         <AppSidebar
           items={sidebarItems}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
+          activeItemId={activeSidebarId}
+          onNavigate={(path) => navigate(path)}
         />
-        <SidebarInset>
+        <SidebarInset className="h-svh overflow-hidden">
           <AppHeader
-            activeLabel={activeItem?.label ?? "Dashboard"}
+            activeLabel={activeRoute?.label ?? "Dashboard"}
             contexts={contexts}
             activeNodeId={activeNodeId}
             onPickNode={(nodeId) => {
               setActiveNodeId(nodeId);
-              setActiveTab("dashboard");
+              navigate("/dashboard");
             }}
           />
-          <main className="flex-1 overflow-auto p-4">
-            {ActiveComponent ? (
-              <NoNodesConfigured
-                hasConfiguredNodes={
-                  !activeItem?.requiresNode || contexts.length > 0
-                }
-                onGoNodes={() => setActiveTab("nodes")}
-              >
-                <ActiveComponent />
-              </NoNodesConfigured>
-            ) : null}
+          <main className="flex min-h-0 flex-1 overflow-hidden p-4">
+            <ScrollArea className="h-full w-full">
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <Routes>
+                  <Route
+                    path="/"
+                    element={<Navigate to="/dashboard" replace />}
+                  />
+                  {appRoutes.map((route) => (
+                    <Route
+                      key={route.id}
+                      path={route.path}
+                      element={
+                        <RoutePage
+                          route={route}
+                          hasContexts={contexts.length > 0}
+                          onGoNodes={() => navigate("/nodes")}
+                        />
+                      }
+                    />
+                  ))}
+                  <Route
+                    path="*"
+                    element={<Navigate to="/dashboard" replace />}
+                  />
+                </Routes>
+              </Suspense>
+            </ScrollArea>
             <Toaster richColors />
           </main>
         </SidebarInset>

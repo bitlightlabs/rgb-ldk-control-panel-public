@@ -14,33 +14,29 @@ import type { LucideIcon } from "lucide-react";
 import logo from "@/assets/logo.svg";
 import { Separator } from "@/components/ui/separator";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import type { SidebarCategoryConfig } from "@/app/config/appRoutes";
 
 interface SidebarItem {
   id: string;
   label: string;
   icon: LucideIcon;
-  component: React.ComponentType;
-}
-
-interface SidebarCategory {
-  label: string;
-  items: SidebarItem[];
+  path: string;
 }
 
 interface AppSidebarProps {
-  items: SidebarCategory[];
-  activeTab: string;
-  setActiveTab: (id: string) => void;
+  items: SidebarCategoryConfig[];
+  activeItemId: string;
+  onNavigate: (path: string) => void;
 }
 
 export function AppSidebar({
   items,
-  activeTab,
-  setActiveTab,
+  activeItemId,
+  onNavigate,
 }: AppSidebarProps) {
   const openOfficialSite = () => {
     openUrl("https://bitlightlabs.com");
-  }
+  };
 
   return (
     <Sidebar>
@@ -60,8 +56,8 @@ export function AppSidebar({
                 {category.items.map((item) => (
                   <SidebarMenuItem key={item.id}>
                     <SidebarMenuButton
-                      isActive={activeTab === item.id}
-                      onClick={() => setActiveTab(item.id)}
+                      isActive={activeItemId === item.id}
+                      onClick={() => onNavigate(item.path)}
                     >
                       <item.icon className="mr-2 h-4 w-4" />
                       <span>{item.label}</span>
@@ -75,7 +71,9 @@ export function AppSidebar({
       </SidebarContent>
       <SidebarFooter className=" text-xs text-center text-muted-foreground">
         <Separator className="w-full" />
-        <div className="cursor-pointer" onClick={openOfficialSite}>BitlightLabs</div>
+        <div className="cursor-pointer" onClick={openOfficialSite}>
+          BitlightLabs
+        </div>
       </SidebarFooter>
     </Sidebar>
   );

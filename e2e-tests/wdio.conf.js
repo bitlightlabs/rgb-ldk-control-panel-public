@@ -18,15 +18,26 @@ const buildProfile = process.env.E2E_BUILD_PROFILE ?? "debug";
 
 const appBinary = isWin ? `${appName}.exe` : appName;
 const bundleRoot = path.join(rootDir, "src-tauri", "target", buildProfile, "bundle");
-const appPath = isMac
-  ? path.join(bundleRoot, "macos", `${appName}.app`, "Contents", "MacOS", appName)
-  : path.join(rootDir, "src-tauri", "target", buildProfile, appBinary);
+const appPath = resolveAppPath();
 
 const driverPort = Number(process.env.E2E_DRIVER_PORT ?? 4444);
 const nativePort = Number(process.env.E2E_NATIVE_PORT ?? 4445);
 const driverBin = process.env.E2E_TAURI_WEBDRIVER_BIN ?? "tauri-webdriver";
 
 let driverProcess;
+
+function resolveAppPath() {
+  if (!isMac) {
+    return path.join(rootDir, "src-tauri", "target", buildProfile, appBinary);
+  }
+
+  const candidates = [
+    path.join(bundleRoot, "macos", `${appName}.app`, "Contents", "MacOS", appName),
+    path.join(bundleRoot, "macos", "RGB Lightning Node.app", "Contents", "MacOS", appName),
+  ];
+
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
+}
 
 async function waitForPort(port, host = "127.0.0.1", timeoutMs = 30000) {
   const start = Date.now();
