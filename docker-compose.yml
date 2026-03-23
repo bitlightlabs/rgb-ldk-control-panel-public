@@ -3,7 +3,7 @@
 
 services:
   rgbldk_node_1:
-    image: bitlightlabs/rln-ldk-node:dev-20260313
+    image: bitlightlabs/rln-ldk-node:dev-20260321
     container_name: rgb-node-alice
     restart: unless-stopped
     ports:
@@ -51,7 +51,7 @@ services:
       - rln_network
 
   rgbldk_node_2:
-    image: bitlightlabs/rln-ldk-node:dev-20260313
+    image: bitlightlabs/rln-ldk-node:dev-20260321
     container_name: rgb-node-bob
     restart: unless-stopped
     ports:

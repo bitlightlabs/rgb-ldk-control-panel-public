@@ -121,7 +121,7 @@ services:
         exit 1
 
   rgbldk_node_1:
-    image: bitlightlabs/rln-ldk-node:dev-20260313
+    image: bitlightlabs/rln-ldk-node:dev-20260321
     container_name: rgb-node-alice
     restart: unless-stopped
     depends_on:
@@ -172,7 +172,7 @@ services:
       - rln_network
 
   rgbldk_node_2:
-    image: bitlightlabs/rln-ldk-node:dev-20260313
+    image: bitlightlabs/rln-ldk-node:dev-20260321
     container_name: rgb-node-bob
     restart: unless-stopped
     depends_on:
