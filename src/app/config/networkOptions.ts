@@ -36,7 +36,7 @@ export const NETWORK_OPTIONS: AppNetworkOption[] = [
             import.meta.env.VITE_REGTEST_API ??
             "https://btc-regtest-cat.bitlightdev.info",
         enabled: true,
-        coreUrl: 'https://core-regtest-stag.bitlightdev.info',
+        coreUrl: 'https://core-regtest-prod-rgb012rc3a.bitlightdev.info',
         iconSrc: regtestIcon,
     },
 ];
