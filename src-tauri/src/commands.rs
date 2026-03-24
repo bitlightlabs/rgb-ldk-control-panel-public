@@ -1172,6 +1172,51 @@ fn random_suffix() -> String {
     }
 }
 
+fn read_env_file_var(path: &Path, key: &str) -> Option<String> {
+    let content = std::fs::read_to_string(path).ok()?;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let (k, v) = trimmed.split_once('=')?;
+        if k.trim() != key {
+            continue;
+        }
+        let raw = v.trim();
+        let unquoted = raw
+            .strip_prefix('"')
+            .and_then(|s| s.strip_suffix('"'))
+            .or_else(|| raw.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')))
+            .unwrap_or(raw)
+            .trim();
+        if !unquoted.is_empty() {
+            return Some(unquoted.to_string());
+        }
+    }
+    None
+}
+
+fn resolve_node_image() -> String {
+    let from_env = std::env::var("RGB_LDK_NODE_IMAGE")
+        .ok()
+        .or_else(|| std::env::var("VITE_RGB_LDK_NODE_IMAGE").ok())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty());
+
+    let from_dotenv = || {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let root = manifest_dir.parent()?;
+        let dotenv = root.join(".env");
+        read_env_file_var(&dotenv, "RGB_LDK_NODE_IMAGE")
+            .or_else(|| read_env_file_var(&dotenv, "VITE_RGB_LDK_NODE_IMAGE"))
+    };
+
+    from_env
+        .or_else(from_dotenv)
+        .unwrap_or_else(|| "bitlightlabs/rln-ldk-node:dev-20260321".to_string())
+}
+
 #[tauri::command]
 pub async fn docker_environment() -> Result<DockerEnvironmentResponse, CommandError> {
     let version_out = run_command_capture("docker", &["--version".to_string()]);
@@ -2009,8 +2054,8 @@ pub async fn bootstrap_local_node(
     let exists =
         run_command_status("docker", &["inspect".to_string(), container_name.clone()]).is_ok();
 
-    let image = std::env::var("RGB_LDK_NODE_IMAGE")
-        .unwrap_or_else(|_| "bitlightlabs/rln-ldk-node:dev-20260321".to_string());
+    let image = resolve_node_image();
+    eprintln!("bootstrap_local_node image: {image}");
 
     if exists {
         let _ = run_command_status("docker", &["start".to_string(), container_name.clone()]);

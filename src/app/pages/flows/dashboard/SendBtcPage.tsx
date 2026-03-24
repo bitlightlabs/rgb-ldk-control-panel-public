@@ -277,6 +277,28 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     detectedKind === "invoice" &&
     hasRgbInvoiceFields(rgbInvoiceDecodeQuery.data);
   const isOnchainRgbAsset = detectedKind === "onchain_asset";
+  const decodedRgbAssetId = useMemo(
+    () => (isRgbInvoice ? rgbInvoiceDecodeQuery.data?.asset_id ?? null : null),
+    [isRgbInvoice, rgbInvoiceDecodeQuery.data?.asset_id]
+  );
+  const rgbInvoiceContractPrecision = useMemo(() => {
+    const assetId = decodedRgbAssetId?.trim();
+    if (!assetId) return 0;
+    const contract = (rgbContractsQuery.data?.contracts ?? []).find(
+      (c) => c.asset_id === assetId
+    );
+    return contract?.precision ?? 0;
+  }, [decodedRgbAssetId, rgbContractsQuery.data?.contracts]);
+  const decodedRgbAmountDisplay = useMemo(() => {
+    if (!isRgbInvoice) return null;
+    const assetAmount = rgbInvoiceDecodeQuery.data?.asset_amount?.trim();
+    if (!assetAmount) return null;
+    return formatRgbAtomicAmount(assetAmount, rgbInvoiceContractPrecision);
+  }, [
+    isRgbInvoice,
+    rgbInvoiceDecodeQuery.data?.asset_amount,
+    rgbInvoiceContractPrecision,
+  ]);
   const onchainContractPrecision = useMemo(() => {
     const contractId = onchainInvoiceDecodeQuery.data?.contract_id?.trim();
     if (!contractId) return 0;
@@ -302,7 +324,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
 
   const decodedAmountMsat = useMemo(() => {
     if (detectedKind === "onchain_asset") return decodedOnchainAmountDisplay;
-    if (isRgbInvoice) return rgbInvoiceDecodeQuery.data?.asset_amount ?? null;
+    if (isRgbInvoice) return decodedRgbAmountDisplay;
     if (detectedKind === "invoice" && invoiceDecodeQuery.data) {
       return invoiceDecodeQuery.data.amount_msat
         ? invoiceDecodeQuery.data.amount_msat.toString()
@@ -319,7 +341,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     return null;
   }, [
     isRgbInvoice,
-    rgbInvoiceDecodeQuery.data?.asset_amount,
+    decodedRgbAmountDisplay,
     detectedKind,
     invoiceDecodeQuery.data,
     invoiceRawDecodeQuery.data,
@@ -355,10 +377,6 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     [isRgbInvoice, rgbInvoiceDecodeQuery.data?.carrier_amount_msat]
   );
 
-  const decodedRgbAssetId = useMemo(
-    () => (isRgbInvoice ? rgbInvoiceDecodeQuery.data?.asset_id ?? null : null),
-    [isRgbInvoice, rgbInvoiceDecodeQuery.data?.asset_id]
-  );
   const decodedRgbAmountUnit = useMemo(() => {
     if (isRgbInvoice) {
       const assetId = decodedRgbAssetId?.trim();
@@ -484,7 +502,9 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
         if (isRgbInvoice) {
           const resp = await nodeRgbLnPay(activeNodeId, { invoice: body });
           const assetAmount =
-            rgbInvoiceDecodeQuery.data?.asset_amount ?? "(unknown)";
+            decodedRgbAmountDisplay ??
+            rgbInvoiceDecodeQuery.data?.asset_amount ??
+            "(unknown)";
           const assetId = rgbInvoiceDecodeQuery.data?.asset_id ?? "-";
           return {
             paymentId: resp.payment_id,

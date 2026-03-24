@@ -92,22 +92,6 @@ pub struct RgbOnchainInvoiceResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RgbOnchainInvoiceDecodeRequest {
-	pub invoice: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RgbOnchainInvoiceDecodeResponse {
-	pub contract_id: String,
-	#[serde(with = "serde_u64_decimal_string")]
-	pub amount: u64,
-	pub beneficiary: String,
-	pub use_witness_utxo: bool,
-	#[serde(default, with = "serde_opt_u64_decimal_string")]
-	pub expiry_unix_secs: Option<u64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RgbOnchainSendRequest {
 	pub invoice: String,
 	#[serde(default, with = "serde_opt_u64_decimal_string")]
@@ -2211,37 +2195,6 @@ pub async fn rgb_onchain_invoice_create(
     resp.json::<RgbOnchainInvoiceResponse>()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)
-}
-
-pub async fn rgb_onchain_invoice_decode(
-	client: &reqwest::Client,
-	ctx: &NodeContext,
-	req_body: RgbOnchainInvoiceDecodeRequest,
-) -> Result<RgbOnchainInvoiceDecodeResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/rgb/onchain/invoice/decode")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req
-		.send()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbOnchainInvoiceDecodeResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
 }
 
 pub async fn rgb_new_address(

@@ -29,6 +29,7 @@ import {
   nodeChannelClose,
   nodeChannelForceClose,
   nodeMainChannels,
+  nodeRgbContracts,
   nodeRgbSync,
   nodeWalletSync,
 } from "@/lib/commands";
@@ -46,6 +47,19 @@ import { ArrowLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
 function truncateMiddle(s: string, head = 10, tail = 10): string {
   if (s.length <= head + tail + 3) return s;
   return `${s.slice(0, head)}...${s.slice(-tail)}`;
+}
+
+function formatRgbAtomicAmount(amount: string, precision: number): string {
+  const trimmed = amount.trim();
+  if (!/^\d+$/.test(trimmed)) return amount;
+  if (!Number.isSafeInteger(precision) || precision <= 0) return trimmed;
+
+  const scale = 10n ** BigInt(precision);
+  const n = BigInt(trimmed);
+  const integer = n / scale;
+  const fractionRaw = (n % scale).toString().padStart(precision, "0");
+  const fraction = fractionRaw.replace(/0+$/, "");
+  return fraction ? `${integer}.${fraction}` : integer.toString();
 }
 
 type ChannelRgbBalance = {
@@ -115,6 +129,15 @@ export function ChannelsPage() {
     queryFn: () => nodeMainChannels(activeNodeId!),
     enabled: !!activeNodeId,
     refetchInterval: 5_000,
+  });
+
+  const rgbContractsQuery = useQuery({
+    queryKey: ["node_rgb_contracts", activeNodeId],
+    queryFn: () => nodeRgbContracts(activeNodeId!),
+    enabled: !!activeNodeId,
+    refetchInterval: 30_000,
+    retry: 1,
+    retryDelay: 200,
   });
 
   const eventsQuery = useQuery({
@@ -198,6 +221,25 @@ export function ChannelsPage() {
     () => getChannelRgbBalance(selectedChannel),
     [selectedChannel]
   );
+  const selectedChannelRgbDisplay = useMemo(() => {
+    if (!selectedChannelRgbBalance) return null;
+    const contract = (rgbContractsQuery.data?.contracts ?? []).find(
+      (c) => c.asset_id === selectedChannelRgbBalance.assetId
+    );
+    const precision = contract?.precision ?? 0;
+    const ticker = contract?.ticker?.trim() || "RGB";
+    return {
+      localAmount: formatRgbAtomicAmount(
+        selectedChannelRgbBalance.localAmount,
+        precision
+      ),
+      remoteAmount: formatRgbAtomicAmount(
+        selectedChannelRgbBalance.remoteAmount,
+        precision
+      ),
+      ticker,
+    };
+  }, [rgbContractsQuery.data?.contracts, selectedChannelRgbBalance]);
 
   const selectedEvents = useMemo(() => {
     const evs = (eventsQuery.data ?? []) as StoredEvent[];
@@ -429,14 +471,18 @@ export function ChannelsPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="ui-muted">RGB Local</span>
-                      <span className="font-medium">
-                        {selectedChannelRgbBalance.localAmount}
+                      <span className="font-medium text-xs">
+                        {selectedChannelRgbDisplay
+                          ? `${selectedChannelRgbDisplay.localAmount} ${selectedChannelRgbDisplay.ticker}`
+                          : selectedChannelRgbBalance.localAmount}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="ui-muted">RGB Remote</span>
-                      <span className="font-medium">
-                        {selectedChannelRgbBalance.remoteAmount}
+                      <span className="font-medium text-xs">
+                        {selectedChannelRgbDisplay
+                          ? `${selectedChannelRgbDisplay.remoteAmount} ${selectedChannelRgbDisplay.ticker}`
+                          : selectedChannelRgbBalance.remoteAmount}
                       </span>
                     </div>
                   </>
