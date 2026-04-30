@@ -10,8 +10,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "package": "tauri build",
-    "test:e2e": "pnpm --dir e2e-tests test"
+    "package": "CI=${CI:-true} tauri build",
+    "test:e2e": "pnpm --dir e2e-tests test",
+    "build:mac-universal": "tauri build --target universal-apple-darwin"
   },
   "dependencies": {
     "@radix-ui/react-accordion": "^1.2.0",
@@ -31,6 +32,7 @@
     "@tanstack/react-query": "^5.87.4",
     "@tanstack/react-query-devtools": "^5.87.4",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-opener": "^2",

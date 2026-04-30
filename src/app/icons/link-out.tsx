@@ -1,0 +1,8 @@
+export default function IconLinkOut(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M4.66675 4.66602H11.3334V11.3327" stroke="#FF611F" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M4.66675 11.3327L11.3334 4.66602" stroke="#FF611F" strokeWidth="1.33333" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  )
+}

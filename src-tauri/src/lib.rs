@@ -6,12 +6,18 @@ mod events_manager;
 mod logger;
 mod rgbldkd_http;
 mod wallet;
+mod util;
 
 use context_store::ContextStore;
 use events_manager::EventsManager;
 use logger::FileLogger;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use tauri::{
+    AppHandle, Manager,
+    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
+    menu::{Menu, MenuItem, PredefinedMenuItem},
+};
 
 pub struct AppState {
 	pub(crate) store: ContextStore,
@@ -41,15 +47,25 @@ impl AppState {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
 	let mut builder = tauri::Builder::default()
+		.setup(|app| {
+				create_tray(app)?;
+				Ok(())
+		})
+		.on_window_event(|window, event| {
+				if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+						// Intercept close requests
+						api.prevent_close();
+						window.hide().unwrap();
+				}
+		})
 		.manage(AppState::new())
 		.plugin(tauri_plugin_opener::init())
 		.plugin(tauri_plugin_fs::init())
-    .plugin(tauri_plugin_dialog::init());
+    .plugin(tauri_plugin_dialog::init())
+		.plugin(tauri_plugin_clipboard_manager::init());
 
 	#[cfg(debug_assertions)]
-	{
-		builder = builder.plugin(tauri_plugin_webdriver::init());
-	}
+	let builder = builder.plugin(tauri_plugin_webdriver::init());
 
 	builder.invoke_handler(tauri::generate_handler![
 			commands::contexts_list,
@@ -130,7 +146,48 @@ pub fn run() {
 			commands::plugin_wallet_transfer_consignment_accept,
 			commands::download_transfer_consignment_from_link,
 			commands::rgb_onchain_payments,
+			commands::node_rgb_descriptor,
+			commands::node_rgb_sign_message,
+			commands::download_transfer_consignment_from_link_no_verify,
 		])
 		.run(tauri::generate_context!())
 		.expect("error while running tauri application");
+}
+
+fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    let show = MenuItem::with_id(app, "show", "Dashboard", true, None::<&str>)?;
+    let sep = PredefinedMenuItem::separator(app)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &sep, &quit])?;
+
+    TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("RGB LDK Control Panel")
+        .menu(&menu)
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "show" => show_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+fn show_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        // let _ = w.set_focus();
+    }
 }

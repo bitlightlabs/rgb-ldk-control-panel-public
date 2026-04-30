@@ -138,7 +138,7 @@ export function RgbLnPanel({
   const [issuedSupply, setIssuedSupply] = useState("1000000");
 
   const [issuedContractId, setIssuedContractId] = useState<string | null>(null);
-  const [issuedAssetId, setIssuedAssetId] = useState<string | null>(null);
+  const [issuedAssetContractId, setIssuedAssetContractId] = useState<string | null>(null);
   const [lastExport, setLastExport] = useState<RgbContractsExportBundle | null>(null);
 
   const issueMutation = useMutation({
@@ -156,7 +156,7 @@ export function RgbLnPanel({
     },
     onSuccess: (resp) => {
       setIssuedContractId(resp.contract_id);
-      setIssuedAssetId(resp.asset_id);
+      setIssuedAssetContractId(resp.contract_id);
       setLastExport(null);
     },
   });
@@ -182,7 +182,7 @@ export function RgbLnPanel({
     mutationFn: async (nodeId: string) => nodeRgbSync(nodeId),
   });
 
-  const [invoiceAssetId, setInvoiceAssetId] = useState<string | null>(null);
+  const [invoiceContractId, setInvoiceContractId] = useState<string | null>(issuedAssetContractId);
   const [invoiceAssetAmount, setInvoiceAssetAmount] = useState("1000");
   const [invoiceDesc, setInvoiceDesc] = useState("RGB LN transfer");
   const [invoiceExpiry, setInvoiceExpiry] = useState("600");
@@ -190,21 +190,21 @@ export function RgbLnPanel({
   const [createdInvoice, setCreatedInvoice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!invoiceAssetId && issuedAssetId) {
-      setInvoiceAssetId(issuedAssetId);
+    if (!invoiceContractId && issuedAssetContractId) {
+      setInvoiceContractId(issuedAssetContractId);
     }
-  }, [invoiceAssetId, issuedAssetId]);
+  }, [invoiceContractId, issuedContractId]);
 
   const createInvoiceMutation = useMutation({
     mutationFn: async () => {
       if (!receiverNodeId) throw new Error("Missing receiver node");
-      if (!invoiceAssetId) throw new Error("Missing asset_id");
+      if (!invoiceContractId) throw new Error("Missing contract_id");
       const req: RgbLnInvoiceCreateRequest = {
-        asset_id: invoiceAssetId.trim(),
-        asset_amount: u64(invoiceAssetAmount.trim()),
+        contract_id: invoiceContractId.trim(),
+        asset_amount: u64(invoiceAssetAmount.trim()).toString(),
         description: invoiceDesc.trim(),
         expiry_secs: Number(invoiceExpiry.trim() || "600"),
-        btc_carrier_amount_msat: u64(invoiceCarrierMsat.trim()),
+        btc_carrier_amount_msat: u64(invoiceCarrierMsat.trim()).toString(),
       };
       return nodeRgbLnInvoiceCreate(receiverNodeId, req);
     },
@@ -217,7 +217,7 @@ export function RgbLnPanel({
       if (!payerNodeId) throw new Error("Missing payer node");
       const req: RgbLnPayRequest = {
         invoice: payInvoice.trim(),
-        asset_id: null,
+        contract_id: undefined,
         asset_amount: null,
       };
       return nodeRgbLnPay(payerNodeId, req);
@@ -296,10 +296,6 @@ export function RgbLnPanel({
             <span className="font-mono ui-muted" data-testid="contract-id">
               {issuedContractId}
             </span>
-            <Badge variant="secondary">asset_id</Badge>
-            <span className="font-mono ui-muted" data-testid="asset-id">
-              {issuedAssetId}
-            </span>
           </div>
         ) : null}
 
@@ -349,10 +345,10 @@ export function RgbLnPanel({
 
         <div className="grid grid-cols-1 gap-3 rounded-md border ui-border p-3 md:grid-cols-2">
           <div className="grid gap-2">
-            <Label>asset_id</Label>
+            <Label>contract_id</Label>
             <Input
-              value={invoiceAssetId ?? ""}
-              onChange={(e) => setInvoiceAssetId(e.currentTarget.value)}
+              value={invoiceContractId ?? ""}
+              onChange={(e) => setInvoiceContractId(e.currentTarget.value)}
               data-testid="rgb-ln-invoice-asset-id"
             />
           </div>

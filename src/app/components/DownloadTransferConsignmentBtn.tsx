@@ -6,11 +6,11 @@ import { writeFile } from "@tauri-apps/plugin-fs";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
-export default function DownloadTransferConsignmentBtn(props: {name: string, link: string}) {
+export default function DownloadTransferConsignmentBtn(props: {nodeId: string, name: string, link: string}) {
   const download = async () => {
-    if(!props.link) return;
+    if(!props.link || !props.nodeId) return;
     try {
-      let data = await downloadTransferConsignmentFromLink(props.link);
+      let data = await downloadTransferConsignmentFromLink(props.nodeId, props.link);
       if(!data.archive_base64) {
         throw new Error((data as any).message || "Failed to download consignment");
       }

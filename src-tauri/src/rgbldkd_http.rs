@@ -1,6 +1,7 @@
 use crate::{context_store::NodeContext, error::CommandError};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{path::Path};
 
 mod serde_u64_decimal_string {
@@ -107,7 +108,7 @@ pub struct RgbOnchainSendResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RgbOnchainReceiveResponse {
-	pub asset_id: String,
+	pub contract_id: String,
 	#[serde(with = "serde_u64_decimal_string")]
 	pub amount: u64,
 }
@@ -226,8 +227,6 @@ pub struct RgbBalancesDto {
 pub struct RgbL1BalanceDto {
 	/// Contract ID (string like `contract:...`).
 	pub contract_id: String,
-	/// Asset ID (hex-encoded 32 bytes).
-	pub asset_id: String,
 	/// Confirmed on-chain balance.
 	#[serde(with = "serde_u64_decimal_string")]
 	pub mined: u64,
@@ -250,8 +249,8 @@ pub struct RgbL1BalanceDto {
 pub struct RgbL2BalanceDto {
 	/// Channel id (32-byte hex).
 	pub channel_id: String,
-	/// Asset ID (hex-encoded 32 bytes).
-	pub asset_id: String,
+	/// Contract ID (string like `contract:...`).
+	pub contract_id: String,
 	/// Local (our) RGB balance in this channel.
 	#[serde(with = "serde_u64_decimal_string")]
 	pub local_amount: u64,
@@ -282,7 +281,6 @@ pub struct RgbContractsIssueRequest {
 pub struct RgbContractsIssueResponse {
 	pub ok: bool,
 	pub contract_id: String,
-	pub asset_id: String,
 	pub issued_supply: String,
 	pub checks: Option<Vec<HealthCheckDto>>,
 }
@@ -290,7 +288,6 @@ pub struct RgbContractsIssueResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RgbContractDto {
 	pub contract_id: String,
-	pub asset_id: String,
 	pub name: Option<String>,
 	pub ticker: Option<String>,
 	pub precision: Option<u8>,
@@ -355,7 +352,7 @@ pub struct RgbContractBalanceResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RgbLnInvoiceCreateRequest {
-	pub asset_id: String,
+	pub contract_id: String,
 	pub asset_amount: String,
 	pub description: String,
 	pub expiry_secs: u32,
@@ -371,14 +368,14 @@ pub struct RgbLnInvoiceResponse {
 pub struct RgbLnPayRequest {
 	pub invoice: String,
 	#[serde(skip_serializing_if = "Option::is_none")]
-	pub asset_id: Option<String>,
+	pub contract_id: Option<String>,
 	#[serde(skip_serializing_if = "Option::is_none")]
 	pub asset_amount: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RgbChannelBalanceDto {
-	pub asset_id: String,
+	pub contract_id: String,
 	pub local_amount: String,
 	pub remote_amount: String,
 }
@@ -633,8 +630,6 @@ pub struct RgbOnchainPaymentDto {
 	pub consignment_key: Option<String>,
 	#[serde(default)]
 	pub consignment_download_path: Option<String>,
-	#[serde(default)]
-	pub asset_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -734,6 +729,34 @@ pub enum EventDto {
 		error: Option<serde_json::Value>,
 	},
 }
+
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RgbSignMessageRequest {
+	pub message: String,
+	pub algorithm: String, // bitcoin_signed_message | ecdsa
+	#[serde(default)]
+	pub compact: Option<bool>,
+	#[serde(default)]
+  pub encoding: Option<String>, // base64 | hex
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RgbSignMessageResponse {
+	pub message: String,
+	pub algorithm: String,
+	pub signature: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub encoding: Option<String>,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub compact: Option<bool>,
+	pub pubkey: String,
+	pub derivation_path: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub digest_hex: Option<String>,
+}
+
 
 fn parse_base_url(url: &str) -> Result<Url, CommandError> {
 	let mut s = url.trim().to_string();
@@ -1451,7 +1474,7 @@ pub async fn bolt11_decode(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 	req_body: Bolt11DecodeRequest,
-) -> Result<Bolt11DecodeResponse, CommandError> {
+) -> Result<Value, CommandError> {
 	let base = parse_base_url(&ctx.main_api_base_url)?;
 	let url = base.join("api/v1/bolt11/decode").map_err(|_| {
 		CommandError::InvalidBaseUrl {
@@ -1470,7 +1493,7 @@ pub async fn bolt11_decode(
 		return Err(classify_non_success("main", resp).await?);
 	}
 
-	resp.json::<Bolt11DecodeResponse>()
+	resp.json::<Value>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }
@@ -1591,7 +1614,7 @@ pub async fn bolt12_offer_receive_var(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 	req_body: Bolt12OfferReceiveVarRequest,
-) -> Result<Bolt12OfferResponse, CommandError> {
+) -> Result<Value, CommandError> {
 	let base = parse_base_url(&ctx.main_api_base_url)?;
 	let url = base.join("api/v1/bolt12/offer/receive_var").map_err(|_| {
 		CommandError::InvalidBaseUrl {
@@ -1610,7 +1633,7 @@ pub async fn bolt12_offer_receive_var(
 		return Err(classify_non_success("main", resp).await?);
 	}
 
-	resp.json::<Bolt12OfferResponse>()
+	resp.json::<Value>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }
@@ -2382,6 +2405,62 @@ pub async fn rgb_onchain_payments(
 	}
 
 	resp.json::<RgbOnchainPaymentsResponse>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+pub async fn rgb_descriptor(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/rgb/descriptor").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.get(url);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn rgb_sign_message(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	body: RgbSignMessageRequest
+) -> Result<RgbSignMessageResponse, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/rgb/sign_message").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.post(url).json(&body);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<RgbSignMessageResponse>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }

@@ -7,12 +7,17 @@
 html,
 body,
 #root {
-  height: 100%;
+  height: 100vh;
+  background: transparent;
 }
 
 html,
 body {
+  margin: 0;
   overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  font-weight: var(--font-weight-normal);
 }
 
 @theme inline {
@@ -23,7 +28,14 @@ body {
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+  --color-success: var(--success);
+  --color-error: var(--error);
+  --color-warning: var(--warning);
   --color-background: var(--background);
+  --color-background-2: var(--background-2);
+  --color-background-3: var(--background-3);
+  --color-background-4: var(--background-4);
+  --color-background-muted: var(--background-muted);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -55,22 +67,39 @@ body {
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-alert-destructive: var(--alert-destructive);
 }
 
 :root {
-  --radius: 0.65rem;
+  --spacing: 4px;
+  --text-2xs: 12px;
+  --text-xs: 13px;
+  --text-sm: 14px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 22px;
+  --text-2xl: 24px;
+  --radius: 4px;
+  --font-weight-normal: 400;
+  --font-weight-medium: 590;
+  --alert-destructive: rgba(255, 66, 69, 0.12);
+  --success: rgba(48, 209, 88, 1);
+  --error: rgba(255, 66, 69, 1);
+  --warning: rgba(255, 142, 11, 1);
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.141 0.005 285.823);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.646 0.222 41.116);
+  --primary: rgba(255, 97, 31, 1);
   --primary-foreground: oklch(0.98 0.016 73.684);
   --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --secondary-foreground: rgba(235, 235, 245, 0.6);
   --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
+  --muted-foreground: rgba(235, 235, 245, 0.6);
+
   --accent: oklch(0.967 0.001 286.375);
   --accent-foreground: oklch(0.21 0.006 285.885);
   --destructive: oklch(0.577 0.245 27.325);
@@ -94,8 +123,15 @@ body {
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
+  --muted-foreground: rgba(235, 235, 245, 0.3);
+  --background-2: rgba(118, 118, 128, 0.2);
+  --background-3: rgba(118, 118, 128, 0.12);
+  --background-4: rgba(118, 118, 128, 0.08);
+  --background-muted: rgba(120, 120, 128, 0.3);
+  --secondary-foreground: rgba(235, 235, 245, 0.6);
+
+  --background: rgba(0, 0, 0, 1);
+  --foreground: oklch(100% 0.00011 271.152);
   --card: oklch(0.21 0.006 285.885);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.21 0.006 285.885);
@@ -103,15 +139,13 @@ body {
   --primary: oklch(0.6729 0.2192 37.56);
   --primary-foreground: oklch(0.98 0.016 73.684);
   --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
   --accent: oklch(0.274 0.006 286.033);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.408 0.123 38.172);
+  --input: rgba(118, 118, 128, 0.2);
+  --ring: rgba(255, 255, 255, 0.6);
   --chart-1: oklch(0.837 0.128 66.29);
   --chart-2: oklch(0.6729 0.2192 37.56);
   --chart-3: oklch(0.646 0.222 41.116);
@@ -134,24 +168,38 @@ body {
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground !rounded-b-[24px] font-normal overflow-hidden;
   }
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 5px;
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #ccc;
+  background-color: var(--background-muted);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background-color: transparent;
 }
 
 .stable-scroll {
   overflow-y: scroll;
   overflow-x: hidden;
   scrollbar-gutter: stable both-edges;
+}
+
+[data-sonner-toast][data-type="success"] {
+  background: rgba(28, 28, 30, 1) !important;
+  color: var(--success) !important;
+  line-height: 20px;
+}
+[data-sonner-toast][data-type="error"] {
+  background: rgba(28, 28, 30, 1) !important;
+  color: var(--error) !important;
+  line-height: 20px;
+}
+div {
+  word-break: break-all;
 }

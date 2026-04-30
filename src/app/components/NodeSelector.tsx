@@ -1,7 +1,8 @@
 import type { NodeContext } from "@/lib/domain";
+import CopyText from "@/app/components/CopyText";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,8 +11,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { eventsStatus, nodeMainHealthz, nodeMainReadyz } from "@/lib/commands";
-import { cn } from "@/lib/utils";
+import {
+  eventsStatus,
+  nodeMainHealthz,
+  nodeMainNodeId,
+  nodeMainReadyz,
+} from "@/lib/commands";
+import { useSetupStore } from "@/app/stores/setupStore";
+import { cn, formatAddress } from "@/lib/utils";
 import {
   Activity,
   AlertTriangle,
@@ -19,6 +26,7 @@ import {
   ChevronDown,
   CircleMinus,
   Loader2,
+  Plus,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -32,6 +40,8 @@ export function NodeSelector({
   activeNodeId: string | null;
   onPick: (nodeId: string) => void;
 }) {
+  const openInitialSetup = useSetupStore((s) => s.openInitialSetup);
+
   const active = activeNodeId
     ? contexts.find((c) => c.node_id === activeNodeId) ?? null
     : null;
@@ -55,6 +65,14 @@ export function NodeSelector({
     enabled: !!activeNodeId,
     refetchInterval: 10_000,
     retry: 0,
+  });
+  const nodeIdQueries = useQueries({
+    queries: contexts.map((c) => ({
+      queryKey: ["node_selector_node_id", c.node_id],
+      queryFn: () => nodeMainNodeId(c.node_id),
+      retry: 0,
+      refetchInterval: 10_000,
+    })),
   });
 
   type StatusBadge = {
@@ -98,9 +116,8 @@ export function NodeSelector({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="outline"
-          size="sm"
-          className="max-w-[560px] justify-between gap-2"
+          variant="destructive"
+          className="h-9 justify-between gap-2 rounded-full"
         >
           <span className="max-w-[220px] truncate font-mono text-xs">
             {active ? active.display_name : "No active node"}
@@ -125,21 +142,60 @@ export function NodeSelector({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-[360px]">
-        <DropdownMenuLabel>Active Node</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          <div className="flex items-center justify-between">
+            <div className="text-sm">Active Node</div>
+            <button
+              type="button"
+              className="text-xs text-accent-foreground hover:text-foreground transition-colors"
+              onClick={() => openInitialSetup()}
+            >
+              <Plus className="mr-1 inline h-3 w-3" />
+              <span>create new node</span>
+            </button>
+          </div>
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {contexts.length === 0 ? (
           <DropdownMenuItem disabled>No contexts yet</DropdownMenuItem>
         ) : (
-          contexts.map((c) => (
-            <DropdownMenuItem key={c.node_id} onClick={() => onPick(c.node_id)}>
-              <div className="min-w-0">
-                <div className="truncate text-sm">{c.display_name}</div>
-                <div className="truncate font-mono text-xs ui-muted">
-                  {c.main_api_base_url}
+          contexts.map((c, idx) => {
+            const nodePubkey = nodeIdQueries[idx]?.data?.node_id ?? c.node_id;
+            const nodeAddress = c.p2p_listen ?? "";
+
+            return (
+              <DropdownMenuItem
+                key={c.node_id}
+                onClick={() => onPick(c.node_id)}
+              >
+                <div className="flex w-full min-w-0 flex-col gap-1.5">
+                  <div className="truncate text-sm">{c.display_name}</div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 text-xs opacity-70">Pubkey:</span>
+                    <span className="truncate font-mono text-xs opacity-60">
+                      {formatAddress(nodePubkey)}
+                    </span>
+                    <CopyText
+                      text={nodePubkey}
+                      className="shrink-0 text-secondary-foreground"
+                    />
+                  </div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="shrink-0 text-xs opacity-70">
+                      Address:
+                    </span>
+                    <span className="truncate font-mono text-xs opacity-60">
+                      {formatAddress(nodeAddress)}
+                    </span>
+                    <CopyText
+                      text={nodeAddress}
+                      className="shrink-0 text-secondary-foreground"
+                    />
+                  </div>
                 </div>
-              </div>
-            </DropdownMenuItem>
-          ))
+              </DropdownMenuItem>
+            );
+          })
         )}
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InitialSetupPage } from "@/app/pages/setup/InitialSetupPage";
+import { useSetupStore } from "@/app/stores/setupStore";
 import type {
   BootstrapLocalNodeRequest,
   BootstrapLocalNodeResponse,
@@ -16,7 +17,7 @@ function StartupLoadingScreen({
   stepText: string;
 }) {
   return (
-    <div className="flex h-full min-h-screen items-center justify-center bg-background p-6">
+    <div className="flex rounded-[24px] h-full min-h-screen items-center justify-center bg-background p-6">
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle>Initializing Node Environment</CardTitle>
@@ -68,9 +69,11 @@ export function NodeSetupGuard({
   creatingNode: boolean;
   createNodeError?: unknown;
   createNodeResult?: BootstrapLocalNodeResponse;
-  onEnterWallet: () => void;
+  onEnterWallet: (nodeId?: string) => void;
   children: ReactNode;
 }) {
+  const forceInitialSetup = useSetupStore((s) => s.forceInitialSetup);
+  const closeInitialSetup = useSetupStore((s) => s.closeInitialSetup);
   const [progress, setProgress] = useState(5);
   const [walletEntered, setWalletEntered] = useState(false);
   const checksSettled = contextsReady && dockerEnvironmentReady;
@@ -91,19 +94,20 @@ export function NodeSetupGuard({
     }, 180);
     return () => clearInterval(timer);
   }, [checksSettled]);
+
   useEffect(() => {
     if (!createNodeResult) {
       setWalletEntered(false);
     }
   }, [createNodeResult]);
 
-  const hasContexts = contexts.length > 0;
   const dockerInstalled = dockerEnvironmentData?.installed === true;
   const dockerRunning = dockerEnvironmentData?.daemon_running === true;
   const waitingForEnterWallet = !!createNodeResult && !walletEntered;
   const needInitialSetup =
+    forceInitialSetup ||
     waitingForEnterWallet ||
-    !hasContexts ||
+    contexts.length == 0 ||
     !dockerInstalled ||
     !dockerRunning ||
     creatingNode ||
@@ -123,9 +127,10 @@ export function NodeSetupGuard({
         createNodeError={createNodeError}
         createNodeResult={createNodeResult}
         onCreateNode={onCreateNode}
-        onEnterWallet={() => {
+        onEnterWallet={(nodeId) => {
+          closeInitialSetup();
           setWalletEntered(true);
-          onEnterWallet();
+          onEnterWallet(nodeId);
         }}
       />
     );

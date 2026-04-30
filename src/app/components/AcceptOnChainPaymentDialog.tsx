@@ -4,7 +4,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { downloadTransferConsignmentFromLink, nodeRgbOnchainTransferConsignmentAccept, pluginWalletTransferConsignmentExport } from "@/lib/commands";
+import { downloadTransferConsignmentFromLink, nodeRgbOnchainTransferConsignmentAccept } from "@/lib/commands";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -32,7 +32,7 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
       }
 
        // Download consignment
-      let data = await downloadTransferConsignmentFromLink(consignmentLink);
+      let data = await downloadTransferConsignmentFromLink(props.activeNodeId, consignmentLink);
       if(!data.archive_base64) {
         throw new Error((data as any).message || "Failed to download consignment");
       }

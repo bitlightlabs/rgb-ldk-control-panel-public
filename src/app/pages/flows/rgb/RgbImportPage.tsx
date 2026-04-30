@@ -1,28 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { ArrowLeft, Check, CircleCheckBig, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useNodeStore } from "@/app/stores/nodeStore";
-import { useNetworkStore } from "@/app/stores/networkStore";
 import { getNetworkOption } from "@/app/config/networkOptions";
-import RgbUtxoSelect from "@/app/components/RgbUtxoSelect";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
+  contextsList,
   downloadTransferConsignmentFromLink,
   nodeRgbContractImportBundle,
   nodeRgbContracts,
@@ -33,6 +17,14 @@ import {
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
 import { u64 } from "@/lib/sdk";
+import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
+import ImportStep from "@/app/components/ImportStep";
+import Import1 from "./Import1";
+import Import2 from "./Import2";
+import Import2Invoice from "./Import2Invoice";
+import Import3Consignment from "./Import3Consignment";
+import ImportDone from "./ImportDone";
+import { BitcoinNetwork } from "@/lib/domain";
 
 type ImportStep = 1 | 2 | 3 | 4;
 
@@ -43,17 +35,16 @@ function isDigits(s: string): boolean {
 export function RgbImportPage() {
   const navigate = useNavigate();
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
-  const network = useNetworkStore((s) => s.network);
 
   const [step, setStep] = useState<ImportStep>(1);
-  const [stepOneTab, setStepOneTab] = useState<"select" | "import">("select");
-  const [selectedAssetId, setSelectedAssetId] = useState("");
+  // const [stepOneTab, setStepOneTab] = useState<"select" | "import">("select");
+  const [selectedContractId, setSelectedContractId] = useState("");
   const [contractIdInput, setContractIdInput] = useState("");
   const [amount, setAmount] = useState("");
   const [utxo, setUtxo] = useState("");
   const [createdInvoice, setCreatedInvoice] = useState("");
   const [consignmentLink, setConsignmentLink] = useState("");
-  const [copiedInvoice, setCopiedInvoice] = useState(false);
+  // const [copiedInvoice, setCopiedInvoice] = useState(false);
 
   const contractsQuery = useQuery({
     queryKey: ["rgb_import_contracts", activeNodeId],
@@ -66,14 +57,14 @@ export function RgbImportPage() {
   });
 
   const selectedContract = useMemo(() => {
-    const assetId = selectedAssetId.trim();
-    if (!assetId) return null;
+    const contractId = selectedContractId.trim();
+    if (!contractId) return null;
     return (
       (contractsQuery.data?.contracts ?? []).find(
-        (c) => c.asset_id === assetId
+        (c) => c.contract_id === contractId
       ) ?? null
     );
-  }, [contractsQuery.data?.contracts, selectedAssetId]);
+  }, [contractsQuery.data?.contracts, selectedContractId]);
 
   const importMutation = useMutation({
     mutationFn: async () => {
@@ -85,14 +76,22 @@ export function RgbImportPage() {
         throw new Error("Contract ID is required");
       }
 
-      const config = getNetworkOption(network);
+      const list = await contextsList()
+      const node = list.find((c) => c.node_id === activeNodeId)
+      if(!node) {
+        throw new Error('Node not found')
+      }
+
+      const config = getNetworkOption(node.network as BitcoinNetwork);
       if (!config.coreUrl) {
         throw new Error("Core URL not configured for this network");
       }
 
+      // Download consignment
       const contract = await pluginWalletAssetExport(
+        activeNodeId,
         contractId,
-        config.coreUrl
+        config.coreUrl,
       );
       if (!contract.archive_base64) {
         throw new Error(
@@ -108,22 +107,15 @@ export function RgbImportPage() {
       return contractId;
     },
     onSuccess: async (contractId) => {
+      await contractsQuery.refetch()
+
       toast.success("RGB contract imported");
-      const refetchResult = await contractsQuery.refetch();
-      const importedContract = (refetchResult.data?.contracts ?? []).find(
-        (item) => item.contract_id === contractId
-      );
-
-      if (!importedContract?.asset_id) {
-        toast.error("Contract imported, but asset not found in local list yet");
-        return;
-      }
-
-      setSelectedAssetId(importedContract.asset_id);
+      setSelectedContractId(contractId);
       setCreatedInvoice("");
       setConsignmentLink("");
       setAmount("");
       setStep(2);
+
     },
     onError: (e) => {
       toast.error((e as Error).message);
@@ -176,7 +168,7 @@ export function RgbImportPage() {
         throw new Error("Consignment link is invalid");
       }
 
-      const data = await downloadTransferConsignmentFromLink(consignmentLink);
+      const data = await downloadTransferConsignmentFromLink(activeNodeId, consignmentLink);
       if (!data.archive_base64) {
         throw new Error(
           (data as any).message || "Failed to download consignment"
@@ -205,279 +197,74 @@ export function RgbImportPage() {
     { id: 3, label: "Paste Consignment Link" },
   ] as const;
 
+
   return (
-    <div className="space-y-4">
-      <Button
-        type="button"
-        variant="outline"
-        className="gap-2"
-        onClick={() => navigate("/rgb/actions")}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Button>
+    <ContentWrapper>
+      <ContentHeader title="Import RGB Asset" onBack={() => navigate(-1)} />
 
-      <Card>
-        <CardHeader className="space-y-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>Import RGB Asset</CardTitle>
-          </div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-            {stepItems.map((item) => (
-              <div
-                key={item.id}
-                className={`rounded-md border px-3 py-2 text-sm ${
-                  item.id === step
-                    ? "border-primary bg-primary/10 font-medium"
-                    : item.id < step
-                    ? "border-emerald-500 bg-emerald-500/10"
-                    : "ui-border"
-                }`}
-              >
-                Step {item.id}: {item.label}
-              </div>
-            ))}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <Content>
+        <div>
+
+          {/* Contract id form */}
           {step === 1 && (
-            <div className="space-y-4">
-              <Tabs
-                value={stepOneTab}
-                onValueChange={(v) => setStepOneTab(v as "select" | "import")}
-              >
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="select">Select Asset</TabsTrigger>
-                  <TabsTrigger value="import">Import Contract</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="select" className="space-y-4 pt-4">
-                  <Select
-                    value={selectedAssetId || "none"}
-                    onValueChange={(v) =>
-                      setSelectedAssetId(v === "none" ? "" : v)
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Choose asset" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Select RGB Asset</SelectItem>
-                      {(contractsQuery.data?.contracts ?? []).map((item) => (
-                        <SelectItem key={item.asset_id} value={item.asset_id}>
-                          {item.ticker || item.name || "RGB"}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Button
-                    type="button"
-                    className="w-full h-12"
-                    disabled={!selectedAssetId.trim()}
-                    onClick={() => {
-                      setCreatedInvoice("");
-                      setConsignmentLink("");
-                      setAmount("");
-                      setStep(2);
-                    }}
-                  >
-                    Next
-                  </Button>
-                </TabsContent>
-
-                <TabsContent value="import" className="space-y-4 pt-4">
-                  <Alert variant="default">
-                    <AlertTitle>Tips</AlertTitle>
-                    <AlertDescription>
-                      New RGB assets must complete at least one L1 on-chain
-                      transaction before import.
-                    </AlertDescription>
-                  </Alert>
-                  <Field>
-                    <FieldLabel>Contract ID</FieldLabel>
-                    <Input
-                      placeholder="Contract ID"
-                      value={contractIdInput}
-                      onChange={(e) => setContractIdInput(e.target.value)}
-                    />
-                  </Field>
-
-                  <Button
-                    type="button"
-                    className="w-full h-12"
-                    disabled={
-                      importMutation.isPending || !contractIdInput.trim()
-                    }
-                    onClick={() => importMutation.mutate()}
-                  >
-                    {importMutation.isPending
-                      ? "Importing Contract..."
-                      : "Import Contract"}
-                  </Button>
-                </TabsContent>
-              </Tabs>
-            </div>
+            <Import1
+              contractIdInput={contractIdInput}
+              setContractIdInput={setContractIdInput}
+              disabled={
+                importMutation.isPending || !contractIdInput.trim()
+              }
+              onNext={() => importMutation.mutate()}
+            />
           )}
 
+          {/* Create a invoice to receive assets */}
           {step === 2 && (
-            <div className="space-y-4">
+            <div>
               {!createdInvoice ? (
-                <>
-                  <Field>
-                    <FieldLabel>Asset Name</FieldLabel>
-                    <Input
-                      value={
-                        selectedContract?.name?.trim() ||
-                        selectedContract?.ticker?.trim() ||
-                        selectedContract?.asset_id ||
-                        selectedAssetId
-                      }
-                      readOnly
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>Contract ID</FieldLabel>
-                    <Input
-                      value={selectedContract?.contract_id ?? ""}
-                      readOnly
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel>Amount</FieldLabel>
-                    <Input
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="Amount"
-                    />
-                  </Field>
-
-                  <Field>
-                    <Label>Blinding UTXO</Label>
-                    <RgbUtxoSelect
-                      nodeId={activeNodeId ?? ""}
-                      onChangeUtxo={setUtxo}
-                    />
-                  </Field>
-
-                  <Button
-                    type="button"
-                    className="w-full h-12"
-                    disabled={
-                      createInvoiceMutation.isPending ||
-                      !amount.trim() ||
-                      !utxo.trim()
-                    }
-                    onClick={() => createInvoiceMutation.mutate()}
-                  >
-                    {createInvoiceMutation.isPending
-                      ? "Creating RGB OnChain invoice..."
-                      : "Create RGB OnChain invoice"}
-                  </Button>
-                </>
+                <Import2
+                  selectedContract={selectedContract}
+                  amount={amount}
+                  setAmount={setAmount}
+                  setUtxo={setUtxo}
+                  disabled={
+                    createInvoiceMutation.isPending ||
+                    !amount.trim() ||
+                    !utxo.trim()
+                  }
+                  onNext={() => createInvoiceMutation.mutate()}
+                />
               ) : (
-                <>
-                  <div className="space-y-2 rounded-lg border p-3">
-                    <div className="text-sm font-medium">Invoice</div>
-
-                    <div className="rounded-md bg-muted p-2 text-xs break-all">
-                      {createdInvoice}
-                    </div>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full"
-                      onClick={async () => {
-                        await navigator.clipboard.writeText(createdInvoice);
-                        setCopiedInvoice(true);
-                        window.setTimeout(() => setCopiedInvoice(false), 1200);
-                      }}
-                    >
-                      {copiedInvoice ? (
-                        <>
-                          <Check className="h-4 w-4" />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-4 w-4" />
-                          Copy Invoice
-                        </>
-                      )}
-                    </Button>
-                  </div>
-
-                  <Button
-                    type="button"
-                    className="w-full h-12"
-                    onClick={() => {
-                      setStep(3);
-                      setConsignmentLink("");
-                    }}
-                  >
-                    L1 wallet transaction completed
-                  </Button>
-                </>
+                <Import2Invoice
+                  invoice={createdInvoice}
+                  selectedContract={selectedContract}
+                  onNext={() => {
+                    setStep(3);
+                    setConsignmentLink("");
+                  }}
+                />
               )}
             </div>
           )}
 
           {step === 3 && (
-            <div className="space-y-4">
-              <Alert>
-                <AlertTitle>Final Step</AlertTitle>
-                <AlertDescription>
-                  Copy the Consignment link from your L1 wallet, then paste it
-                  here and continue.
-                </AlertDescription>
-              </Alert>
-
-              <Field>
-                <FieldLabel>Invoice</FieldLabel>
-                <Input
-                  value={createdInvoice}
-                  onChange={(e) => setCreatedInvoice(e.target.value)}
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel>Consignment Link</FieldLabel>
-                <Input
-                  value={consignmentLink}
-                  placeholder="Paste Consignment link from L1 wallet"
-                  onChange={(e) => setConsignmentLink(e.target.value)}
-                />
-              </Field>
-
-              <Button
-                type="button"
-                className="w-full h-12"
-                disabled={!consignmentLink || acceptPaymentMutation.isPending}
-                onClick={() => acceptPaymentMutation.mutate()}
-              >
-                {acceptPaymentMutation.isPending
-                  ? "Accepting..."
-                  : "Accept Payment"}
-              </Button>
-            </div>
+            <Import3Consignment
+              consignmentLink={consignmentLink}
+              setConsignmentLink={setConsignmentLink}
+              selectedContract={selectedContract}
+              disabled={!consignmentLink || acceptPaymentMutation.isPending}
+              onNext={() => acceptPaymentMutation.mutate()}
+            />
           )}
 
           {step === 4 && (
-            <div className="rounded-md border p-4 space-y-2">
-              <div className="flex justify-center pb-5">
-                <CircleCheckBig className="h-20 w-20 text-green-600" />
-              </div>
-              <div className="text-sm text-center">
-                RGB import flow is completed. The payment has been accepted.
-              </div>
-            </div>
+            <ImportDone
+              amount={amount}
+              assetName={selectedContract?.name ?? ''}
+            />
           )}
 
           {contractsQuery.isError && (
-            <Alert variant="destructive">
-              <AlertTitle>Request failed</AlertTitle>
+            <Alert variant="destructive" className="mt-3">
               <AlertDescription>
                 {contractsQuery.isError
                   ? errorToText(contractsQuery.error)
@@ -485,8 +272,8 @@ export function RgbImportPage() {
               </AlertDescription>
             </Alert>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </Content>
+    </ContentWrapper>
   );
 }

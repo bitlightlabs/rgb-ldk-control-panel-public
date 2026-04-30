@@ -9,13 +9,19 @@ The workflow currently:
 - builds on `macos-14`
 - adds both Apple targets inside the same job
 - signs macOS artifacts with a local `.p12` certificate
-- does not perform notarization in CI
+- performs notarization in CI when Apple notarization secrets are provided
 
 ## Required CI secrets
 
 - `APPLE_CERTIFICATE`: base64-encoded `.p12` signing certificate
 - `APPLE_CERTIFICATE_PASSWORD`: password for the `.p12`
 - `APPLE_SIGNING_IDENTITY`: signing identity name shown by macOS keychain tools
+
+Required for CI notarization:
+
+- `APPLE_ID`: Apple account used for notarization
+- `APPLE_PASSWORD`: app-specific password for `APPLE_ID`
+- `APPLE_TEAM_ID`: Apple Developer Team ID
 
 ## Local signing example
 
@@ -51,8 +57,7 @@ If `spctl` reports `accepted`, Gatekeeper recognizes the signature.
 
 ## Notes
 
-- Notarization is not wired into the current CI workflow.
-- If notarization is added later, this document should be updated together with `.github/workflows/release.yml`.
+- CI macOS notarization depends on `APPLE_ID`, `APPLE_PASSWORD`, and `APPLE_TEAM_ID` being configured.
 - If `base64 < file` is not available on your shell, `cat file | base64` is an acceptable substitute.
 
 ## Common issues

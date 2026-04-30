@@ -137,6 +137,7 @@ export default function RgbPaymentsList(props: IProps) {
 
                       {item.consignment_download_path ? (
                         <DownloadTransferConsignmentBtn
+                          nodeId={activeNodeId ?? ''}
                           name={findName(item.contract_id)}
                           link={makeLink(
                             currentContext,

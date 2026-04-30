@@ -2,7 +2,12 @@
 import { nodeRgbContractBalance } from "@/lib/commands";
 import { useEffect, useState } from "react";
 
-export default function AssetBalance(props: {nodeId: string, contractId: string, precision: number}) {
+export default function AssetBalance(props: {
+  nodeId: string,
+  contractId: string,
+  precision: number,
+  onBalanceLoad?: (balance: string) => void
+}) {
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState<string>('');
 
@@ -17,6 +22,7 @@ export default function AssetBalance(props: {nodeId: string, contractId: string,
       const result = Number(data.balance.total) / (10 ** props.precision);
       setBalance(result.toString())
       setLoading(false);
+      if(props.onBalanceLoad) props.onBalanceLoad(result.toString());
     } catch (e) {}
   }
 

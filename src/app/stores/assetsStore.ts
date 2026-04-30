@@ -3,8 +3,10 @@ import { create } from "zustand";
 type AssetDetailOrigin = "dashboard" | "assets";
 
 type AssetsState = {
+  /** asset contract id */
   selectedAssetId: string | null;
   detailOrigin: AssetDetailOrigin | null;
+  /** Set contract id */
   setSelectedAssetId: (id: string | null, origin?: AssetDetailOrigin) => void;
   clearSelectedAssetId: () => void;
 };

@@ -43,7 +43,7 @@ function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s.trim());
 }
 
-const MIN_RGB_CHANNEL_SATS = 1_000_000;
+const MIN_RGB_CHANNEL_SATS = 2_000;
 
 function buildConsignmentTemplate(base: string): string {
   const trimmed = base.trim();
@@ -110,7 +110,7 @@ export function OpenChannelDialog({
   const [connectFirst, setConnectFirst] = useState(true);
   const [persistPeer, setPersistPeer] = useState(false);
   const [rgbEnabled, setRgbEnabled] = useState(false);
-  const [rgbAssetId, setRgbAssetId] = useState("");
+  const [rgbAssetContractId, setRgbAssetContractId] = useState("");
   const [rgbAssetAmount, setRgbAssetAmount] = useState("100");
   const rgbContextData = useMemo(() => defaultRgbContextData(source), [source]);
   const rgbContractsQuery = useQuery({
@@ -130,7 +130,7 @@ export function OpenChannelDialog({
     setConnectFirst(true);
     setPersistPeer(false);
     setRgbEnabled(false);
-    setRgbAssetId("");
+    setRgbAssetContractId("");
     setRgbAssetAmount("100");
   }, [open]);
 
@@ -159,19 +159,19 @@ export function OpenChannelDialog({
   }, [channelAmountSats, rgbEnabled]);
   useEffect(() => {
     if (!rgbEnabled) return;
-    if (rgbAssetId.trim()) return;
+    if (rgbAssetContractId.trim()) return;
     const first = rgbContractsQuery.data?.contracts?.[0];
-    if (first?.asset_id) {
-      setRgbAssetId(first.asset_id);
+    if (first?.contract_id) {
+      setRgbAssetContractId(first.contract_id);
     }
-  }, [rgbAssetId, rgbContractsQuery.data?.contracts, rgbEnabled]);
-  const selectedRgbContract = useMemo(
-    () =>
-      (rgbContractsQuery.data?.contracts ?? []).find(
-        (c) => c.asset_id === rgbAssetId
-      ) ?? null,
-    [rgbAssetId, rgbContractsQuery.data?.contracts]
-  );
+  }, [rgbAssetContractId, rgbContractsQuery.data?.contracts, rgbEnabled]);
+  // const selectedRgbContract = useMemo(
+  //   () =>
+  //     (rgbContractsQuery.data?.contracts ?? []).find(
+  //       (c) => c.asset_id === rgbAssetId
+  //     ) ?? null,
+  //   [rgbAssetId, rgbContractsQuery.data?.contracts]
+  // );
 
   const openMutation = useMutation({
     mutationFn: async () => {
@@ -179,7 +179,7 @@ export function OpenChannelDialog({
         await nodeRgbSync(targetContextId);
         const targetContracts = await nodeRgbContracts(targetContextId);
         const targetHasAsset = (targetContracts.contracts ?? []).some(
-          (c) => c.asset_id === rgbAssetId.trim()
+          (c) => c.contract_id === rgbAssetContractId.trim()
         );
         if (!targetHasAsset) {
           throw new Error(
@@ -206,26 +206,27 @@ export function OpenChannelDialog({
 
       const selectAsset =
         rgbContractsQuery.data?.contracts.find(
-          (c) => c.asset_id === rgbAssetId
+          (c) => c.contract_id === rgbAssetContractId
         ) ?? null;
       const precision = selectAsset?.precision ?? 0;
 
       const req: OpenChannelRequest = {
         node_id: peerNodeId.trim(),
         address: address.trim(),
-        channel_amount_sats: u64(channelAmountSats.trim()),
+        channel_amount_sats: channelAmountSats.trim(),
         announce,
         push_to_counterparty_msat: null,
         rgb: rgbEnabled
           ? {
-              asset_id: rgbAssetId.trim(),
-              asset_amount: u64(
+              contract_id: rgbAssetContractId.trim(),
+              asset_amount: BigInt(
                 Number(rgbAssetAmount.trim()) * 10 ** precision
-              ),
+              ).toString(),
               color_context_data: rgbContextData.trim(),
             }
           : null,
       };
+      console.log("Open channel request:", req);
       return nodeChannelOpen(sourceNodeId, req);
     },
     onSuccess: async (resp) => {
@@ -251,7 +252,7 @@ export function OpenChannelDialog({
       ) {
         return `RGB channels require at least ${MIN_RGB_CHANNEL_SATS} sats channel amount.`;
       }
-      if (!rgbAssetId.trim()) return "Missing RGB asset_id.";
+      if (!rgbAssetContractId.trim()) return "Missing RGB contract id.";
       if (!rgbAssetAmount.trim()) return "Missing RGB asset amount.";
       if (!isDigits(rgbAssetAmount))
         return "RGB asset amount must be a whole number.";
@@ -264,7 +265,7 @@ export function OpenChannelDialog({
     channelAmountSats,
     peerNodeId,
     rgbAssetAmount,
-    rgbAssetId,
+    rgbAssetContractId,
     rgbContextData,
     rgbEnabled,
     source,
@@ -491,10 +492,10 @@ export function OpenChannelDialog({
             {rgbEnabled ? (
               <div className="grid gap-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="rgb_asset_id">Asset</Label>
+                  <Label htmlFor="rgb_asset">Asset</Label>
                   <Select
-                    value={rgbAssetId || undefined}
-                    onValueChange={setRgbAssetId}
+                    value={rgbAssetContractId || undefined}
+                    onValueChange={setRgbAssetContractId}
                     disabled={
                       rgbContractsQuery.isPending ||
                       rgbContractsQuery.isError ||
@@ -502,9 +503,9 @@ export function OpenChannelDialog({
                     }
                   >
                     <SelectTrigger
-                      id="rgb_asset_id"
+                      id="rgb_asset"
                       className="w-full"
-                      data-testid="open-channel-rgb-asset-id"
+                      data-testid="open-channel-rgb-contract-id"
                     >
                       <SelectValue
                         placeholder={
@@ -512,7 +513,7 @@ export function OpenChannelDialog({
                             ? "Loading RGB assets..."
                             : rgbContractsQuery.isError
                             ? "Failed to load RGB assets"
-                            : "Pick RGB asset..."
+                            : "Pick RGB contract..."
                         }
                       />
                     </SelectTrigger>
@@ -520,7 +521,7 @@ export function OpenChannelDialog({
                       {(rgbContractsQuery.data?.contracts ?? []).map((c) => (
                         <SelectItem
                           key={c.contract_id}
-                          value={c.asset_id}
+                          value={c.contract_id}
                           data-testid={`open-channel-rgb-asset-item-${c.contract_id}`}
                         >
                           {c.name}
@@ -552,14 +553,12 @@ export function OpenChannelDialog({
 
           {validationError ? (
             <Alert variant="destructive" data-testid="open-channel-validation">
-              <AlertTitle>Cannot open channel</AlertTitle>
               <AlertDescription>{validationError}</AlertDescription>
             </Alert>
           ) : null}
 
           {openMutation.isError ? (
             <Alert variant="destructive" data-testid="open-channel-error">
-              <AlertTitle>Open failed</AlertTitle>
               <AlertDescription>
                 {errorToText(openMutation.error)}
               </AlertDescription>

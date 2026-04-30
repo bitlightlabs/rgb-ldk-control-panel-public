@@ -7,6 +7,7 @@ export type AppNetworkOption = NetworkOption & {
     iconSrc?: string;
     coreUrl?: string;
     enabled?: boolean;
+    explorerUrl?: string;
 };
 
 export const NETWORK_OPTIONS: AppNetworkOption[] = [
@@ -36,8 +37,11 @@ export const NETWORK_OPTIONS: AppNetworkOption[] = [
             import.meta.env.VITE_REGTEST_API ??
             "https://btc-regtest-cat.bitlightdev.info",
         enabled: true,
-        coreUrl: 'https://core-regtest-prod-rgb012rc3a.bitlightdev.info',
+        coreUrl:
+            import.meta.env.VITE_REGTEST_CORE_API ??
+            'https://core-regtest-prod-rgb012rc3a.bitlightdev.info',
         iconSrc: regtestIcon,
+        explorerUrl: import.meta.env.VITE_REGTEST_WEB_EXPLORER
     },
 ];
 
@@ -45,6 +49,6 @@ export function getDefaultNetworkOption(): AppNetworkOption {
     return NETWORK_OPTIONS.find((item) => item.enabled !== false) ?? NETWORK_OPTIONS[0];
 }
 
-export function getNetworkOption(value: BitcoinNetwork): AppNetworkOption {
+export function getNetworkOption(value: BitcoinNetwork | null): AppNetworkOption {
     return NETWORK_OPTIONS.find((item) => item.value === value) ?? getDefaultNetworkOption();
 }

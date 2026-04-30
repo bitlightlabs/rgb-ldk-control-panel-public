@@ -1,18 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useNodeStore } from "@/app/stores/nodeStore";
 import {
   nodeBolt11Receive,
@@ -26,10 +15,22 @@ import {
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
 import { u64 } from "@/lib/sdk";
-import { ArrowLeft, ArrowRight, Check, Copy } from "lucide-react";
-import RgbUtxoSelect from "@/app/components/RgbUtxoSelect";
-import { toast } from "sonner";
+import { ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
+import IconLightning from "@/app/icons/lightning";
+import IconInvoiceOffer from "@/app/icons/invoice-offer";
+import IconInvoice from "@/app/icons/invoice";
+import IconLink from "@/app/icons/link";
+import ResultReceiveRGB from "./ResultReceiveRGB";
+import ResultBolt11Invoice from "./ResultBolt11Invoice";
+import OfferForm from "./OfferForm";
+import InvoiceForm from "./InvoiceForm";
+import OnchainInvoiceRGBForm from "./OnchainInvoiceRGBForm";
+import RGBInvoiceForm from "./RGBInvoiceForm";
+import ResultOnchainBtc from "./ResultOnchainBtc";
+import ResultReceiveOnchainRGB from "./ResultReceiveOnchainRGB";
+import ResultBolt12Invoice from "./ResultBolt12Invoice";
 
 type ReceiveMode =
   | "invoice"
@@ -43,21 +44,21 @@ function isDigits(s: string): boolean {
   return /^\d+$/.test(s.trim());
 }
 
-export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
+export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
   const navigate = useNavigate();
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
   const [step, setStep] = useState<ReceiveStep>("select");
   const [mode, setMode] = useState<ReceiveMode | null>(null);
-  const [amountMsat, setAmountMsat] = useState("5000000");
+  const [amountSat, setAmountSat] = useState("5000");
   const [description, setDescription] = useState("Receive BTC");
   const [createdValue, setCreatedValue] = useState("");
   const [createdAmountMsat, setCreatedAmountMsat] = useState("");
-  const [copied, setCopied] = useState(false);
-  const [rgbAssetId, setRgbAssetId] = useState("");
+  // const [copied, setCopied] = useState(false);
+  const [rgbContractId, setRgbContractId] = useState("");
   const [rgbAssetAmount, setRgbAssetAmount] = useState("21");
-  const [rgbCarrierAmountMsat, setRgbCarrierAmountMsat] = useState("5000000");
+  const [rgbCarrierAmountSat, setRgbCarrierAmountSat] = useState("5000");
   const [currentRgbUtxo, setCurrentRgbUtxo] = useState("");
-  const [currentContractId, setCurrentContractId] = useState("");
+  const [currentOnchainContractId, setCurrentOnchainContractId] = useState(""); // onchain
 
   const rgbContractsQuery = useQuery({
     queryKey: ["receive_rgb_contracts", activeNodeId],
@@ -75,51 +76,52 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
   const selectedRgbContract = useMemo(
     () =>
       (rgbContractsQuery.data?.contracts ?? []).find(
-        (c) => c.asset_id === rgbAssetId
+        (c) => c.contract_id === rgbContractId
       ) ?? null,
-    [rgbAssetId, rgbContractsQuery.data?.contracts]
+    [rgbContractId, rgbContractsQuery.data?.contracts]
   );
   const selectedOnchainRgbContract = useMemo(
     () =>
       (rgbContractsQuery.data?.contracts ?? []).find(
-        (c) => c.contract_id === currentContractId
+        (c) => c.contract_id === currentOnchainContractId
       ) ?? null,
-    [currentContractId, rgbContractsQuery.data?.contracts]
+    [currentOnchainContractId, rgbContractsQuery.data?.contracts]
   );
-  const createdRgbAmountUnit = useMemo(() => {
-    if (mode === "rgb_invoice") {
-      return selectedRgbContract?.ticker?.trim() || "RGB";
-    }
-    if (mode === "rgb_onchain_invoice") {
-      return selectedOnchainRgbContract?.ticker?.trim() || "RGB";
-    }
-    return "RGB";
-  }, [mode, selectedOnchainRgbContract?.ticker, selectedRgbContract?.ticker]);
+  // const createdRgbAmountUnit = useMemo(() => {
+  //   if (mode === "rgb_invoice") {
+  //     return selectedRgbContract?.ticker?.trim() || "RGB";
+  //   }
+  //   if (mode === "rgb_onchain_invoice") {
+  //     return selectedOnchainRgbContract?.ticker?.trim() || "RGB";
+  //   }
+  //   return "RGB";
+  // }, [mode, selectedOnchainRgbContract?.ticker, selectedRgbContract?.ticker]);
 
   useEffect(() => {
     if (mode !== "rgb_invoice") return;
-    if (rgbAssetId.trim()) return;
+    if (rgbContractId.trim()) return;
     const first = rgbContractsQuery.data?.contracts?.[0];
-    if (first?.asset_id) {
-      setRgbAssetId(first.asset_id);
+    if (first?.contract_id) {
+      setRgbContractId(first.contract_id);
     }
-  }, [mode, rgbAssetId, rgbContractsQuery.data?.contracts]);
+  }, [mode, rgbContractId, rgbContractsQuery.data?.contracts]);
 
   const createMutation = useMutation({
     mutationFn: async (targetMode?: ReceiveMode) => {
       if (!activeNodeId) throw new Error("No active node selected");
       const receiveMode = targetMode ?? mode;
-      const amount = amountMsat.trim();
+      const amount = amountSat.trim();
       const desc = description.trim() || "Receive BTC";
 
+      // onchain receive rgb
       if (receiveMode === "rgb_onchain_invoice") {
         const asset = rgbContractsQuery.data?.contracts.find(
-          (c) => c.contract_id === currentContractId
+          (c) => c.contract_id === currentOnchainContractId
         );
         const precision = asset?.precision ?? 0;
 
         const resp = await nodeRgbOnchainInvoiceCreate(activeNodeId, {
-          contract_id: currentContractId,
+          contract_id: currentOnchainContractId,
           amount: u64(Number(rgbAssetAmount.trim()) * 10 ** precision),
           use_witness_utxo: false,
           blinding_utxo: currentRgbUtxo.trim(),
@@ -128,34 +130,40 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
         return { value: resp.invoice, amount: rgbAssetAmount.trim() };
       }
 
+      // btc onchain address
       if (receiveMode === "btc_onchain_address") {
         const resp = await nodeWalletNewAddress(activeNodeId);
         return { value: resp.address, amount: "" };
       }
 
+      // rgb invoice
       if (receiveMode === "rgb_invoice") {
         const asset = rgbContractsQuery.data?.contracts.find(
-          (c) => c.asset_id === rgbAssetId
+          (c) => c.contract_id === rgbContractId
         );
         const precision = asset?.precision ?? 0;
 
         const resp = await nodeRgbLnInvoiceCreate(activeNodeId, {
-          asset_id: rgbAssetId.trim(),
-          asset_amount: u64(Number(rgbAssetAmount.trim()) * 10 ** precision),
+          contract_id: rgbContractId.trim(),
+          asset_amount: BigInt(Number(rgbAssetAmount.trim()) * 10 ** precision).toString(),
           description: desc,
           expiry_secs: 3600,
-          btc_carrier_amount_msat: u64(rgbCarrierAmountMsat.trim()),
+          btc_carrier_amount_msat: (BigInt(rgbCarrierAmountSat.trim()) * 1000n).toString(),
         });
         return { value: resp.invoice, amount: rgbAssetAmount.trim() };
       }
+
+      // bolt11 invoice
       if (receiveMode === "invoice") {
         const resp = await nodeBolt11Receive(activeNodeId, {
-          amount_msat: u64(amount),
+          amount_msat: u64(amount).mul(1000),
           description: desc,
           expiry_secs: 3600,
         });
-        return { value: resp.invoice, amount };
+        return { value: resp.invoice, amount: (BigInt(amount) * 1000n).toString() };
       }
+
+      // bolt12 offer with variable amount
       const resp = await nodeBolt12OfferReceiveVar(activeNodeId, {
         description: desc,
         expiry_secs: 3600,
@@ -173,31 +181,31 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     if (!activeNodeId) return "No active node selected.";
     if (mode === "rgb_invoice") {
       if (rgbContractsQuery.isPending) return "Loading RGB assets...";
-      if (!rgbAssetId.trim()) return "RGB asset is required.";
+      if (!rgbContractId.trim()) return "RGB contract is required.";
       if (!isDigits(rgbAssetAmount.trim()))
         return "RGB amount must be an integer.";
       if (rgbAssetAmount.trim() === "0")
         return "RGB amount must be greater than 0.";
-      if (!isDigits(rgbCarrierAmountMsat.trim()))
+      if (!isDigits(rgbCarrierAmountSat.trim()))
         return "BTC carrier must be an integer (msat).";
-      if (rgbCarrierAmountMsat.trim() === "0")
+      if (rgbCarrierAmountSat.trim() === "0")
         return "BTC carrier must be greater than 0.";
       return null;
     }
     if (mode === "btc_onchain_address") return null;
     if (mode === "offer") return null;
-    const amount = amountMsat.trim();
-    if (!amount) return "Amount (msat) is required.";
-    if (!isDigits(amount)) return "Amount must be an integer (msat).";
+    const amount = amountSat.trim();
+    if (!amount) return "Amount (sat) is required.";
+    if (!isDigits(amount)) return "Amount must be an integer (sat).";
     if (amount === "0") return "Amount must be greater than 0.";
     return null;
   }, [
     activeNodeId,
-    amountMsat,
+    amountSat,
     mode,
     rgbAssetAmount,
-    rgbAssetId,
-    rgbCarrierAmountMsat,
+    rgbContractId,
+    rgbCarrierAmountSat,
     rgbContractsQuery.isPending,
   ]);
 
@@ -223,15 +231,15 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
       onBackRoot();
       return;
     }
-    navigate("/dashboard");
+    // navigate("/dashboard");
+    navigate(-1);
   };
 
   return (
-    <div className="space-y-4">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => {
+    <ContentWrapper >
+      <ContentHeader
+        title={title}
+        onBack={() => {
           if (step === "select") {
             goBackRoot();
             return;
@@ -248,252 +256,173 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
           }
           setStep("form");
         }}
-        className="gap-2"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Button>
-      <Card>
-        <CardHeader className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <CardTitle>{title}</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      />
+      <Content>
+        <div className="space-y-4">
           {step === "select" ? (
             <div className="grid grid-cols-1 gap-4">
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="text-sm font-semibold tracking-wide text-muted-foreground">
+              <div className="space-y-3 rounded-lg">
+                <div className="text-sm text-secondary-foreground">
                   Lightning
                 </div>
                 <Button
                   type="button"
                   variant="secondary"
-                  className="w-full justify-between px-2.5"
-                  size="lg"
+                  className="h-[66px] w-full rounded-2xl justify-between p-5"
                   onClick={() => {
                     setMode("rgb_invoice");
                     setDescription("Receive RGB");
                     setStep("form");
                   }}
                 >
-                  RGB Lightning Invoice
+                  <div className="flex gap-4 items-center">
+                    <span className="w-6 h-6"><IconLightning style={{width: 'auto', height: '100%'}} /></span>
+                    <div className="text-left">
+                      <div className="text-sm text-foreground">RGB Lightning</div>
+                      <div className="mt-1 text-secondary-foreground font-normal">Receive RGB instantly via Lightning Network</div>
+                    </div>
+                  </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  size="lg"
-                  className="w-full justify-between px-2.5"
+                  className="h-[66px] w-full rounded-2xl justify-between p-5"
                   onClick={() => {
                     setMode("invoice");
                     setStep("form");
+                    setDescription("Receive BTC");
                   }}
                 >
-                  BTC Lightning Invoice
+                  <div className="flex gap-4 items-center">
+                    <span className="w-6 h-6"><IconInvoice style={{width: 'auto', height: '100%'}} /></span>
+                    <div className="text-left">
+                      <div className="text-sm text-foreground">Lightning Invoice</div>
+                      <div className="mt-1 text-secondary-foreground font-normal">One-time payment request with instant settlement</div>
+                    </div>
+                  </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </Button>
                 <Button
                   type="button"
                   variant="secondary"
-                  className="w-full justify-between px-2.5"
-                  size="lg"
+                  className="h-[66px] w-full rounded-2xl justify-between p-5"
                   onClick={() => {
                     setMode("offer");
                     setStep("form");
+                    setDescription("Receive BTC");
                   }}
                 >
-                  BTC Lightning Offer
+                  <div className="flex gap-4 items-center">
+                    <span className="w-6 h-6"><IconInvoiceOffer style={{width: 'auto', height: '100%'}} /></span>
+                    <div className="text-left">
+                      <div className="text-sm text-foreground">Lightning Offer</div>
+                      <div className="mt-1 text-secondary-foreground font-normal">Create reusable payment link for flexible amounts</div>
+                    </div>
+                  </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </div>
 
-              <div className="space-y-3 rounded-lg border p-3">
-                <div className="text-sm font-semibold tracking-wide text-muted-foreground">
+              <div className="space-y-3 mt-7">
+                <div className="text-sm text-secondary-foreground">
                   OnChain
                 </div>
                 <Button
                   type="button"
                   variant="secondary"
-                  className="w-full justify-between px-2.5"
-                  size="lg"
+                  className="h-[66px] w-full rounded-2xl justify-between p-5"
                   onClick={() => {
                     setMode("btc_onchain_address");
                     setDescription("Receive BTC OnChain");
                     createMutation.mutate("btc_onchain_address");
                   }}
                 >
-                  BTC OnChain Address
+                  <div className="flex gap-4 items-center">
+                    <span className="w-6 h-6"><IconLink style={{width: 'auto', height: '100%'}} /></span>
+                    <div className="text-left">
+                      <div className="text-sm text-foreground">Bitcoin On-chain</div>
+                      <div className="mt-1 text-secondary-foreground font-normal">On-chain deposit for large transfers</div>
+                    </div>
+                  </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
                 </Button>
-                <Button
+
+                {/* <Button
                   type="button"
                   variant="secondary"
-                  className="w-full justify-between px-2.5"
-                  size="lg"
+                  className="h-[66px] w-full rounded-2xl justify-between p-5"
                   onClick={() => {
                     setMode("rgb_onchain_invoice");
                     setDescription("Receive RGB OnChain");
                     setStep("form");
                   }}
                 >
-                  RGB OnChain Invoice
+                    <div className="flex gap-4 items-center">
+                    <IconLink />
+                    <div className="text-left">
+                      <div className="text-sm text-foreground">RGB OnChain Invoice</div>
+                      <div className="mt-1 text-secondary-foreground font-normal">On-chain RGB deposit for large transfers</div>
+                    </div>
+                  </div>
+
                   <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </Button>
+                </Button> */}
               </div>
             </div>
           ) : null}
 
           {step === "form" ? (
             <>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
                 {mode === "rgb_onchain_invoice" ? (
-                  <>
-                    <Field>
-                      <FieldLabel htmlFor="recv_rgb_contract_id">
-                        RGB Asset
-                      </FieldLabel>
-                      <Select
-                        value={currentContractId || undefined}
-                        onValueChange={setCurrentContractId}
-                      >
-                        <SelectTrigger
-                          id="recv_rgb_contract_id"
-                          className="h-10"
-                        >
-                          <SelectValue placeholder="Pick RGB asset..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(rgbContractsQuery.data?.contracts ?? []).map(
-                            (c) => (
-                              <SelectItem
-                                key={c.contract_id}
-                                value={c.contract_id}
-                              >
-                                {c.name ??
-                                  c.ticker ??
-                                  c.contract_id.slice(0, 10)}
-                              </SelectItem>
-                            )
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="recv_rgb_amount">Amount</FieldLabel>
-                      <Input
-                        id="recv_rgb_amount"
-                        value={rgbAssetAmount}
-                        onChange={(e) =>
-                          setRgbAssetAmount(e.currentTarget.value)
-                        }
-                        inputMode="numeric"
-                        placeholder="21"
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="recv_rgb_carrier">
-                        Blinding Utxo
-                      </FieldLabel>
-                      <RgbUtxoSelect
-                        nodeId={activeNodeId ?? ""}
-                        onChangeUtxo={setCurrentRgbUtxo}
-                      />
-                    </Field>
-                  </>
+                  <OnchainInvoiceRGBForm
+                    contracts={rgbContractsQuery.data?.contracts ?? []}
+                    selectedContractId={currentOnchainContractId}
+                    changeContractId={setCurrentOnchainContractId}
+                    rgbAssetAmount={rgbAssetAmount}
+                    setRgbAssetAmount={setRgbAssetAmount}
+                    setCurrentRgbUtxo={setCurrentRgbUtxo}
+                    description={description}
+                    setDescription={setDescription}
+                  />
                 ) : mode === "rgb_invoice" ? (
-                  <>
-                    <Field>
-                      <FieldLabel htmlFor="recv_rgb_asset_id">
-                        RGB Asset
-                      </FieldLabel>
-                      <Select
-                        value={rgbAssetId || undefined}
-                        onValueChange={setRgbAssetId}
-                      >
-                        <SelectTrigger id="recv_rgb_asset_id" className="h-10">
-                          <SelectValue placeholder="Pick RGB asset..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(rgbContractsQuery.data?.contracts ?? []).map(
-                            (c) => (
-                              <SelectItem
-                                key={c.contract_id}
-                                value={c.asset_id}
-                              >
-                                {c.name ??
-                                  c.ticker ??
-                                  c.contract_id.slice(0, 10)}
-                              </SelectItem>
-                            )
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="recv_rgb_amount">Amount</FieldLabel>
-                      <Input
-                        id="recv_rgb_amount"
-                        value={rgbAssetAmount}
-                        onChange={(e) =>
-                          setRgbAssetAmount(e.currentTarget.value)
-                        }
-                        inputMode="numeric"
-                        placeholder="21"
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="recv_rgb_carrier">
-                        BTC Carrier (msat)
-                      </FieldLabel>
-                      <Input
-                        id="recv_rgb_carrier"
-                        value={rgbCarrierAmountMsat}
-                        onChange={(e) =>
-                          setRgbCarrierAmountMsat(e.currentTarget.value)
-                        }
-                        inputMode="numeric"
-                        placeholder="5000000"
-                      />
-                    </Field>
-                  </>
+                  // rgb ln invoice
+                  <RGBInvoiceForm
+                    contracts={rgbContractsQuery.data?.contracts ?? []}
+                    selectedContractId={rgbContractId}
+                    changeContractId={setRgbContractId}
+                    rgbAmount={rgbAssetAmount}
+                    setRgbAmount={setRgbAssetAmount}
+                    description={description}
+                    setDescription={setDescription}
+                    btcCarrierSat={rgbCarrierAmountSat}
+                    setBtcCarrierSat={setRgbCarrierAmountSat}
+                  />
                 ) : mode === "invoice" ? (
-                  <Field>
-                    <FieldLabel htmlFor="recv_amount_msat">
-                      Amount (msat)
-                    </FieldLabel>
-                    <Input
-                      id="recv_amount_msat"
-                      value={amountMsat}
-                      onChange={(e) => setAmountMsat(e.currentTarget.value)}
-                      inputMode="numeric"
-                      placeholder="5000000"
-                    />
-                  </Field>
-                ) : null}
-
-                {mode !== "btc_onchain_address" ? (
-                  <Field>
-                    <FieldLabel htmlFor="recv_desc">Description</FieldLabel>
-                    <Input
-                      id="recv_desc"
-                      value={description}
-                      onChange={(e) => setDescription(e.currentTarget.value)}
-                      placeholder="Receive BTC"
-                    />
-                  </Field>
+                  // bolt11 ln invoice
+                  <InvoiceForm
+                    amountValue={amountSat}
+                    setAmountValue={setAmountSat}
+                    description={description}
+                    setDescription={setDescription}
+                  />
+                ) : mode === 'offer' ? (
+                  <OfferForm
+                    description={description}
+                    setDescription={setDescription}
+                  />
                 ) : null}
               </div>
 
               {validationError ? (
                 <Alert variant="destructive">
-                  <AlertTitle>Invalid input</AlertTitle>
                   <AlertDescription>{validationError}</AlertDescription>
                 </Alert>
               ) : null}
+
               {mode === "rgb_invoice" && rgbContractsQuery.isError ? (
                 <Alert variant="destructive">
-                  <AlertTitle>RGB assets load failed</AlertTitle>
                   <AlertDescription>
                     {errorToText(rgbContractsQuery.error)}
                   </AlertDescription>
@@ -502,7 +431,6 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
 
               {createMutation.isError ? (
                 <Alert variant="destructive">
-                  <AlertTitle>Create failed</AlertTitle>
                   <AlertDescription>
                     {errorToText(createMutation.error)}
                   </AlertDescription>
@@ -511,23 +439,69 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
 
               <Button
                 type="button"
-                className="w-full mt-4"
+                size="lg"
+                variant="white"
+                className="w-full mt-4 rounded-full"
                 disabled={!!validationError || createMutation.isPending}
                 onClick={() => createMutation.mutate(mode ?? undefined)}
               >
-                {createMutation.isPending ? "Creating..." : "Create"}
+                {createMutation.isPending ? "Creating..." : "Create Invoice"}
               </Button>
             </>
           ) : null}
 
           {step === "result" && createdValue ? (
             <>
-              <div className="flex justify-center rounded-md border p-4">
-                <QRCodeSVG value={createdValue} size={180} includeMargin />
-              </div>
+              {
+                mode === 'rgb_invoice' && selectedRgbContract ? (
+                  <ResultReceiveRGB
+                    amount={createdAmountMsat}
+                    assetName={selectedRgbContract.name ?? ''}
+                    btcCarrier={rgbCarrierAmountSat}
+                    btcCarrierSymbol="sat"
+                    invoice={createdValue}
+                  />
+                ) : null
+              }
+
+              {
+                mode === 'rgb_onchain_invoice' ? (
+                  <ResultReceiveOnchainRGB
+                    utxo={currentRgbUtxo}
+                    amount={createdAmountMsat}
+                    assetName={selectedOnchainRgbContract?.name ?? ''}
+                    invoice={createdValue}
+                  />
+                ) : null
+              }
+
+              {
+                mode === 'invoice' ? (
+                  <ResultBolt11Invoice
+                    amount={createdAmountMsat}
+                    invoice={createdValue}
+                    description={description}
+                  />
+                ) : null
+              }
+
+              {
+                mode === 'offer' ? (
+                  <ResultBolt12Invoice
+                    invoice={createdValue}
+                    description={description}
+                  />
+                ) : null
+              }
+
+              {
+                mode === 'btc_onchain_address' ? (
+                  <ResultOnchainBtc address={createdValue} />
+                ) : null
+              }
 
               <div className="space-y-2">
-                {createdAmountMsat || createdAmountMsat ? (
+                {/* {createdAmountMsat || createdAmountMsat ? (
                   <div className="text-sm">
                     Amount:{" "}
                     {mode === "rgb_invoice" || mode === "rgb_onchain_invoice"
@@ -536,17 +510,18 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                       ? "Variable amount"
                       : `${createdAmountMsat} msat`}
                   </div>
-                ) : null}
+                ) : null} */}
 
-                {mode === "rgb_invoice" && selectedRgbContract ? (
+                {/* {mode === "rgb_invoice" && selectedRgbContract ? (
                   <div className="text-sm">
                     Asset:{" "}
                     {selectedRgbContract.name ??
                       selectedRgbContract.ticker ??
                       "-"}
                   </div>
-                ) : null}
-                <div className="flex gap-2">
+                ) : null} */}
+
+                {/* <div className="flex gap-2">
                   <div className="text-sm">
                     {mode === "offer"
                       ? "Offer:"
@@ -557,11 +532,11 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                   <code className="block break-all rounded-md text-sm">
                     {createdValue}
                   </code>
-                </div>
+                </div> */}
               </div>
 
               <div className="space-y-2">
-                <Button
+                {/* <Button
                   type="button"
                   variant="outline"
                   className="w-full"
@@ -581,8 +556,9 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                     : mode === "btc_onchain_address"
                     ? "Copy Address"
                     : "Copy Invoice"}
-                </Button>
-                <Button
+                </Button> */}
+
+                {/* <Button
                   type="button"
                   variant="outline"
                   className="w-full"
@@ -591,12 +567,12 @@ export function ReceiveBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                   }}
                 >
                   Back
-                </Button>
+                </Button> */}
               </div>
             </>
           ) : null}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </Content>
+    </ContentWrapper>
   );
 }

@@ -290,14 +290,12 @@ export function Bolt12OfferDialog({
 
           {validationError ? (
             <Alert variant="destructive">
-              <AlertTitle>Cannot start offer payment</AlertTitle>
               <AlertDescription>{validationError}</AlertDescription>
             </Alert>
           ) : null}
 
           {createAndSendMutation.isError ? (
             <Alert variant="destructive">
-              <AlertTitle>Offer flow failed</AlertTitle>
               <AlertDescription>{errorToText(createAndSendMutation.error)}</AlertDescription>
             </Alert>
           ) : null}
@@ -380,14 +378,13 @@ export function Bolt12OfferDialog({
               ) : null}
 
               {waitMutation.isError ? (
-                <Alert className="mt-2" variant="destructive">
-                  <AlertTitle>Wait failed</AlertTitle>
+                <Alert className="mt-8" variant="destructive">
                   <AlertDescription>{errorToText(waitMutation.error)}</AlertDescription>
                 </Alert>
               ) : null}
+
               {abandonMutation.isError ? (
-                <Alert className="mt-2" variant="destructive">
-                  <AlertTitle>Abandon failed</AlertTitle>
+                <Alert className="mt-8" variant="destructive">
                   <AlertDescription>{errorToText(abandonMutation.error)}</AlertDescription>
                 </Alert>
               ) : null}

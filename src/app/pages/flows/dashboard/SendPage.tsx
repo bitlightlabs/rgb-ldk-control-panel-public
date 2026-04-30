@@ -2,7 +2,6 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,8 +19,13 @@ import {
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
 import { u64 } from "@/lib/sdk";
-import { ArrowLeft, Check, CircleCheckBig, Copy } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
+import SendLnInvoiceConfirm from "./SendLnInvoiceConfirm";
+import SendLnRGBConfirm from "./SendLnRgbConfirm";
+import SendOnchainRGBConfirm from "./SendOnchainRgbConfirm";
+import PayResult from "./PayResult";
+import SendOfferConfirm from "./SendOfferForm";
 
 type PayloadKind = "invoice" | "offer" | "onchain_asset" | "unknown";
 type SendStep = "form" | "confirm" | "result";
@@ -35,7 +39,7 @@ type RawRgbLnInvoiceDecodeResponse = {
   destination?: string;
   carrier_amount_msat?: string | null;
   expiry_secs?: string | number;
-  asset_id?: string | null;
+  contract_id?: string | null;
   asset_amount?: string | null;
 };
 type RawRgbOnchainInvoiceDecodeResponse = {
@@ -50,10 +54,10 @@ function hasRgbInvoiceFields(
   data: RawRgbLnInvoiceDecodeResponse | null | undefined
 ): boolean {
   if (!data) return false;
-  const assetId = typeof data.asset_id === "string" ? data.asset_id.trim() : "";
+  const id = typeof data.contract_id === "string" ? data.contract_id.trim() : "";
   const assetAmount =
     typeof data.asset_amount === "string" ? data.asset_amount.trim() : "";
-  return assetId.length > 0 || assetAmount.length > 0;
+  return id.length > 0 || assetAmount.length > 0;
 }
 
 function detectPayloadKind(value: string): PayloadKind {
@@ -102,7 +106,7 @@ function formatRgbAtomicAmount(amount: string, precision: number): string {
   return fraction ? `${integer}.${fraction}` : integer.toString();
 }
 
-export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
+export function SendPage({ onBackRoot }: { onBackRoot?: () => void }) {
   const navigate = useNavigate();
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
   const [step, setStep] = useState<SendStep>("form");
@@ -122,7 +126,8 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
       onBackRoot();
       return;
     }
-    navigate("/dashboard");
+    // navigate("/dashboard");
+    navigate(-1)
   };
 
   const payloadTrim = useMemo(
@@ -133,6 +138,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     () => detectPayloadKind(payloadTrim),
     [payloadTrim]
   );
+
   const contextsQuery = useQuery({
     queryKey: ["contexts"],
     queryFn: contextsList,
@@ -177,35 +183,6 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     retryDelay: 300,
   });
 
-  const invoiceRawDecodeQuery = useQuery({
-    queryKey: ["send_bolt11_decode_raw", activeNodeId, decodePayload],
-    queryFn: async (): Promise<RawBolt11DecodeResponse | null> => {
-      const resp = await nodeMainHttp(activeNodeId!, {
-        method: "POST",
-        path: "/bolt11/decode",
-        headers: { "content-type": "application/json" },
-        bodyText: JSON.stringify({ invoice: decodePayload }),
-      });
-      if (!resp.ok) {
-        throw new Error(
-          `raw decode failed: status=${resp.status} body=${resp.body.slice(
-            0,
-            200
-          )}`
-        );
-      }
-      try {
-        return JSON.parse(resp.body) as RawBolt11DecodeResponse;
-      } catch {
-        throw new Error("raw decode returned invalid JSON");
-      }
-    },
-    enabled:
-      !!activeNodeId && detectedKind === "invoice" && decodePayload.length > 8,
-    retry: 1,
-    retryDelay: 200,
-  });
-
   const rgbInvoiceDecodeQuery = useQuery({
     queryKey: ["send_rgb_ln_invoice_decode", activeNodeId, decodePayload],
     queryFn: async (): Promise<RawRgbLnInvoiceDecodeResponse | null> => {
@@ -234,6 +211,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     retry: 1,
     retryDelay: 200,
   });
+
   const rgbContractsQuery = useQuery({
     queryKey: ["send_onchain_rgb_contracts", activeNodeId],
     queryFn: async () => nodeRgbContracts(activeNodeId!),
@@ -243,6 +221,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     retry: 1,
     retryDelay: 200,
   });
+
   const onchainInvoiceDecodeQuery = useQuery({
     queryKey: ["send_rgb_onchain_invoice_decode", activeNodeId, decodePayload],
     queryFn: async (): Promise<RawRgbOnchainInvoiceDecodeResponse | null> => {
@@ -273,22 +252,24 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     retry: 1,
     retryDelay: 200,
   });
+
   const isRgbInvoice =
     detectedKind === "invoice" &&
     hasRgbInvoiceFields(rgbInvoiceDecodeQuery.data);
   const isOnchainRgbAsset = detectedKind === "onchain_asset";
-  const decodedRgbAssetId = useMemo(
-    () => (isRgbInvoice ? rgbInvoiceDecodeQuery.data?.asset_id ?? null : null),
-    [isRgbInvoice, rgbInvoiceDecodeQuery.data?.asset_id]
+  const decodedRgbContractId = useMemo(
+    () => (isRgbInvoice ? rgbInvoiceDecodeQuery.data?.contract_id ?? null : null),
+    [isRgbInvoice, rgbInvoiceDecodeQuery.data?.contract_id]
   );
   const rgbInvoiceContractPrecision = useMemo(() => {
-    const assetId = decodedRgbAssetId?.trim();
-    if (!assetId) return 0;
+    const contractId = decodedRgbContractId?.trim();
+    if (!contractId) return 0;
     const contract = (rgbContractsQuery.data?.contracts ?? []).find(
-      (c) => c.asset_id === assetId
+      (c) => c.contract_id === contractId
     );
     return contract?.precision ?? 0;
-  }, [decodedRgbAssetId, rgbContractsQuery.data?.contracts]);
+  }, [decodedRgbContractId, rgbContractsQuery.data?.contracts]);
+
   const decodedRgbAmountDisplay = useMemo(() => {
     if (!isRgbInvoice) return null;
     const assetAmount = rgbInvoiceDecodeQuery.data?.asset_amount?.trim();
@@ -299,6 +280,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     rgbInvoiceDecodeQuery.data?.asset_amount,
     rgbInvoiceContractPrecision,
   ]);
+
   const onchainContractPrecision = useMemo(() => {
     const contractId = onchainInvoiceDecodeQuery.data?.contract_id?.trim();
     if (!contractId) return 0;
@@ -330,9 +312,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
         ? invoiceDecodeQuery.data.amount_msat.toString()
         : null;
     }
-    if (detectedKind === "invoice" && invoiceRawDecodeQuery.data) {
-      return invoiceRawDecodeQuery.data.amount_msat ?? null;
-    }
+
     if (detectedKind === "offer" && offerDecodeQuery.data) {
       return offerDecodeQuery.data.amount_msat
         ? offerDecodeQuery.data.amount_msat.toString()
@@ -344,7 +324,6 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     decodedRgbAmountDisplay,
     detectedKind,
     invoiceDecodeQuery.data,
-    invoiceRawDecodeQuery.data,
     offerDecodeQuery.data,
     decodedOnchainAmountDisplay,
   ]);
@@ -379,12 +358,12 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
 
   const decodedRgbAmountUnit = useMemo(() => {
     if (isRgbInvoice) {
-      const assetId = decodedRgbAssetId?.trim();
-      if (!assetId) return "RGB";
-      const asset = (rgbContractsQuery.data?.contracts ?? []).find(
-        (c) => c.asset_id === assetId
+      const contractId = decodedRgbContractId?.trim();
+      if (!contractId) return "RGB";
+      const contract = (rgbContractsQuery.data?.contracts ?? []).find(
+        (c) => c.contract_id === contractId
       );
-      return asset?.ticker?.trim() || "RGB";
+      return contract?.ticker?.trim() || "RGB";
     }
     if (isOnchainRgbAsset) {
       const contractId = onchainInvoiceDecodeQuery.data?.contract_id?.trim();
@@ -396,7 +375,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     }
     return "RGB";
   }, [
-    decodedRgbAssetId,
+    decodedRgbContractId,
     isOnchainRgbAsset,
     isRgbInvoice,
     onchainInvoiceDecodeQuery.data?.contract_id,
@@ -409,28 +388,23 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
       return offerDecodeQuery.data?.description?.trim() || null;
     }
     if (detectedKind !== "invoice") return null;
-    const desc = invoiceRawDecodeQuery.data?.description?.trim();
+
+    const desc = invoiceDecodeQuery.data?.description
     if (desc) return desc;
-    if (invoiceRawDecodeQuery.data?.description_hash) {
-      return "(description_hash invoice)";
-    }
     return null;
   }, [
     isRgbInvoice,
     detectedKind,
-    invoiceRawDecodeQuery.data?.description,
-    invoiceRawDecodeQuery.data?.description_hash,
+    invoiceDecodeQuery.data?.description,
     offerDecodeQuery.data?.description,
   ]);
 
   const isDecoding =
     onchainInvoiceDecodeQuery.isFetching ||
     invoiceDecodeQuery.isFetching ||
-    invoiceRawDecodeQuery.isFetching ||
     offerDecodeQuery.isFetching ||
     rgbInvoiceDecodeQuery.isFetching;
-  const invoiceDecodeSucceeded =
-    !!invoiceDecodeQuery.data || !!invoiceRawDecodeQuery.data;
+  const invoiceDecodeSucceeded = !!invoiceDecodeQuery.data;
   const decodeError = useMemo(() => {
     if (detectedKind === "onchain_asset")
       return onchainInvoiceDecodeQuery.error;
@@ -440,7 +414,6 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     return (
       rgbInvoiceDecodeQuery.error ??
       invoiceDecodeQuery.error ??
-      invoiceRawDecodeQuery.error ??
       null
     );
   }, [
@@ -450,7 +423,6 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     rgbInvoiceDecodeQuery.error,
     invoiceDecodeQuery.error,
     invoiceDecodeSucceeded,
-    invoiceRawDecodeQuery.error,
     offerDecodeQuery.error,
   ]);
   const decodeHasError = detectedKind !== "unknown" && !!decodeError;
@@ -479,6 +451,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
         );
       }
 
+      // onchain rgb
       if (kind === "onchain_asset") {
         const feeRate = resolvedOnchainFeeRate;
         if (feeRate === null) {
@@ -498,6 +471,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
         };
       }
 
+      // ln btc & ln rgb
       if (kind === "invoice") {
         if (isRgbInvoice) {
           const resp = await nodeRgbLnPay(activeNodeId, { invoice: body });
@@ -505,35 +479,26 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
             decodedRgbAmountDisplay ??
             rgbInvoiceDecodeQuery.data?.asset_amount ??
             "(unknown)";
-          const assetId = rgbInvoiceDecodeQuery.data?.asset_id ?? "-";
+          const contractId = rgbInvoiceDecodeQuery.data?.contract_id ?? "-";
           return {
             paymentId: resp.payment_id,
             amountText: `${assetAmount} ${decodedRgbAmountUnit}`,
             typeText: "RGB Lightning invoice",
-            extraText: `Asset: ${assetId}`,
+            extraText: `Asset: ${contractId}`,
           };
         }
-        if (decodedAmountMsat === null) {
-          if (canSendWithDecodeFailure) {
-            const resp = await nodeBolt11Send(activeNodeId, { invoice: body });
-            return {
-              paymentId: resp.payment_id,
-              amountText: "(unknown) msat",
-              typeText: "Lightning invoice",
-              extraText: "",
-            };
-          }
-          throw new Error("Variable-amount invoice is not supported.");
-        }
+
+        // btc invoice
         const resp = await nodeBolt11Send(activeNodeId, { invoice: body });
         return {
           paymentId: resp.payment_id,
-          amountText: `${decodedAmountMsat} msat`,
+          amountText: `${(BigInt(decodedAmountMsat ?? 0) / 1000n).toString()} sat`,
           typeText: "Lightning invoice",
           extraText: "",
         };
       }
 
+      // bolt12 offer
       const resp = await nodeBolt12OfferSend(activeNodeId, {
         offer: body,
         amount_msat:
@@ -614,12 +579,12 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
     resolvedOfferAmountMsat,
   ]);
 
+
   return (
-    <div className="space-y-4">
-      <Button
-        type="button"
-        variant="outline"
-        onClick={() => {
+    <ContentWrapper >
+      <ContentHeader
+        title="Send"
+        onBack={() => {
           if (step === "form") {
             goBackRoot();
             return;
@@ -630,112 +595,29 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
           }
           setStep("confirm");
         }}
-        className="gap-2"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Button>
-
-      <Card>
-        <CardHeader className="space-y-3">
-          <CardTitle>Send BTC / RGB</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      />
+      <Content>
+        <div className="space-y-8">
           {step === "form" ? (
             <>
               <Field>
-                <FieldLabel htmlFor="send_payload">
-                  Lightning Invoice / Lightning Offer / RGB Lightning Invoice /
-                  RGB Onchain Invoice
+                <FieldLabel>
+                  Recipient
                 </FieldLabel>
                 <Textarea
-                  id="send_payload"
                   value={payload}
                   onChange={(e) => setPayload(e.currentTarget.value)}
                   placeholder="Paste lnbcrt... / lno1... / contract:..."
-                  className="min-h-[120px] resize-y"
+                  className="min-h-[52px] resize-y rounded-3xl"
                 />
               </Field>
-
-              {payloadTrim ? (
-                <div className="rounded-md border p-3 text-sm space-y-1">
-                  <div>
-                    Type:{" "}
-                    <span className="font-medium">
-                      {detectedKind === "invoice"
-                        ? isRgbInvoice
-                          ? "RGB Lightning invoice"
-                          : "Lightning invoice"
-                        : detectedKind === "onchain_asset"
-                        ? "RGB Onchain invoice"
-                        : detectedKind === "offer"
-                        ? "Lightning offer"
-                        : "Unknown"}
-                    </span>
-                  </div>
-                  <div>
-                    Amount:{" "}
-                    <span className="font-medium">
-                      {isDecoding
-                        ? "Decoding..."
-                        : isOnchainRgbAsset
-                        ? decodedAmountMsat
-                          ? `${decodedAmountMsat} ${decodedRgbAmountUnit}`
-                          : decodeHasError
-                          ? "Decode failed"
-                          : "-"
-                        : decodeHasError
-                        ? "Decode failed"
-                        : detectedKind === "offer"
-                        ? resolvedOfferAmountMsat
-                          ? `${resolvedOfferAmountMsat} msat`
-                          : "Variable amount"
-                        : decodedAmountMsat
-                        ? isRgbInvoice
-                          ? `${decodedAmountMsat} ${decodedRgbAmountUnit}`
-                          : `${decodedAmountMsat} msat`
-                        : detectedKind === "unknown"
-                        ? "-"
-                        : "Variable amount"}
-                    </span>
-                  </div>
-                  {isRgbInvoice && decodedCarrierAmountMsat ? (
-                    <div>
-                      Carrier:{" "}
-                      <span className="font-medium">
-                        {decodedCarrierAmountMsat} msat
-                      </span>
-                    </div>
-                  ) : null}
-                  {isRgbInvoice && decodedRgbAssetId ? (
-                    <div>
-                      Asset:{" "}
-                      <span className="font-medium break-all">
-                        {decodedRgbAssetId}
-                      </span>
-                    </div>
-                  ) : null}
-                  <div>
-                    Description:{" "}
-                    <span className="font-medium">
-                      {isOnchainRgbAsset
-                        ? "(RGB onchain invoice)"
-                        : decodedDescription ?? "-"}
-                    </span>
-                  </div>
-                  {decodeHasError ? (
-                    <div className="text-xs text-destructive break-all">
-                      Reason: {decodeErrorWithContext}
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
 
               {detectedKind === "offer" ? (
                 <Field>
                   <FieldLabel htmlFor="send_desc">Description</FieldLabel>
                   <Input
                     id="send_desc"
+                    className="h-14 rounded-2xl text-[22px] font-bold"
                     value={description}
                     onChange={(e) => setDescription(e.currentTarget.value)}
                     placeholder="Pay BTC"
@@ -751,6 +633,7 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                     id="send_offer_amount_msat"
                     value={offerAmountMsat}
                     onChange={(e) => setOfferAmountMsat(e.currentTarget.value)}
+                    className="h-14 rounded-2xl text-[22px] font-bold"
                     placeholder={
                       decodedAmountMsat
                         ? decodedAmountMsat
@@ -760,7 +643,8 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                   />
                 </Field>
               ) : null}
-              {isOnchainRgbAsset ? (
+
+              {/* {isOnchainRgbAsset ? (
                 <Field>
                   <FieldLabel htmlFor="send_onchain_fee_rate">
                     Fee Rate (sats/vB)
@@ -773,11 +657,10 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                     inputMode="numeric"
                   />
                 </Field>
-              ) : null}
+              ) : null} */}
 
               {payload && validationError ? (
                 <Alert variant="destructive">
-                  <AlertTitle>Invalid input</AlertTitle>
                   <AlertDescription>{validationError}</AlertDescription>
                 </Alert>
               ) : null}
@@ -793,8 +676,10 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
 
               <Button
                 type="button"
-                className="w-full mt-4"
-                disabled={!!validationError}
+                size="lg"
+                variant="white"
+                className="w-full rounded-full"
+                disabled={!!validationError || !rgbContractsQuery.data}
                 onClick={() => setStep("confirm")}
               >
                 Pay
@@ -804,8 +689,71 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
 
           {step === "confirm" ? (
             <>
-              <div className="rounded-md border p-4 space-y-2 text-sm">
-                <div>
+              {/* LN BTC */}
+              {
+                (detectedKind === 'invoice' && !isRgbInvoice) ? (
+                  <SendLnInvoiceConfirm
+                    amount={decodedAmountMsat ?? ''}
+                    invoiceRawDecodeQuery={invoiceDecodeQuery}
+                    decodedDescription={decodedDescription ?? '-'}
+                    disabled={sendMutation.isPending}
+                    onPay={() => sendMutation.mutate()}
+                    onBack={() => setStep('form')}
+                  />
+                ) : null
+              }
+
+              {/* LN RGB */}
+              {
+                (detectedKind === 'invoice' && isRgbInvoice) ? (
+                  <SendLnRGBConfirm
+                    amount={decodedAmountMsat ?? ''}
+                    symbol={decodedRgbAmountUnit}
+                    rgbContracts={rgbContractsQuery.data}
+                    rgbInvoiceDecodeQuery={rgbInvoiceDecodeQuery}
+                    decodedDescription={decodedDescription ?? '-'}
+                    disabled={sendMutation.isPending}
+                    onPay={() => sendMutation.mutate()}
+                    onBack={() => setStep('form')}
+                  />
+                ) : null
+              }
+
+              {/* Onchain asset */}
+              {
+                detectedKind === 'onchain_asset' ? (
+                  <SendOnchainRGBConfirm
+                    amount={decodedAmountMsat ?? ''}
+                    symbol={decodedRgbAmountUnit}
+                    onchainInvoiceDecodeQuery={onchainInvoiceDecodeQuery}
+                    decodedDescription=""
+                    disabled={sendMutation.isPending}
+                    onPay={() => sendMutation.mutate()}
+                    onBack={() => setStep('form')}
+                    feeRate={onchainFeeRate}
+                    changeFeeRage={setOnchainFeeRate}
+                  />
+                ) : null
+              }
+
+              {/* offer */}
+              {
+                detectedKind === 'offer' ? (
+                  <SendOfferConfirm
+                    offer={payload}
+                    offerDecodeQuery={offerDecodeQuery}
+                    decodedDescription={decodedDescription ?? '-'}
+                    onPay={() => sendMutation.mutate()}
+                    onBack={() => setStep('form')}
+                    disabled={sendMutation.isPending}
+                    offerAmount={offerAmountMsat}
+                    setOfferAmountMsat={setOfferAmountMsat}
+                  />
+                ) : null
+              }
+
+              <div>
+                {/* <div>
                   Type:{" "}
                   <span className="font-medium">
                     {detectedKind === "invoice"
@@ -816,8 +764,8 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                       ? "RGB Onchain invoice"
                       : "Lightning offer"}
                   </span>
-                </div>
-                <div>
+                </div> */}
+                {/* <div>
                   Amount:{" "}
                   <span className="font-medium">
                     {detectedKind === "onchain_asset"
@@ -834,70 +782,79 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                         : `${decodedAmountMsat} msat`
                       : "(unknown)"}
                   </span>
-                </div>
-                {isRgbInvoice && decodedCarrierAmountMsat ? (
+                </div> */}
+
+                {/* {isRgbInvoice && decodedCarrierAmountMsat ? (
                   <div>
                     Carrier:{" "}
                     <span className="font-medium">
                       {decodedCarrierAmountMsat} msat
                     </span>
                   </div>
-                ) : null}
-                {isRgbInvoice && decodedRgbAssetId ? (
+                ) : null} */}
+
+                {/* {isRgbInvoice && decodedRgbContractId ? (
                   <div>
-                    Asset:{" "}
+                    Contract:{" "}
                     <span className="font-medium break-all">
-                      {decodedRgbAssetId}
+                      {decodedRgbContractId}
                     </span>
                   </div>
-                ) : null}
-                <div>
+                ) : null} */}
+
+                {/* <div>
                   Description:{" "}
                   <span className="font-medium">
                     {isOnchainRgbAsset
                       ? "(RGB onchain invoice)"
                       : decodedDescription ?? "-"}
                   </span>
-                </div>
-                {isOnchainRgbAsset ? (
+                </div> */}
+
+                {/* {isOnchainRgbAsset ? (
                   <div>
                     Fee Rate:{" "}
                     <span className="font-medium">
                       {resolvedOnchainFeeRate ?? "-"} sats/vB
                     </span>
                   </div>
-                ) : null}
-                <div>
+                ) : null} */}
+
+                {/* <div>
                   Payment Request:
                   <code className="mt-1 block break-all rounded-md text-xs">
                     {payloadTrim}
                   </code>
-                </div>
+                </div> */}
               </div>
 
               {sendMutation.isError ? (
                 <Alert variant="destructive">
-                  <AlertTitle>Send failed</AlertTitle>
                   <AlertDescription>
                     {errorToText(sendMutation.error)}
                   </AlertDescription>
                 </Alert>
               ) : null}
 
-              <Button
+              {/* <Button
                 type="button"
                 className="w-full mt-4"
                 disabled={sendMutation.isPending}
                 onClick={() => sendMutation.mutate()}
               >
                 {sendMutation.isPending ? "Sending..." : "Confirm Pay"}
-              </Button>
+              </Button> */}
             </>
           ) : null}
 
           {step === "result" && paymentId ? (
             <>
-              <div className="rounded-md border p-4 space-y-2">
+              <PayResult
+                amount={sentAmountText}
+                symbol=""
+              />
+
+              {/* <div className="rounded-md border p-4 space-y-2">
                 <div className="flex justify-center pb-5">
                   <CircleCheckBig className="h-20 w-20 text-green-600" />
                 </div>
@@ -907,9 +864,9 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                 {sentExtraText ? (
                   <div className="text-sm break-all">{sentExtraText}</div>
                 ) : null}
-              </div>
+              </div> */}
 
-              <Button
+              {/* <Button
                 type="button"
                 variant="outline"
                 className="w-full"
@@ -925,9 +882,9 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                   <Copy className="h-4 w-4" />
                 )}
                 {copied ? "Copied" : "Copy Payment ID"}
-              </Button>
+              </Button> */}
 
-              <Button
+              {/* <Button
                 type="button"
                 variant="outline"
                 className="w-full"
@@ -936,11 +893,11 @@ export function SendBtcPage({ onBackRoot }: { onBackRoot?: () => void }) {
                 }}
               >
                 Back
-              </Button>
+              </Button> */}
             </>
           ) : null}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </Content>
+    </ContentWrapper>
   );
 }

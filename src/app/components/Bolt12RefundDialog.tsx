@@ -230,14 +230,12 @@ export function Bolt12RefundDialog({
 
           {validationError ? (
             <Alert variant="destructive">
-              <AlertTitle>Cannot initiate refund</AlertTitle>
               <AlertDescription>{validationError}</AlertDescription>
             </Alert>
           ) : null}
 
           {initiateMutation.isError ? (
             <Alert variant="destructive">
-              <AlertTitle>Initiate failed</AlertTitle>
               <AlertDescription>{errorToText(initiateMutation.error)}</AlertDescription>
             </Alert>
           ) : null}
@@ -319,13 +317,11 @@ export function Bolt12RefundDialog({
               ) : null}
               {waitMutation.isError ? (
                 <Alert className="mt-2" variant="destructive">
-                  <AlertTitle>Wait failed</AlertTitle>
                   <AlertDescription>{errorToText(waitMutation.error)}</AlertDescription>
                 </Alert>
               ) : null}
               {abandonMutation.isError ? (
                 <Alert className="mt-2" variant="destructive">
-                  <AlertTitle>Abandon failed</AlertTitle>
                   <AlertDescription>{errorToText(abandonMutation.error)}</AlertDescription>
                 </Alert>
               ) : null}
@@ -348,7 +344,6 @@ export function Bolt12RefundDialog({
 
           {requestPaymentMutation.isError ? (
             <Alert variant="destructive">
-              <AlertTitle>Request payment failed</AlertTitle>
               <AlertDescription>{errorToText(requestPaymentMutation.error)}</AlertDescription>
             </Alert>
           ) : null}

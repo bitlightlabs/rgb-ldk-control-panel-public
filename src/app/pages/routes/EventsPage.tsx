@@ -263,7 +263,6 @@ export function EventsPage() {
 
         {eventsListQuery.isError ? (
           <Alert variant="destructive">
-            <AlertTitle>Failed to load events</AlertTitle>
             <AlertDescription>
               {errorToText(eventsListQuery.error)}
             </AlertDescription>

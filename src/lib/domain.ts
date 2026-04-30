@@ -1,6 +1,7 @@
 // Domain types that are not provided by the local SDK types (or are backend-specific)
 
 export type NodeContext = {
+  /** context node alias, not pubkey */
   node_id: string;
   display_name: string;
   main_api_base_url: string;
@@ -42,6 +43,7 @@ export type BootstrapLocalNodeResponse = {
   node_id: string;
   display_name: string;
   container_name: string;
+  network: BitcoinNetwork;
   main_api_base_url: string;
   control_api_base_url: string;
   main_api_port: number;
@@ -58,6 +60,7 @@ export type NetworkOption = {
 };
 
 export type BootstrapLocalNodeRequest = {
+  ldkImage: string;
   nodeName?: string;
   containerName?: string;
   mainApiPort?: number;

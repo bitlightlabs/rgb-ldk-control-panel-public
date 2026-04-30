@@ -218,7 +218,6 @@ export function NodeContextDialog({
 
           {submitError ? (
             <Alert variant="destructive">
-              <AlertTitle>Failed to save</AlertTitle>
               <AlertDescription>{submitError}</AlertDescription>
             </Alert>
           ) : null}

@@ -4,33 +4,25 @@ import {
     ArrowUpDownIcon,
     ArrowUpRightIcon,
     BoxIcon,
-    Link2Icon,
     SettingsIcon,
     WalletIcon,
-    WrenchIcon,
-    ZapIcon,
-    Rotate3DIcon
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import IconLight from "../icons/light";
 
 const DashboardPage = lazy(() =>
     import("@/app/pages/routes/DashboardPage").then((module) => ({
         default: module.DashboardPage,
     }))
 );
-const ReceiveBtcPage = lazy(() =>
-    import("@/app/pages/flows/dashboard/ReceiveBtcPage").then((module) => ({
-        default: module.ReceiveBtcPage,
+const ReceivePage = lazy(() =>
+    import("@/app/pages/flows/dashboard/ReceivePage").then((module) => ({
+        default: module.ReceivePage,
     }))
 );
-const SendBtcPage = lazy(() =>
-    import("@/app/pages/flows/dashboard/SendBtcPage").then((module) => ({
-        default: module.SendBtcPage,
-    }))
-);
-const AssetsPage = lazy(() =>
-    import("@/app/pages/routes/AssetsPage").then((module) => ({
-        default: module.AssetsPage,
+const SendPage = lazy(() =>
+    import("@/app/pages/flows/dashboard/SendPage").then((module) => ({
+        default: module.SendPage,
     }))
 );
 const ChannelsPage = lazy(() =>
@@ -58,11 +50,11 @@ const SettingsPage = lazy(() =>
         default: module.SettingsPage,
     }))
 );
-const RgbActionPage = lazy(() =>
-    import("@/app/pages/routes/RgbActionPage").then((module) => ({
-        default: module.RgbActionPage,
-    }))
-);
+// const RgbActionPage = lazy(() =>
+//     import("@/app/pages/routes/RgbActionPage").then((module) => ({
+//         default: module.RgbActionPage,
+//     }))
+// );
 const RgbImportPage = lazy(() =>
     import("@/app/pages/flows/rgb/RgbImportPage").then((module) => ({
         default: module.RgbImportPage,
@@ -73,17 +65,41 @@ const RgbExportPage = lazy(() =>
         default: module.RgbExportPage,
     }))
 );
+const OpenChannelPage = lazy(() =>
+    import("@/app/pages/flows/channel/OpenChannel").then((module) => ({
+        default: module.OpenChannel,
+    }))
+);
+const AssetDetailPage = lazy(() =>
+    import("@/app/pages/routes/AssetDetailPage").then((module) => ({
+        default: module.AssetDetailPage,
+    }))
+);
+const PeersPage = lazy(() =>
+    import("@/app/pages/routes/PeersPage").then((module) => ({
+        default: module.PeersPage,
+    }))
+);
+const PeerConnectPage = lazy(() =>
+    import("@/app/pages/flows/peers/connect").then((module) => ({
+        default: module.PeerConnect,
+    }))
+);
 
 export type AppRouteConfig = {
     id: string;
     path: string;
     label: string;
-    icon: LucideIcon;
+    icon: LucideIcon | ComponentType;
     component: ComponentType;
     requiresNode: boolean;
     category?: string;
     sidebar: boolean;
     parentSidebarId?: string;
+    breadcrumb?: {
+        icon: any,
+        list: {title: string}[]
+    }
 };
 
 type SidebarItemConfig = Pick<AppRouteConfig, "id" | "label" | "icon" | "path">;
@@ -97,7 +113,7 @@ export const appRoutes: AppRouteConfig[] = [
     {
         id: "dashboard",
         path: "/dashboard",
-        label: "Dashboard",
+        label: "Wallet",
         icon: WalletIcon,
         component: DashboardPage,
         requiresNode: true,
@@ -109,41 +125,62 @@ export const appRoutes: AppRouteConfig[] = [
         path: "/dashboard/receive",
         label: "Receive",
         icon: ArrowDownLeftIcon,
-        component: ReceiveBtcPage,
+        component: ReceivePage,
         requiresNode: true,
         sidebar: false,
         parentSidebarId: "dashboard",
+        breadcrumb: {
+            icon: ArrowDownLeftIcon,
+            list: [
+                {title: 'Wallet'},
+                {title: 'Receive'}
+            ]
+        }
     },
     {
         id: "dashboard-send",
         path: "/dashboard/send",
         label: "Send",
         icon: ArrowUpRightIcon,
-        component: SendBtcPage,
+        component: SendPage,
         requiresNode: true,
         sidebar: false,
         parentSidebarId: "dashboard",
+        breadcrumb: {
+            icon: ArrowDownLeftIcon,
+            list: [
+                {title: 'Wallet'},
+                {title: 'Send'}
+            ]
+        }
     },
     {
-        id: "assets",
-        path: "/assets",
-        label: "RGB Assets",
-        icon: ZapIcon,
-        component: AssetsPage,
+        id: "activities",
+        path: "/activities",
+        label: "Activities",
+        icon: ArrowUpDownIcon,
+        component: ActivitiesPage,
         requiresNode: true,
         category: "Wallet",
-        sidebar: true,
+        sidebar: false,
+        breadcrumb: {
+            icon: ArrowDownLeftIcon,
+            list: [
+                {title: 'Wallet'},
+                {title: 'Send'}
+            ]
+        }
     },
-    {
-        id: "rgb-actions",
-        path: "/rgb/actions",
-        label: "Asset Import / Export",
-        icon: Rotate3DIcon,
-        component: RgbActionPage,
-        requiresNode: true,
-        category: "Wallet",
-        sidebar: true,
-    },
+    // {
+    //     id: "rgb-actions",
+    //     path: "/rgb/actions",
+    //     label: "Asset Import / Export",
+    //     icon: () => null,
+    //     component: RgbActionPage,
+    //     requiresNode: true,
+    //     category: "Wallet",
+    //     sidebar: true,
+    // },
     {
         id: "rgb-import",
         path: "/rgb/import",
@@ -153,6 +190,13 @@ export const appRoutes: AppRouteConfig[] = [
         requiresNode: true,
         sidebar: false,
         parentSidebarId: "rgb-actions",
+        breadcrumb: {
+            icon: ArrowDownLeftIcon,
+            list: [
+                {title: 'Wallet'},
+                {title: 'Import RGB Asset'}
+            ]
+        }
     },
     {
         id: "rgb-export",
@@ -163,47 +207,88 @@ export const appRoutes: AppRouteConfig[] = [
         requiresNode: true,
         sidebar: false,
         parentSidebarId: "rgb-actions",
+        breadcrumb: {
+            icon: ArrowDownLeftIcon,
+            list: [
+                {title: 'Wallet'},
+                {title: 'Export RGB Asset'}
+            ]
+        }
+    },
+    {
+        id: "peers",
+        path: "/peers",
+        label: "Nodes",
+        icon: BoxIcon,
+        component: PeersPage,
+        requiresNode: false,
+        category: "Wallet",
+        sidebar: true,
     },
     {
         id: "channels",
         path: "/channels",
         label: "Channels",
-        icon: Link2Icon,
+        icon: IconLight,
         component: ChannelsPage,
         requiresNode: true,
         category: "Wallet",
         sidebar: true,
     },
     {
-        id: "activities",
-        path: "/activities",
-        label: "Activities",
-        icon: ArrowUpDownIcon,
-        component: ActivitiesPage,
-        requiresNode: true,
+        id: "channels-open",
+        path: "/channels/open",
+        label: "",
+        icon: BoxIcon,
+        component: OpenChannelPage,
+        requiresNode: false,
         category: "Wallet",
-        sidebar: true,
+        sidebar: false,
+        breadcrumb: {
+            icon: BoxIcon,
+            list: [
+                {title: 'Channels'},
+                {title: 'Open Channel'}
+            ]
+        }
+    },
+    {
+        id: "peers-connect",
+        path: "/peers/connect",
+        label: "Nodes",
+        icon: BoxIcon,
+        component: PeerConnectPage,
+        requiresNode: false,
+        category: "Wallet",
+        sidebar: false,
+        breadcrumb: {
+            icon: BoxIcon,
+            list: [
+                {title: 'Nodes'},
+                {title: 'Connect Node'}
+            ]
+        }
     },
     {
         id: "nodes",
         path: "/nodes",
-        label: "Nodes",
+        label: "Local Nodes",
         icon: BoxIcon,
         component: NodesManagePage,
         requiresNode: false,
-        category: "Nodes Management",
-        sidebar: true,
+        category: "Wallet",
+        sidebar: false,
     },
-    {
-        id: "events",
-        path: "/events",
-        label: "Events",
-        icon: WrenchIcon,
-        component: EventsPage,
-        requiresNode: true,
-        category: "Settings",
-        sidebar: true,
-    },
+    // {
+    //     id: "events",
+    //     path: "/events",
+    //     label: "Events",
+    //     icon: WrenchIcon,
+    //     component: EventsPage,
+    //     requiresNode: true,
+    //     category: "Settings",
+    //     sidebar: true,
+    // },
     {
         id: "settings",
         path: "/settings",
@@ -211,8 +296,18 @@ export const appRoutes: AppRouteConfig[] = [
         icon: SettingsIcon,
         component: SettingsPage,
         requiresNode: false,
-        category: "Settings",
+        category: "Wallet",
         sidebar: true,
+    },
+    {
+        id: "asset-detail",
+        path: "/asset/detail",
+        label: "",
+        icon: () => null,
+        component: AssetDetailPage,
+        requiresNode: false,
+        category: "Wallet",
+        sidebar: false,
     },
 ];
 

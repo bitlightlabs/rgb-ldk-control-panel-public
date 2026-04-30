@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Mine block number
 N="${1:-6}"
+
 if ! [[ "$N" =~ ^[0-9]+$ ]]; then
   echo "Usage: $0 [blocks]" >&2
   exit 1
 fi
 
 bitcoin_cli() {
+  # Custome fund
   if [[ -n "${BITCOIND_RPC:-}" ]]; then
     local hostport="$BITCOIND_RPC"
     local user="${BITCOIND_RPC_USER:-btcuser}"
@@ -16,6 +19,7 @@ bitcoin_cli() {
     return
   fi
 
+  # Default fund
   local container="${BITCOIND_CONTAINER:-}"
   if [[ -z "$container" ]]; then
     container=$(docker ps --format '{{.Names}}' | grep -iE 'bitcoind|bitcoin' | head -n 1 || true)
@@ -25,6 +29,7 @@ bitcoin_cli() {
     return
   fi
 
+  # Fund
   local host="127.0.0.1"
   local port="18443"
   local user="${BITCOIND_RPC_USER:-btcuser}"

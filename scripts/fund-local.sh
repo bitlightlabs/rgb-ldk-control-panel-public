@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CONFIG_DIR="${RGB_LDK_CONTROL_PANEL_CONFIG_DIR:-$ROOT/.tmp/app-config}"
+CONFIG_DIR="$HOME/Library/Application Support/com.bitlight.rln"
 CONTEXTS_PATH="${CONTEXTS_PATH:-$CONFIG_DIR/contexts.json}"
 FUND_AMOUNT_BTC="${FUND_AMOUNT_BTC:-1.0}"
 
 if [[ ! -f "$CONTEXTS_PATH" ]]; then
-  echo "contexts.json not found: $CONTEXTS_PATH" >&2
+  echo "contexts.json not found in: $CONTEXTS_PATH" >&2
   exit 1
 fi
 
@@ -110,10 +109,10 @@ for line in "${nodes[@]}"; do
   fi
 done
 
-if [[ ${#addrs[@]} -lt 2 || ${#rgb_addrs[@]} -lt 2 ]]; then
-  echo "Need at least 2 nodes to fund. Found ${#addrs[@]}." >&2
-  exit 1
-fi
+# if [[ ${#addrs[@]} -lt 2 || ${#rgb_addrs[@]} -lt 2 ]]; then
+#   echo "Need at least 2 nodes to fund. Found ${#addrs[@]}." >&2
+#   exit 1
+# fi
 
 for addr in "${addrs[@]}"; do
   bitcoin_cli sendtoaddress "$addr" "$FUND_AMOUNT_BTC" >/dev/null

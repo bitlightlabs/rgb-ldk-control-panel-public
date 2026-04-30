@@ -1,7 +1,14 @@
 import { AssetExplorer } from "@/app/components/AssetExplorer";
-import { useAssetsStore } from "@/app/stores/assetsStore";
+import CopyText from "@/app/components/CopyText";
+import DropMenu from "@/app/components/DropMenu";
+import IconActivities from "@/app/icons/activities";
+import IconExport from "@/app/icons/export";
+import IconImport from "@/app/icons/import";
+import IconReceive from "@/app/icons/receive";
+import IconSend from "@/app/icons/send";
+import { IconUtxo } from "@/app/icons/utxo";
 import { useNodeStore } from "@/app/stores/nodeStore";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   nodeMainBalances,
@@ -10,23 +17,13 @@ import {
   nodeWalletSync,
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
-import { cn } from "@/lib/utils";
+import { cn, formatAddress } from "@/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  Check,
-  Copy,
   RefreshCw,
-  Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-function formatSats(value: unknown): string {
-  if (value == null) return "0";
-  return `${value.toString()} sats`;
-}
 
 type CachedAddresses = {
   btc: string;
@@ -37,7 +34,7 @@ let lastAddressGeneratedNodeId: string | null = null;
 
 export function DashboardPage() {
   const activeNodeId = useNodeStore((s) => s.activeNodeId);
-  const setSelectedAssetId = useAssetsStore((s) => s.setSelectedAssetId);
+  // const setSelectedAssetId = useAssetsStore((s) => s.setSelectedAssetId);
   const navigate = useNavigate();
   const [depositAddress, setDepositAddress] = useState<string>("");
   const [copied, setCopied] = useState<"btc" | "">("");
@@ -70,8 +67,9 @@ export function DashboardPage() {
       await nodeWalletSync(activeNodeId!);
       await nodeRgbSync(activeNodeId!);
     },
-    onSuccess: async () => {
-      await balancesQuery.refetch();
+    onSuccess: () => {
+      balancesQuery.refetch();
+
     },
   });
 
@@ -89,162 +87,145 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNodeId]);
 
-  const l1Balance = useMemo(
-    () => formatSats(balancesQuery.data?.btc.onchain_spendable_sats),
-    [balancesQuery.data?.btc.onchain_spendable_sats]
-  );
+  // const l1Balance = useMemo(
+  //   () => formatSats(balancesQuery.data?.btc.onchain_spendable_sats),
+  //   [balancesQuery.data?.btc.onchain_spendable_sats]
+  // );
 
-  const l2Balance = useMemo(
-    () => formatSats(balancesQuery.data?.btc.lightning_total_sats),
-    [balancesQuery.data?.btc.lightning_total_sats]
-  );
+  // const l2Balance = useMemo(
+  //   () => formatSats(balancesQuery.data?.btc.lightning_total_sats),
+  //   [balancesQuery.data?.btc.lightning_total_sats]
+  // );
 
-  const totalBalance = useMemo(
-    () => formatSats(balancesQuery.data?.btc.onchain_total_sats),
-    [balancesQuery.data?.btc.onchain_total_sats]
-  );
+  // const totalBalance = useMemo(
+  //   () => formatSats(balancesQuery.data?.btc.onchain_total_sats),
+  //   [balancesQuery.data?.btc.onchain_total_sats]
+  // );
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="space-y-4">
-          <div className="rounded-xl border ui-border p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-xs ui-muted">Total Balance</div>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => walletSyncMutation.mutate()}
-                disabled={walletSyncMutation.isPending}
-                className="h-7 w-7"
-                aria-label="Sync wallet"
-                title="Sync wallet"
-              >
-                <RefreshCw
-                  className={cn(
-                    "h-3.5 w-3.5",
-                    walletSyncMutation.isPending && "animate-spin"
-                  )}
-                />
-              </Button>
-            </div>
-            <div className="mt-1 text-3xl font-semibold tracking-tight md:text-4xl">
-              {balancesQuery.isLoading ? "Loading..." : totalBalance}
-            </div>
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-md border ui-border bg-background/60 px-3 py-2">
-                <div className="text-[11px] uppercase tracking-wide ui-muted">
-                  Spendable
-                </div>
-                <div className="mt-1 text-sm font-medium">
-                  {balancesQuery.isLoading ? "Loading..." : l1Balance}
-                </div>
-              </div>
-              <div className="rounded-md border ui-border bg-background/60 px-3 py-2">
-                <div className="text-[11px] uppercase tracking-wide ui-muted">
-                  Lightning
-                </div>
-                <div className="mt-1 text-sm font-medium">
-                  {balancesQuery.isLoading ? "Loading..." : l2Balance}
-                </div>
+    <div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-background-3 px-4 py-6 rounded-3xl h-[158px] border border-background-2">
+          <div className="flex h-6 items-center justify-between">
+            <div className="h-6 flex gap-2 items-center">
+              <span className="text-lg font-medium">🔗 On-chain</span>
+              <div className="h-6 flex items-center gap-2 bg-background-3 px-2 rounded-full text-base text-secondary-foreground">
+                <span>{formatAddress(depositAddress, 12)}</span>
+                <CopyText text={depositAddress} />
               </div>
             </div>
+            <Button
+              className={cn(
+                "w-6 h-6 px-0 py-0 rounded-xl",
+                walletSyncMutation.isPending ? "animate-spin" : ""
+              )}
+              variant="destructive"
+              onClick={() => walletSyncMutation.mutate()}
+            >
+              <RefreshCw width={16} height={16} />
+            </Button>
           </div>
-
-          <div className="rounded-lg border ui-border ui-muted-10 p-3">
-            <div className="text-xs ui-muted">Address</div>
-            <div className="mt-2 flex items-center gap-2">
-              <code className="max-w-full flex-1 truncate rounded-md ui-muted-30 px-2 py-1 text-xs">
-                Address: {depositAddress || "Generating wallet address..."}
-              </code>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                disabled={!activeNodeId || walletNewAddressMutation.isPending}
-                onClick={() => {
-                  if (!activeNodeId) return;
-                  walletNewAddressMutation.mutate(activeNodeId);
-                }}
-                aria-label="Refresh BTC address"
-                title="Refresh BTC address"
-              >
-                <RefreshCw
-                  className={cn(
-                    "h-4 w-4",
-                    walletNewAddressMutation.isPending && "animate-spin"
-                  )}
-                />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-8 w-8"
-                disabled={!depositAddress}
-                onClick={async () => {
-                  if (!depositAddress) return;
-                  await navigator.clipboard.writeText(depositAddress);
-                  setCopied("btc");
-                  window.setTimeout(() => setCopied(""), 1200);
-                }}
-                aria-label="Copy address"
-              >
-                {copied === "btc" ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+          <div className="mt-6">
+            <span className="text-[28px] font-bold">
+              {(balancesQuery.data?.btc.onchain_total_sats ?? 0) / 10 ** 8}
+            </span>
+            <span className="pl-2 text-lg text-secondary-foreground font-medium">
+              BTC
+            </span>
           </div>
         </div>
-
-        <div className="rounded-xl border ui-border ui-muted-10 p-3">
-          <div className="text-xs font-medium uppercase tracking-wide ui-muted">
-            Actions
+        <div className="bg-background-3 px-4 py-6 rounded-3xl h-[158px] border border-background-2">
+          <div className="flex h-6 items-center">
+            <span className="text-lg font-medium">⚡️ Lightning</span>
           </div>
-          <div className="mt-3 flex flex-col gap-2">
-            <Button
-              type="button"
-              size="lg"
-              onClick={() => navigate("/dashboard/send")}
-              className="w-full justify-start"
-            >
-              <ArrowUpRight className="h-4 w-4" />
-              Send
-            </Button>
-            <Button
-              type="button"
-              size="lg"
-              className="w-full justify-start"
-              onClick={() => navigate("/dashboard/receive")}
-            >
-              <ArrowDownLeft className="h-4 w-4" />
-              Receive
-            </Button>
+          <div className="mt-6">
+            <span className="text-[28px] font-bold">
+              {(balancesQuery.data?.btc.lightning_total_sats ?? 0) / 10 ** 8}
+            </span>
+            <span className="pl-2 text-lg text-secondary-foreground font-medium">
+              BTC
+            </span>
           </div>
         </div>
       </div>
 
-      <AssetExplorer
-        title="RGB Assets"
-        tableHeight={180}
-        inlineDetails={false}
-        onSelectAsset={(assetId) => {
-          setSelectedAssetId(assetId, "dashboard");
-          navigate("/assets");
-        }}
-        activeNodeId={activeNodeId ?? ""}
-      />
+      <div className="mt-6 flex gap-3">
+        <Button
+          variant="white"
+          size="lg"
+          className="rounded-full"
+          onClick={() => navigate("/dashboard/receive")}
+        >
+          <span className="h-5 w-5">
+            <IconReceive style={{ height: "20px", width: "20px" }} />
+          </span>
+          <span>Receive</span>
+        </Button>
+        <Button
+          variant="destructive"
+          size="lg"
+          className="rounded-full"
+          onClick={() => navigate("/dashboard/send")}
+        >
+          <span className="h-5 w-5">
+            <IconSend style={{ height: "20px", width: "20px" }} />
+          </span>
+          <span>Send</span>
+        </Button>
+        <Button
+          variant="destructive"
+          size="lg"
+          className="rounded-full"
+          disabled
+        >
+          <span className="h-5 w-5 opacity-30">
+            <IconUtxo style={{ height: "20px", width: "20px" }} />
+          </span>
+          <span>UTXO</span>
+        </Button>
+        <Button
+          variant="destructive"
+          size="lg"
+          className="rounded-full"
+          onClick={() => navigate("/activities")}
+        >
+          <span className="h-5 w-5">
+            <IconActivities style={{ height: "20px", width: "20px" }} />
+          </span>
+          <span>Activities</span>
+        </Button>
+        <DropMenu
+          className="w-11 h-11"
+          direaction="horizontal"
+          list={[
+            {
+              label: <span>Import</span>,
+              icon: <span className="w-5 h-5"><IconImport /></span>,
+              data: null,
+              onClick: () => navigate("/rgb/import")
+            },
+            {
+              label: <span>Export</span>,
+              icon: <span className="w-5 h-5"><IconExport /></span>,
+              data: null,
+              onClick: () => navigate("/rgb/export")
+            }
+          ]}
+        />
+      </div>
+
+      <div className="mt-8">
+        <AssetExplorer
+          title="RGB Assets"
+          hideImportButton={true}
+          activeNodeId={activeNodeId ?? ""}
+        />
+      </div>
 
       {(balancesQuery.isError ||
         walletSyncMutation.isError ||
         walletNewAddressMutation.isError) && (
-        <Alert variant="destructive">
-          <AlertTitle>Wallet request failed</AlertTitle>
+        <Alert variant="destructive" className="mt-8">
           <AlertDescription>
             {balancesQuery.isError ? errorToText(balancesQuery.error) : null}
             {balancesQuery.isError &&

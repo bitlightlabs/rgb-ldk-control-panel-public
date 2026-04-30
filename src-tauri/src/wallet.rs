@@ -1,4 +1,7 @@
 use crate::{error::CommandError, rgbldkd_http};
+// use base64::{engine::general_purpose, Engine as _};
+// use std::time::{SystemTime, UNIX_EPOCH};
+// use std::{fs::File, io::Write, path::Path};
 // use serde::{Deserialize, Serialize};
 // use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 
@@ -121,17 +124,39 @@ use crate::{error::CommandError, rgbldkd_http};
 //     ).await.map_err(|_| CommandError::HttpRequestFailed)
 // }
 
-static WALLET_RPC: &str = "https://core-regtest-stag.bitlightdev.info";
+// fn get_timestamp() -> u64 {
+//     let start = SystemTime::now();
+//     let since_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
+//     since_epoch.as_secs()
+// }
 
+// pub fn sort_http_params(
+//     params: &[(&str, &str)],
+// ) -> String {
+//     let mut map = std::collections::BTreeMap::new();
+
+//     for (key, value) in params {
+//         map.insert(*key, value.trim());
+//     }
+
+//     map.into_iter().map(|(key, value)| format!("{key}={value}"))
+//         .collect::<Vec<_>>()
+//         .join("&")
+// }
+
+// Download a contract from plugin wallet
 pub async fn plugin_wallet_asset_export(
-   contract_id: &str,
-   url: &str,
+    rpc: &str,
+    token: &str,
+    params: &str,
+    signature: &str,
 ) -> Result<Vec<u8>, CommandError> {
-    let rpc_url = format!("{}/staff/contract/consignment?contract_id={}", url, contract_id);
+    let rpc_url = format!("{}/staff/contract/consignment?{}&signature={}", rpc, params, signature);
 
     let client = reqwest::Client::new();
     let resp = client
         .get(rpc_url)
+        .bearer_auth(token)
         .send()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)?;
@@ -147,11 +172,12 @@ pub async fn plugin_wallet_asset_export(
     Ok(bytes.to_vec())
 }
 
-
+// Unused
 pub async fn plugin_wallet_transfer_consignment_export(
    payment_id: &str,
+   rpc: &str,
 ) -> Result<Vec<u8>, CommandError> {
-    let rpc_url = format!("{}/staff/payment/consignment?payment_id={}", WALLET_RPC, payment_id);
+    let rpc_url = format!("{}/staff/payment/consignment?payment_id={}", rpc, payment_id);
 
     let client = reqwest::Client::new();
     let resp = client
@@ -171,7 +197,39 @@ pub async fn plugin_wallet_transfer_consignment_export(
     Ok(bytes.to_vec())
 }
 
+// Download a transfer consignment from an endpoint
 pub async fn download_transfer_consignment_from_link(
+   link: &str,
+   token: &str,
+   params: &str,
+   signature: &str,
+) -> Result<Vec<u8>, CommandError> {
+    // link:    https://xxx.com/staff/payment/consignment
+    // params:  payment_id=yyy&timestamp=zzz
+    // signature: sign(hex(params))
+    let rpc_url = format!("{}?{}&signature={}", link, params, signature);
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .get(rpc_url)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+
+    if !resp.status().is_success() {
+        return Err(rgbldkd_http::classify_non_success("main", resp).await?);
+    }
+
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+    Ok(bytes.to_vec())
+}
+
+// Download a transfer consignment from an endpoint
+pub async fn download_transfer_consignment_from_link_no_verify(
    link: &str,
 ) -> Result<Vec<u8>, CommandError> {
     let client = reqwest::Client::new();
@@ -192,10 +250,13 @@ pub async fn download_transfer_consignment_from_link(
     Ok(bytes.to_vec())
 }
 
+
+// Unused
 pub async fn plugin_wallet_transfer_consignment_accept(
 	archive: &[u8],
+    rpc: &str,
 ) -> Result<String, CommandError> {
-    let rpc_url = format!("{}/staff/import/consignment", WALLET_RPC);
+    let rpc_url = format!("{}/staff/import/consignment", rpc);
 
     let client = reqwest::Client::new();
 

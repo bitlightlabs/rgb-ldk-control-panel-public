@@ -33,6 +33,7 @@ export interface BalancesDto {
 }
 
 export interface PeerDetailsDto {
+  /** Node Pubkey */
   node_id: string;
   address: string;
   is_persisted: boolean;
@@ -81,19 +82,22 @@ export interface ChannelDetailsExtendedDto {
   user_channel_id: string;
   counterparty_node_id: string;
   channel_point: string | null;
-  channel_value_sats: U64;
-  outbound_capacity_msat: U64;
-  inbound_capacity_msat: U64;
+  channel_value_sats: string;
+  outbound_capacity_msat: string;
+  inbound_capacity_msat: string;
+  local_balance_msat?: string;
+  remote_balance_msat?: string;
   is_channel_ready: boolean;
   is_usable: boolean;
   is_announced: boolean;
+  rgb_balance: any
 }
 
 export interface OpenChannelRequest {
   node_id: string;
   address: string;
-  channel_amount_sats: U64;
-  push_to_counterparty_msat?: U64 | null;
+  channel_amount_sats: string;
+  push_to_counterparty_msat?: string | null;
   announce?: boolean;
   rgb?: RgbOpenChannelRequest | null;
 }
@@ -144,6 +148,7 @@ export interface Bolt11DecodeResponse {
   destination: string;
   amount_msat: U64 | null;
   expiry_secs: number;
+  description?: string;
 }
 
 export interface Bolt11PayRequest {
@@ -176,7 +181,7 @@ export interface OutPointDto {
 }
 
 export interface RgbPaymentContextDto {
-  asset_id: string; // hex
+  contract_id: string;
   asset_amount: U64;
   direction: string; // Inbound | Outbound
   is_swap: boolean;
@@ -231,8 +236,8 @@ export interface ListeningAddressesResponse {
 // ---- RGB ----
 
 export interface RgbOpenChannelRequest {
-  asset_id: string; // hex
-  asset_amount: U64;
+  contract_id: string;
+  asset_amount: string;
   color_context_data: string; // e.g. file://...
 }
 
@@ -242,11 +247,10 @@ export interface RgbNewAddressResponse {
 
 export interface RgbContractDto {
   contract_id: string;
-  asset_id: string; // hex 32 bytes
   name: string | null;
   ticker: string | null;
   precision: number | null; // u8
-  issued_supply: U64 | null; // u64
+  issued_supply: string | null; // u64
   details: string | null;
 }
 
@@ -283,7 +287,6 @@ export interface RgbContractsIssueRequest {
 export interface RgbContractsIssueResponse {
   ok: boolean;
   contract_id: string;
-  asset_id: string; // hex 32 bytes
   issued_supply: U64;
   checks?: HealthCheckDto[];
 }
@@ -313,11 +316,11 @@ export interface RgbContractBalanceResponse {
 }
 
 export interface RgbLnInvoiceCreateRequest {
-  asset_id: string; // hex
-  asset_amount: U64;
+  contract_id: string;
+  asset_amount: string;
   description: string;
   expiry_secs: number;
-  btc_carrier_amount_msat: U64;
+  btc_carrier_amount_msat: string;
 }
 
 export interface RgbLnInvoiceResponse {
@@ -333,13 +336,13 @@ export interface RgbLnInvoiceDecodeResponse {
   destination: string;
   carrier_amount_msat: U64 | null;
   expiry_secs: number;
-  asset_id?: string | null;
+  contract_id?: string | null;
   asset_amount?: U64 | null;
 }
 
 export interface RgbLnPayRequest {
   invoice: string;
-  asset_id?: string | null;
+  contract_id?: string;
   asset_amount?: U64 | null;
 }
 
@@ -371,7 +374,7 @@ export interface RgbOnchainReceiveRequest {
 }
 
 export interface RgbOnchainReceiveResponse {
-  asset_id: string;
+  contract_id: string;
   amount: U64;
 }
 
@@ -479,9 +482,34 @@ export interface RgbOnchainPaymentDto {
   txid?: string;
   consignment_key?: string;
   consignment_download_path?: string;
-  asset_id?: string;
 }
 
 export interface RgbOnchainPaymentsResponse {
   payments: RgbOnchainPaymentDto[];
+}
+
+export interface RgbDescriptorResponse {
+  descriptor: string
+  derived_descriptors: [
+    {derivation_path: string, descriptor: string, xpub: string}
+  ]
+  error?: string
+}
+
+export interface SignmessageRequest {
+  message: string
+  algorithm: 'bitcoin_signed_message' | 'ecdsa'
+  compact?: boolean
+  encoding?: "base64" | "hex"
+}
+
+export interface SignmessageResponse {
+  message: string,
+  algorithm: string,
+  signature: string,
+  encoding?: string,
+  compact?: boolean,
+  pubkey: string,
+  derivation_path: string,
+	digest_hex?: String
 }

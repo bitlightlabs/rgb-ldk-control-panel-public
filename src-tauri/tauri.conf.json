@@ -10,12 +10,17 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "RGB Lightning Node",
-        "width": 1100,
-        "height": 720,
-        "theme": "Dark"
+        "width": 1024,
+        "height": 768,
+        "theme": "Dark",
+
+        "decorations": true,
+        "transparent": true,
+        "shadow": false
       }
     ],
     "security": {

@@ -232,21 +232,18 @@ export function TransferDialog({
 
           {validationError ? (
             <Alert variant="destructive">
-              <AlertTitle>Cannot start transfer</AlertTitle>
               <AlertDescription>{validationError}</AlertDescription>
             </Alert>
           ) : null}
 
           {transferMutation.isError ? (
             <Alert variant="destructive">
-              <AlertTitle>Transfer failed</AlertTitle>
               <AlertDescription>{errorToText(transferMutation.error)}</AlertDescription>
             </Alert>
           ) : null}
 
           {waitMutation.isError ? (
             <Alert variant="destructive">
-              <AlertTitle>Wait failed</AlertTitle>
               <AlertDescription>{errorToText(waitMutation.error)}</AlertDescription>
             </Alert>
           ) : null}

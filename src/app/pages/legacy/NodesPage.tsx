@@ -99,7 +99,6 @@ function JsonDetails({
           <div className="text-sm ui-muted">Loading...</div>
         ) : isError ? (
           <Alert variant="destructive">
-            <AlertTitle>Request failed</AlertTitle>
             <AlertDescription>{errorToText(error)}</AlertDescription>
           </Alert>
         ) : (
@@ -258,7 +257,7 @@ export function DashboardPage({
           <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:items-center">
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <CardTitle className="text-lg">{activeContext.display_name}</CardTitle>
+                <CardTitle className="text-xl">{activeContext.display_name}</CardTitle>
                 {locked ? (
                   <Badge variant="warning" className="gap-1">
                     <Lock className="h-3 w-3" />
@@ -399,7 +398,6 @@ export function DashboardPage({
         {(unlockMutation.isError || lockMutation.isError) && (
           <CardContent className="pt-0">
             <Alert variant="destructive">
-              <AlertTitle>Control operation failed</AlertTitle>
               <AlertDescription>
                 {unlockMutation.isError ? errorToText(unlockMutation.error) : null}
                 {unlockMutation.isError && lockMutation.isError ? <br /> : null}
@@ -423,7 +421,6 @@ export function DashboardPage({
                 <div className="text-sm ui-muted">Loading...</div>
               ) : nodeIdQuery.isError ? (
                 <Alert variant="destructive">
-                  <AlertTitle>Request failed</AlertTitle>
                   <AlertDescription>{errorToText(nodeIdQuery.error)}</AlertDescription>
                 </Alert>
               ) : nodeIdQuery.data?.node_id ? (
@@ -532,7 +529,6 @@ export function DashboardPage({
 
       {walletSyncMutation.isError || walletNewAddressMutation.isError ? (
         <Alert variant="destructive">
-          <AlertTitle>Wallet action failed</AlertTitle>
           <AlertDescription>
             {walletSyncMutation.isError ? errorToText(walletSyncMutation.error) : null}
             {walletSyncMutation.isError && walletNewAddressMutation.isError ? <br /> : null}

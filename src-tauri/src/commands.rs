@@ -1,16 +1,10 @@
 use crate::{
-    app_dirs,
-    context_store::{ContextStore, NodeContext},
-    error::CommandError,
-    events_manager::{EventsStatus, StoredEvent},
-    logger::{now_ms, LogEntry, LogLevel},
-    rgbldkd_http,
-    rgbldkd_http::{ControlStatusDto, MainStatusResponse, OkResponse},
-    wallet, AppState,
+    AppState, app_dirs, context_store::{ContextStore, NodeContext}, error::CommandError, events_manager::{EventsStatus, StoredEvent}, logger::{LogEntry, LogLevel, now_ms}, rgbldkd_http::{self, ControlStatusDto, MainStatusResponse, OkResponse}, util::{encode_uri_component, get_current_timestamp, sort_http_params, str_to_hex}, wallet
 };
 use base64::{engine::general_purpose, Engine as _};
 use hex;
 use serde::Serialize;
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -586,8 +580,17 @@ struct RpcConfig {
 
 fn run_command_capture(program: &str, args: &[String]) -> Result<String, String> {
     let resolved_program = resolve_executable(program).unwrap_or_else(|| PathBuf::from(program));
-    let output = Command::new(&resolved_program)
-        .args(args)
+    let mut cmd = Command::new(&resolved_program);
+    cmd.args(args);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd
         .output()
         .map_err(|e| format!("{program}: {e}"))?;
 
@@ -609,8 +612,17 @@ fn run_command_capture(program: &str, args: &[String]) -> Result<String, String>
 
 fn run_command_status(program: &str, args: &[String]) -> Result<(), String> {
     let resolved_program = resolve_executable(program).unwrap_or_else(|| PathBuf::from(program));
-    let output = Command::new(&resolved_program)
-        .args(args)
+    let mut cmd = Command::new(&resolved_program);
+    cmd.args(args);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd
         .output()
         .map_err(|e| format!("{program}: {e}"))?;
 
@@ -645,10 +657,17 @@ fn run_command_capture_in_dir_with_env(
     envs: &[(&str, &str)],
 ) -> Result<String, String> {
     let resolved_program = resolve_executable(program).unwrap_or_else(|| PathBuf::from(program));
-    let output = Command::new(&resolved_program)
-        .current_dir(cwd)
-        .envs(envs.iter().copied())
-        .args(args)
+    let mut cmd = Command::new(&resolved_program);
+    cmd.current_dir(cwd).envs(envs.iter().copied()).args(args);
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd
         .output()
         .map_err(|e| format!("{program}: {e}"))?;
 
@@ -1037,6 +1056,7 @@ pub struct BootstrapLocalNodeResponse {
     pub node_id: String,
     pub display_name: String,
     pub container_name: String,
+    pub network: String,
     pub main_api_base_url: String,
     pub control_api_base_url: String,
     pub main_api_port: u16,
@@ -1214,7 +1234,7 @@ fn resolve_node_image() -> String {
 
     from_env
         .or_else(from_dotenv)
-        .unwrap_or_else(|| "bitlightlabs/rln-ldk-node:dev-20260321".to_string())
+        .unwrap_or_else(|| "".to_string())
 }
 
 #[tauri::command]
@@ -1815,8 +1835,8 @@ pub async fn bootstrap_local_environment(
     let issue_resp =
         issue_resp_opt.ok_or_else(|| last_issue_err.unwrap_or(CommandError::HttpRequestFailed))?;
     stage_logs.push(format!(
-        "Issued Alex RGB asset: contract_id={}, asset_id={}, supply={}.",
-        issue_resp.contract_id, issue_resp.asset_id, issue_resp.issued_supply
+        "Issued Alex RGB asset: contract_id={}, supply={}.",
+        issue_resp.contract_id, issue_resp.issued_supply
     ));
     rgbldkd_http::rgb_sync(&state.http, &alex).await?;
     stage_logs.push("Synced Alex RGB state after issuance.".to_string());
@@ -1892,6 +1912,8 @@ pub async fn bootstrap_local_environment(
 #[tauri::command]
 pub async fn bootstrap_local_node(
     state: State<'_, AppState>,
+    ldk_image: Option<String>,
+    // node alias
     node_name: Option<String>,
     container_name: Option<String>,
     main_api_port: Option<u16>,
@@ -2054,7 +2076,18 @@ pub async fn bootstrap_local_node(
     let exists =
         run_command_status("docker", &["inspect".to_string(), container_name.clone()]).is_ok();
 
-    let image = resolve_node_image();
+    let image = match ldk_image {
+        Some(img) => img,
+        None => resolve_node_image(),
+    };
+    if image.is_empty() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("container image is invalid".to_string()),
+            hint: Some("Provide a valid image.".to_string()),
+        });
+    }
+
     eprintln!("bootstrap_local_node image: {image}");
 
     if exists {
@@ -2092,7 +2125,7 @@ pub async fn bootstrap_local_node(
                 "type=bind,src={},dst=/run/secrets/rgbldk_keystore_passphrase,readonly",
                 keystore_passphrase.display()
             ),
-            image,
+            image.clone(),
             "rgbldkd".to_string(),
             "server".to_string(),
             "--listen".to_string(),
@@ -2125,6 +2158,18 @@ pub async fn bootstrap_local_node(
             "--log-level".to_string(),
             "trace".to_string(),
         ];
+
+        let _ = state.logger.append(LogEntry {
+            ts_ms: 0,
+            source: "backend".to_string(),
+            level: LogLevel::Trace,
+            message: "bootstrap_local_node".to_string(),
+            context: Some(serde_json::json!({
+                "image": image,
+                "args": run_args.join(" ")
+            })),
+        }).await;
+
         run_command_status("docker", &run_args).map_err(|e| CommandError::ExternalCommandFailed {
 			command: "docker run".to_string(),
 			message: Some(e),
@@ -2152,7 +2197,7 @@ pub async fn bootstrap_local_node(
         p2p_listen: Some(p2p_listen),
         rgb_consignment_base_url,
         allow_non_loopback: false,
-        network: resolved_network,
+        network: resolved_network.clone(),
     };
 
     let mut reachable = false;
@@ -2187,6 +2232,7 @@ pub async fn bootstrap_local_node(
         node_id,
         display_name,
         container_name,
+        network: resolved_network,
         main_api_base_url,
         control_api_base_url,
         main_api_port: resolved_main_port,
@@ -2748,7 +2794,7 @@ pub async fn node_bolt11_decode(
     state: State<'_, AppState>,
     node_id: String,
     request: rgbldkd_http::Bolt11DecodeRequest,
-) -> Result<rgbldkd_http::Bolt11DecodeResponse, CommandError> {
+) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     let request_json = serde_json::to_value(&request).ok();
     traced_node_call(
@@ -2838,7 +2884,7 @@ pub async fn node_bolt12_offer_receive_var(
     state: State<'_, AppState>,
     node_id: String,
     request: rgbldkd_http::Bolt12OfferReceiveVarRequest,
-) -> Result<rgbldkd_http::Bolt12OfferResponse, CommandError> {
+) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     let request_json = serde_json::to_value(&request).ok();
     traced_node_call(
@@ -3127,11 +3173,49 @@ pub async fn node_lock(
 
 #[tauri::command]
 pub async fn plugin_wallet_asset_export(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
+    node_id: String,
+    core_rpc: String,
     contract_id: String,
-    url: String,
+    descriptor: String,
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
-    let bytes = wallet::plugin_wallet_asset_export(&contract_id, &url).await?;
+    // params
+    let param_contract_id = encode_uri_component(&contract_id);
+    let param_timestamp = get_current_timestamp().to_string();
+    let params = [
+        ("contract_id", param_contract_id.as_str()),
+        ("timestamp", param_timestamp.as_str()),
+    ];
+    let sorted = sort_http_params(&params);
+
+    // let _ = state.logger.append(LogEntry {
+    //     ts_ms: 0,
+    //     source: "backend".to_string(),
+    //     level: LogLevel::Trace,
+    //     message: "plugin_wallet_asset_export params".to_string(),
+    //     context: Some(serde_json::json!({
+    //         "params": sorted.to_string(),
+    //     })),
+    // }).await;
+
+    let hex = str_to_hex(&sorted);
+
+    // sign message
+    let signed_message = node_rgb_sign_message(state, node_id, rgbldkd_http::RgbSignMessageRequest {
+        message: hex,
+        algorithm: "ecdsa".to_string(),
+        compact: Some(true),
+        encoding: Some("hex".to_string())
+    }).await?;
+
+    // query
+    let token = general_purpose::STANDARD.encode(descriptor.as_bytes());
+    let bytes = wallet::plugin_wallet_asset_export(
+        &core_rpc,
+        &token,
+        &sorted,
+        &signed_message.signature
+    ).await?;
 
     let archive_base64 = general_purpose::STANDARD.encode(bytes);
     Ok(rgbldkd_http::RgbContractsExportBundle {
@@ -3146,8 +3230,9 @@ pub async fn plugin_wallet_asset_export(
 pub async fn plugin_wallet_transfer_consignment_export(
     _state: State<'_, AppState>,
     payment_id: String,
+    rpc: String
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
-    let bytes = wallet::plugin_wallet_transfer_consignment_export(&payment_id).await?;
+    let bytes = wallet::plugin_wallet_transfer_consignment_export(&payment_id, &rpc).await?;
 
     let archive_base64 = general_purpose::STANDARD.encode(bytes);
     Ok(rgbldkd_http::RgbContractsExportBundle {
@@ -3160,10 +3245,56 @@ pub async fn plugin_wallet_transfer_consignment_export(
 
 #[tauri::command]
 pub async fn download_transfer_consignment_from_link(
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
+    node_id: String,
+    link: String,
+    payment_id: String,
+    descriptor: String,
+) -> Result<rgbldkd_http::TransferConsignment, CommandError> {
+    // params
+    let param_payment_id = encode_uri_component(&payment_id);
+    let param_timestamp = get_current_timestamp().to_string();
+    let params = [
+        ("payment_id", param_payment_id.as_str()),
+        ("timestamp", param_timestamp.as_str()),
+    ];
+    let sorted = sort_http_params(&params);
+
+    // sign message
+    let hex = str_to_hex(&sorted);
+    let signed_message = node_rgb_sign_message(state, node_id, rgbldkd_http::RgbSignMessageRequest {
+        message: hex,
+        algorithm: "ecdsa".to_string(),
+        compact: Some(true),
+        encoding: Some("hex".to_string())
+    }).await?;
+
+    // query
+    let token = general_purpose::STANDARD.encode(descriptor.as_bytes());
+    let bytes = wallet::download_transfer_consignment_from_link(
+        &link,
+        &token,
+        &sorted,
+        &signed_message.signature
+    ).await?;
+
+    let archive_base64 = general_purpose::STANDARD.encode(bytes);
+    Ok(rgbldkd_http::TransferConsignment {
+        archive_base64,
+        format: "raw".to_string(),
+    })
+}
+
+
+#[tauri::command]
+pub async fn download_transfer_consignment_from_link_no_verify(
+    state: State<'_, AppState>,
     link: String,
 ) -> Result<rgbldkd_http::TransferConsignment, CommandError> {
-    let bytes = wallet::download_transfer_consignment_from_link(&link).await?;
+    // query
+    let bytes = wallet::download_transfer_consignment_from_link_no_verify(
+        &link,
+    ).await?;
 
     let archive_base64 = general_purpose::STANDARD.encode(bytes);
     Ok(rgbldkd_http::TransferConsignment {
@@ -3354,6 +3485,7 @@ pub async fn node_rgb_onchain_send(
 pub async fn plugin_wallet_transfer_consignment_accept(
     _state: State<'_, AppState>,
     consignment_base64: String,
+    rpc: String,
 ) -> Result<String, CommandError> {
     let bytes = general_purpose::STANDARD
         .decode(consignment_base64.as_bytes())
@@ -3363,7 +3495,7 @@ pub async fn plugin_wallet_transfer_consignment_accept(
             hint: None,
         })?;
 
-    wallet::plugin_wallet_transfer_consignment_accept(&bytes).await
+    wallet::plugin_wallet_transfer_consignment_accept(&bytes, &rpc).await
 }
 
 #[tauri::command]
@@ -3378,6 +3510,53 @@ pub async fn rgb_onchain_payments(
         "rgb.onchain_payments",
         None,
         rgbldkd_http::rgb_onchain_payments(&state.http, &ctx),
+    )
+    .await
+}
+
+
+#[tauri::command]
+pub async fn node_rgb_descriptor(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.descriptor",
+        None,
+        rgbldkd_http::rgb_descriptor(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_rgb_sign_message(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: rgbldkd_http::RgbSignMessageRequest,
+) -> Result<rgbldkd_http::RgbSignMessageResponse, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    let request_json = serde_json::to_value(&request).ok();
+
+    // let _ = state.logger.append(LogEntry {
+    //     ts_ms: now_ms(),
+    //     source: "backend".to_string(),
+    //     level: LogLevel::Trace,
+    //     message: "node_rgb_sign_message".to_string(),
+    //     context: Some(serde_json::json!({
+    //         "node_id": node_id.to_string(),
+    //         "data": request_json.clone(),
+    //     })),
+    // }).await;
+
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.sign_message",
+        request_json,
+        rgbldkd_http::rgb_sign_message(&state.http, &ctx, request),
     )
     .await
 }

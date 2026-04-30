@@ -2,8 +2,11 @@ import { Button } from "@/components/ui/button";
 import type { MouseEvent } from "react";
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from '@/lib/utils'
 
-export default function CopyText(props: { text: string }) {
+export default function CopyText(props: { text: string, className?: string }) {
+  const {className = ''} = props;
+
   const copy = async (e: MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
@@ -15,7 +18,9 @@ export default function CopyText(props: { text: string }) {
 
   return (
     <Button
-      className="w-8 h-8 mx-3"
+      className={
+        cn("w-4 h-4 px-0", className)
+      }
       variant="ghost"
       onClick={copy}
       onKeyDown={(e) => e.stopPropagation()}

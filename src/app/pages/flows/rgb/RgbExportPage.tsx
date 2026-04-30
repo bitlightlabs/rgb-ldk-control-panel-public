@@ -1,25 +1,12 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CircleCheckBig, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useNodeStore } from "@/app/stores/nodeStore";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   contextsList,
-  downloadTransferConsignmentFromLink,
+  downloadTransferConsignmentFromLinkWithoutVerify,
   nodeMainHttp,
   nodeRgbContracts,
   nodeRgbOnchainPayments,
@@ -29,6 +16,11 @@ import { errorToText } from "@/lib/errorToText";
 import { base64ToUint8Array, trimChar } from "@/lib/utils";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
+import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
+import Export1 from "./Export1";
+import Export1Confirm from "./Export1Confirm";
+import Export2 from "./Export2";
+import ExportDone from "./ExportDone";
 
 type ExportStep = 1 | 2 | 3;
 type StepOneMode = "form" | "confirm";
@@ -223,6 +215,7 @@ export function RgbExportPage() {
     },
   });
 
+  // Check if already paid
   const checkPaidMutation = useMutation({
     mutationFn: async () => {
       if (!activeNodeId) {
@@ -232,6 +225,7 @@ export function RgbExportPage() {
         throw new Error("RGB Onchain Invoice is required");
       }
 
+      // payment list
       const data = await nodeRgbOnchainPayments(activeNodeId);
       return (
         data.payments.find((item) => item.invoice?.trim() === invoiceTrim) ??
@@ -274,7 +268,7 @@ export function RgbExportPage() {
         throw new Error("Consignment download link is required");
       }
 
-      const data = await downloadTransferConsignmentFromLink(
+      const data = await downloadTransferConsignmentFromLinkWithoutVerify(
         buildFormattedLink(consignmentLink, downloadFormat)
       );
       if (!data.archive_base64) {
@@ -308,25 +302,20 @@ export function RgbExportPage() {
   });
 
   return (
-    <div className="space-y-4">
-      <Button
-        type="button"
-        variant="outline"
-        className="gap-2"
-        onClick={() => {
+    <ContentWrapper>
+      <ContentHeader
+        title="Export RGB Asset"
+        onBack={() => {
           if (step === 1 && stepOneMode === "confirm") {
             setStepOneMode("form");
             return;
           }
-          navigate("/rgb/actions");
+          navigate(-1);
         }}
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back
-      </Button>
+      />
 
-      <Card>
-        <CardHeader className="space-y-3">
+     <Content>
+        {/* <CardHeader className="space-y-3">
           <CardTitle>Export RGB Asset</CardTitle>
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {stepItems.map((item) => (
@@ -344,163 +333,65 @@ export function RgbExportPage() {
               </div>
             ))}
           </div>
-        </CardHeader>
+        </CardHeader> */}
 
-        <CardContent className="space-y-4">
+        <div>
+          {/* Check & pay */}
           {step === 1 && (
-            <div className="space-y-4">
+            <div>
               {stepOneMode === "form" ? (
-                <>
-                  <Field>
-                    <FieldLabel>RGB OnChain Invoice</FieldLabel>
-                    <Textarea
-                      value={invoice}
-                      placeholder="Paste RGB Onchain Invoice"
-                      onChange={(e) => {
-                        setInvoice(e.target.value);
-                        setStepOneMode("form");
-                      }}
-                      className="min-h-[120px] resize-y"
-                    />
-                  </Field>
-
-                  <Button
-                    type="button"
-                    className="w-full h-12"
-                    disabled={!invoiceTrim || checkPaidMutation.isPending}
-                    onClick={() => checkPaidMutation.mutate()}
-                  >
-                    {checkPaidMutation.isPending ? "Checking..." : "Pay"}
-                  </Button>
-                </>
+                <Export1
+                  disabled={!invoiceTrim || checkPaidMutation.isPending}
+                  invoice={invoice}
+                  onChangeInvoice={(v) => {
+                    setInvoice(v);
+                    setStepOneMode("form");
+                  }}
+                  onNext={() => checkPaidMutation.mutate()}
+                />
               ) : (
                 <>
-                  <div className="rounded-md border p-4 space-y-2 text-sm">
-                    <div>
-                      Type:{" "}
-                      <span className="font-medium">RGB OnChain invoice</span>
-                    </div>
-                    <div>
-                      Asset:{" "}
-                      <span className="font-medium">
-                        {decodedContract?.name?.trim() ||
-                          decodedContract?.ticker?.trim() ||
-                          decodedContract?.contract_id ||
-                          onchainInvoiceDecodeQuery.data?.contract_id ||
-                          "-"}
-                      </span>
-                    </div>
-                    <div>
-                      Amount:{" "}
-                      <span className="font-medium">
-                        {onchainInvoiceDecodeQuery.isFetching
-                          ? "Decoding..."
-                          : decodedAmountDisplay
-                          ? `${decodedAmountDisplay} ${
-                              decodedContract?.ticker?.trim() || "RGB"
-                            }`
-                          : "-"}
-                      </span>
-                    </div>
-                    <div>
-                      Contract ID:{" "}
-                      <span className="font-medium break-all">
-                        {onchainInvoiceDecodeQuery.data?.contract_id || "-"}
-                      </span>
-                    </div>
-                    <div>
-                      Payment Request:
-                      <code className="mt-1 block break-all rounded-md text-xs">
-                        {invoiceTrim}
-                      </code>
-                    </div>
-                  </div>
-
-                  {onchainInvoiceDecodeQuery.isError ? (
-                    <Alert variant="destructive">
-                      <AlertTitle>Decode failed</AlertTitle>
-                      <AlertDescription>
-                        {errorToText(onchainInvoiceDecodeQuery.error)}
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-
-                  <Button
-                    type="button"
-                    className="w-full h-12"
+                  <Export1Confirm
+                    invoice={invoice}
+                    amount={decodedAmountDisplay ?? ''}
+                    decodedContract={decodedContract}
                     disabled={
                       payMutation.isPending ||
                       onchainInvoiceDecodeQuery.isFetching ||
                       onchainInvoiceDecodeQuery.isError
                     }
-                    onClick={() => payMutation.mutate()}
-                  >
-                    {payMutation.isPending ? "Paying..." : "Confirm Pay"}
-                  </Button>
+                    onNext={() => payMutation.mutate()}
+                  />
+
+                  {onchainInvoiceDecodeQuery.isError ? (
+                    <Alert variant="destructive" className="mt-3">
+                      <AlertDescription>
+                        {errorToText(onchainInvoiceDecodeQuery.error)}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                 </>
               )}
             </div>
           )}
 
+          {/* Download file */}
           {step === 2 && (
-            <div className="space-y-4">
-              <Field>
-                <FieldLabel>Consignment Download Link</FieldLabel>
-                <Input
-                  value={consignmentLink}
-                  placeholder="Waiting for transaction completion..."
-                  readOnly
-                />
-              </Field>
-
-              <Field>
-                <FieldLabel>Download Format</FieldLabel>
-                <Select
-                  value={downloadFormat}
-                  onValueChange={(value) =>
-                    setDownloadFormat(value as "raw" | "gzip" | "zip")
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose format" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="raw">raw</SelectItem>
-                    <SelectItem value="gzip">gzip</SelectItem>
-                    <SelectItem value="zip">zip</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Button
-                type="button"
-                className="w-full h-12"
-                disabled={!consignmentLink || downloadMutation.isPending}
-                onClick={() => downloadMutation.mutate()}
-              >
-                <Download className="h-4 w-4" />
-                {downloadMutation.isPending
-                  ? "Downloading..."
-                  : "Click Download"}
-              </Button>
-            </div>
+            <Export2
+              disabled={!consignmentLink || downloadMutation.isPending}
+              onNext={() => downloadMutation.mutate()}
+            />
           )}
 
           {step === 3 && (
-            <div className="rounded-md border p-4 space-y-2">
-              <div className="flex justify-center pb-5">
-                <CircleCheckBig className="h-20 w-20 text-green-600" />
-              </div>
-              <div className="text-sm text-center">
-                RGB export flow is completed. The consignment download link is
-                ready.
-              </div>
-            </div>
+            <ExportDone
+              amount={decodedAmountDisplay ?? ''}
+              assetName={decodedContract?.name ?? ''}
+            />
           )}
 
           {(contextsQuery.isError || paymentsQuery.isError) && (
             <Alert variant="destructive">
-              <AlertTitle>Request failed</AlertTitle>
               <AlertDescription>
                 {contextsQuery.isError
                   ? errorToText(contextsQuery.error)
@@ -512,8 +403,8 @@ export function RgbExportPage() {
               </AlertDescription>
             </Alert>
           )}
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </Content>
+    </ContentWrapper>
   );
 }

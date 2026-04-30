@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import Lottie from "lottie-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  NETWORK_OPTIONS,
-  getDefaultNetworkOption,
-  getNetworkOption,
-} from "@/app/config/networkOptions";
+import { NETWORK_OPTIONS, getNetworkOption } from "@/app/config/networkOptions";
+
 import type {
   BitcoinNetwork,
   BootstrapLocalNodeRequest,
@@ -16,9 +11,25 @@ import type {
   DockerEnvironmentResponse,
 } from "@/lib/domain";
 import { errorToText } from "@/lib/errorToText";
-import initBg from "@/assets/init_dark.png";
-import logoDarkAnimation from "@/assets/logo_dark.json";
-import { useNetworkStore } from "@/app/stores/networkStore";
+import IconDisk from "@/app/icons/disk";
+import IconCloud from "@/app/icons/cloud";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
+import DropMenu from "@/app/components/DropMenu";
+import IconDelete from "@/app/icons/delete";
+import DeleteNodeDialog from "@/app/components/DeleteNodeDialog";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { contextsList, contextsRemove } from "@/lib/commands";
+import { LDK_IMAGE } from "@/app/config/constant";
+
 
 type Stage = {
   label: string;
@@ -78,16 +89,29 @@ export function InitialSetupPage({
   onCreateNode: (
     req: BootstrapLocalNodeRequest
   ) => Promise<BootstrapLocalNodeResponse>;
-  onEnterWallet: () => void;
+  onEnterWallet: (nodeId?: string) => void;
 }) {
   const [step, setStep] = useState<SetupStep>("welcome");
   const [nodeName, setNodeName] = useState("");
-  // const [selectedNetwork, setSelectedNetwork] =
-  //   useState<BitcoinNetwork>("regtest");
   const [stageIndex, setStageIndex] = useState(0);
   const [progress, setProgress] = useState(0);
-  const setSelectedNetwork = useNetworkStore((s) => s.setNetwork);
-  const selectedNetwork = useNetworkStore((s) => s.network);
+  const [userSelectNetwork, setUserSelectNetwork] =
+    useState<BitcoinNetwork>("regtest");
+  const [deleteNodeId, setDeleteNodeId] = useState<string>("");
+
+  const deleteNodeMutation = useMutation({
+    mutationFn: (nodeId: string) => contextsRemove(nodeId),
+    onSuccess: async () => {
+      contextsQuery.refetch();
+    },
+  });
+
+  const contextsQuery = useQuery({
+    queryKey: ["contexts"],
+    queryFn: contextsList,
+    refetchInterval: false,
+  });
+  const contexts = contextsQuery.data ?? [];
 
   const dockerInstalled = dockerEnvironment?.installed === true;
   const dockerRunning = dockerEnvironment?.daemon_running === true;
@@ -96,19 +120,13 @@ export function InitialSetupPage({
     [dockerEnvironment]
   );
   const isSelectedNetworkEnabled = NETWORK_OPTIONS.some(
-    (item) => item.value === selectedNetwork && item.enabled !== false
+    (item) => item.value === userSelectNetwork && item.enabled !== false
   );
   const canCreate =
     dockerInstalled &&
     dockerRunning &&
     !creatingNode &&
     isSelectedNetworkEnabled;
-  const selectedNetworkOption = getNetworkOption(selectedNetwork);
-
-  useEffect(() => {
-    if (isSelectedNetworkEnabled) return;
-    setSelectedNetwork(getDefaultNetworkOption().value);
-  }, [isSelectedNetworkEnabled, setSelectedNetwork]);
 
   // Sync step based on external mutation state
   useEffect(() => {
@@ -150,153 +168,271 @@ export function InitialSetupPage({
     return STAGES[stageIndex]?.label ?? "Preparing";
   }, [createNodeResult, stageIndex]);
 
-  return (
-    <div
-      className="stable-scroll relative flex h-full items-center justify-center bg-cover bg-center bg-no-repeat p-6"
-      style={{ backgroundImage: `url(${initBg})` }}
-    >
-      <div className="absolute inset-0 bg-black/55" />
-
-      {/* ── Step 1: Welcome ── */}
-      {step === "welcome" && (
-        <div className="relative z-10 flex w-full max-w-2xl flex-col items-center justify-center text-center">
-          <div className="w-[220px]">
-            <Lottie animationData={logoDarkAnimation} loop autoplay />
-          </div>
-          <div className="text-3xl font-bold">RGB Lightning Node</div>
-          <div className="text-foreground/50 text-sm">v0.1.0</div>
-          <div className="mt-3 text-xl font-medium text-white md:text-2xl">
-            Build, Transfer, and Settle RGB Assets on Lightning
-          </div>
-          <Button
-            type="button"
-            className="mt-8 h-14 min-w-[220px] text-lg"
-            onClick={() => setStep("form")}
-          >
-            Start
-          </Button>
+  const DockerEnv = (
+    <div className="rounded-3xl bg-background-3 p-4">
+      <h4 className="text-lg font-medium">Docker Environment</h4>
+      <div className="mt-4 space-y-1 text-base text-secondary-foreground">
+        <div>
+          Docker installed:{" "}
+          {dockerEnvironmentLoading
+            ? "Checking..."
+            : dockerInstalled
+            ? "Yes"
+            : "No"}
         </div>
-      )}
+        <div>
+          Docker daemon:{" "}
+          {dockerEnvironmentLoading
+            ? "Checking..."
+            : dockerRunning
+            ? "Running"
+            : "Not running"}
+        </div>
+        {dockerEnvironment?.version ? (
+          <div>Version: {dockerEnvironment.version}</div>
+        ) : null}
+        {dockerDetailMessage ? (
+          <div className="mt-4 text-sm text-error">{dockerDetailMessage}</div>
+        ) : null}
+      </div>
+      <Button
+        type="button"
+        variant="destructive"
+        className="mt-4 rounded-full"
+        onClick={onRefreshDockerEnvironment}
+        disabled={dockerEnvironmentLoading}
+      >
+        Re-check Environment
+      </Button>
+    </div>
+  );
 
-      {/* ── Step 2: Node Configuration Form ── */}
-      {step === "form" && (
-        <div className="relative z-10 w-full max-w-3xl rounded-xl border border-white/15 bg-black/60 p-6 backdrop-blur">
-          <div className="text-xl font-semibold text-white">Create Node</div>
-          <div className="mt-1 text-sm text-white/70">
-            Configure your RGB Lightning Node. A Docker container will be
-            started with the selected network.
-          </div>
-
-          {/* Docker status panel */}
-          <div className="mt-4 rounded-md border border-white/15 bg-white/5 p-3 text-sm text-white/85">
-            <div className="font-medium">Docker Environment</div>
-            <div className="mt-2 space-y-1 text-xs text-white/70">
-              <div>
-                Docker installed:{" "}
-                {dockerEnvironmentLoading
-                  ? "Checking..."
-                  : dockerInstalled
-                  ? "Yes"
-                  : "No"}
-              </div>
-              <div>
-                Docker daemon:{" "}
-                {dockerEnvironmentLoading
-                  ? "Checking..."
-                  : dockerRunning
-                  ? "Running"
-                  : "Not running"}
-              </div>
-              {dockerEnvironment?.version ? (
-                <div>Version: {dockerEnvironment.version}</div>
-              ) : null}
-              {dockerDetailMessage ? (
-                <div className="text-red-500">{dockerDetailMessage}</div>
-              ) : null}
+  return (
+    <>
+      <div
+        className="h-full bg-background bg-bottom-right bg-no-repeat"
+        style={{ backgroundImage: `url(./bg-bottom-1.png)` }}
+      >
+        <div className="h-full relative">
+          <div className="w-[200px] absolute inset-2 bg-background-2 pt-5 px-3 rounded-3xl border border-background-2">
+            <div className="text-2xs text-secondary-foreground">
+              QUICK LAUNCH
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2 border-white/30 bg-white/5 text-white hover:bg-white/10"
-              onClick={onRefreshDockerEnvironment}
-              disabled={dockerEnvironmentLoading}
-            >
-              Re-check Environment
-            </Button>
-          </div>
+            <div className="mt-8">
+              <h2 className="text-base font-medium">Recent Nodes</h2>
+            </div>
 
-          {/* Node name */}
-          <div className="mt-4 space-y-1">
-            <Label className="text-sm text-white/85">
-              Node Name <span className="text-white/40">(optional)</span>
-            </Label>
+            {contexts.length > 0 ? (
+              <div className="mt-3">
+                {contexts.map((v) => {
+                  return (
+                    <div
+                      key={v.node_id}
+                      className="relative mb-2 p-3 bg-background-2 rounded-2xl cursor-pointer"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => onEnterWallet(v.node_id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onEnterWallet(v.node_id);
+                        }
+                      }}
+                    >
+                      <div
+                        className="absolute right-[10px] top-[10px]"
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      >
+                        <DropMenu
+                          className="w-6 h-6"
+                          direaction="vertical"
+                          list={[
+                            {
+                              label: (
+                                <span className="text-error">Delete Node</span>
+                              ),
+                              icon: (
+                                <IconDelete
+                                  className="text-error"
+                                  style={{ width: "20px", height: "20px" }}
+                                />
+                              ),
+                              data: v.node_id,
+                              onClick: (id) => setDeleteNodeId(id),
+                            },
+                          ]}
+                        />
+                      </div>
+                      <h4 className="text-base font-medium truncate pr-8">
+                        {v.display_name}
+                      </h4>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Badge variant="success">
+                          {String(v.network).toUpperCase()}
+                        </Badge>
+                        <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                          <div className=" opacity-50">
+                            <IconDisk
+                              style={{ width: "14px", height: "14px" }}
+                            />
+                          </div>
+                          <span className="text-xs">Local</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {contexts.length === 0 ? (
+              <div className="mt-3 bg-background-3 p-3 rounded-2xl">
+                <label className="text-base">No node found</label>
+                <div className="mt-2 text-xs text-secondary-foreground">
+                  Create a new node to get started with RGB Lightning Node
+                </div>
+              </div>
+            ) : null}
+          </div>
+          <div className="h-full ml-[208px]">
+            <div className="pt-[100px] px-6">
+              <div className="flex justify-center">
+                <img src="./icon.svg" width={80} height={80} />
+              </div>
+              <div className="mt-4 text-2xl font-bold text-center">
+                RGB LIGHTNING NODE
+              </div>
+              <div className="mt-4 mx-auto text-secondary-foreground text-base text-center">
+                Lightning Network with RGB protocol support.<br />
+                Set up a new node or connect to an existing instance.
+              </div>
+
+              <div className="mt-10 grid grid-cols-2 gap-5">
+                <div className="h-auto px-8 py-8 rounded-3xl bg-background-3 border border-background-2 hover:bg-background-2 justify-start text-left">
+                  <div className="w-[56px] h-[56px] flex items-center justify-center bg-background-3 rounded-2xl">
+                    <IconDisk style={{ width: "24px", height: "24px" }} />
+                  </div>
+                  <div className="mt-5 font-bold text-xl">Local Node</div>
+                  <div className="h-15 leading-5 mt-2 text-base font-normal text-secondary-foreground whitespace-break-spaces">
+                    Run a local node instance. Optimized for development and
+                    testing workflows.
+                  </div>
+                  <div className="mt-5">
+                    <Button
+                      variant="white"
+                      className="rounded-full"
+                      onClick={() => setStep("form")}
+                    >
+                      Setup Local Node
+                    </Button>
+                  </div>
+                </div>
+                <div className="h-auto px-8 py-8 rounded-2xl bg-background-3 border border-background-2 hover:bg-background-2 justify-start text-left">
+                  <div className="w-[56px] h-[56px] flex items-center justify-center bg-background-3 rounded-2xl">
+                    <IconCloud style={{ width: "24px", height: "24px" }} />
+                  </div>
+                  <div className="mt-5 font-bold text-xl">Remote Node</div>
+                  <div className="h-15 leading-5 mt-2 text-base font-normal text-secondary-foreground whitespace-break-spaces">
+                    Connect to a hosted or self-managed node instance. Suitable
+                    for production and scalable setups.
+                  </div>
+                  <div className="mt-5">
+                    <Button variant="white" className="rounded-full" disabled>
+                      Coming Soon
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Create local node */}
+      <Dialog
+        open={step === "form"}
+        onOpenChange={() => {
+          setStep("welcome");
+        }}
+      >
+        <DialogContent
+          overlayClassName="bg-background backdrop-blur-none"
+          className="w-[800px] bg-background-3"
+        >
+          <DialogHeader>
+            <DialogTitle>Create Node</DialogTitle>
+            <DialogDescription>
+              Configure your RGB Lightning Node. A Docker container will be
+              started with the selected network.
+            </DialogDescription>
+          </DialogHeader>
+
+          {DockerEnv}
+
+          <Field>
+            <FieldLabel>Node Name (Optional)</FieldLabel>
             <Input
-              type="text"
               placeholder="e.g. My Node"
               value={nodeName}
               onChange={(e) => setNodeName(e.target.value)}
-              className="border-white/20 bg-white/5 text-white placeholder:text-white/30 focus-visible:ring-emerald-400"
-              maxLength={64}
+              className="h-13 rounded-2xl text-[22px] bg-background-3"
             />
-          </div>
+          </Field>
 
           {/* Network selection */}
-          <div className="mt-4 space-y-2">
-            <Label className="text-sm text-white/85">Network</Label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <Field>
+            <FieldLabel>Network</FieldLabel>
+            <div className="flex gap-4">
               {NETWORK_OPTIONS.map((opt) => (
-                <button
+                <Button
                   key={opt.value}
-                  type="button"
+                  variant="default"
                   disabled={creatingNode || opt.enabled === false}
-                  onClick={() => setSelectedNetwork(opt.value)}
+                  onClick={() => setUserSelectNetwork(opt.value)}
                   className={[
-                    "flex items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-white/35",
-                    selectedNetwork === opt.value
-                      ? "border-emerald-400 bg-emerald-400/15 text-emerald-300"
-                      : "border-white/20 bg-white/5 text-white/70 hover:border-white/40 hover:bg-white/10",
+                    "font-medium rounded-full",
+                    userSelectNetwork === opt.value
+                      ? "bg-background-muted hover:bg-background-muted/90 border border-secondary-foreground"
+                      : "",
                   ].join(" ")}
                 >
                   {opt.iconSrc ? (
-                    <img src={opt.iconSrc} alt="" className="h-4 w-4" />
+                    <img src={opt.iconSrc} alt="" className="h-5 w-5" />
                   ) : null}
-                  {opt.label}
-                </button>
+                  {opt.label.toUpperCase()}
+                </Button>
               ))}
             </div>
-          </div>
+          </Field>
 
           {createNodeError ? (
-            <Alert variant="destructive" className="mt-4">
-              <AlertTitle>Failed to create node</AlertTitle>
+            <Alert variant="destructive">
               <AlertDescription>
-                {errorToText(createNodeError)}
+                <AlertTitle>Failed to create node</AlertTitle>
+                <div>
+                  {errorToText(createNodeError)}
+                </div>
               </AlertDescription>
             </Alert>
           ) : null}
 
-          <div className="mt-6 flex items-center justify-between gap-2">
+          <DialogFooter>
             <Button
+              variant="white"
               type="button"
-              variant="outline"
-              className="border-white/30 bg-white/5 text-white hover:bg-white/10"
-              onClick={() => setStep("welcome")}
-            >
-              Back
-            </Button>
-            <Button
-              type="button"
-              className="min-w-[180px]"
+              size="lg"
+              className="rounded-full w-full"
               disabled={!canCreate}
               onClick={async () => {
                 setProgress(5);
                 setStageIndex(0);
                 try {
                   await onCreateNode({
+                    ldkImage: LDK_IMAGE,
                     nodeName: nodeName.trim() || undefined,
-                    network: selectedNetwork,
-                    esploraUrl: selectedNetworkOption.esploraUrl,
+                    network: userSelectNetwork,
+                    esploraUrl: getNetworkOption(userSelectNetwork).esploraUrl,
                   });
                 } catch {
                   // Error is surfaced via createNodeError prop
@@ -305,87 +441,101 @@ export function InitialSetupPage({
             >
               Create Node
             </Button>
-          </div>
-        </div>
-      )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* ── Step 3: Creating (progress) ── */}
-      {step === "creating" && (
-        <div className="relative z-10 w-full max-w-3xl rounded-xl border border-white/15 bg-black/60 p-6 backdrop-blur">
-          <div className="text-xl font-semibold text-white">Creating Node</div>
-          <div className="mt-1 text-sm text-white/70">
-            Starting the Docker container and initialising the node. This may
-            take a minute on first run while the image is pulled.
-          </div>
+      {/* Creating & Done */}
+      <Dialog
+        open={step === "creating" || step === "done"}
+        onOpenChange={() => {
+          setStep("welcome");
+        }}
+      >
+        <DialogContent className="w-[800px]">
+          <DialogHeader>
+            <DialogTitle>Creating Node</DialogTitle>
+            <DialogDescription>
+              Configure your RGB Lightning Node. A Docker container will be
+              started with the selected network.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[500px] space-y-8 overflow-y-auto">
+            {DockerEnv}
 
-          <div className="mt-6 rounded-md border border-white/15 bg-white/5 p-3">
-            <div className="text-sm font-medium text-white">Progress</div>
-            <div className="mt-2 text-xs text-white/70">{stageName}</div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/15">
-              <div
-                className="h-full bg-emerald-400 transition-all duration-500 ease-out"
-                style={{ width: `${progress}%` }}
-              />
+            <div className="rounded-3xl bg-background-2 p-4">
+              <div className="text-lg font-medium">Setup Progress</div>
+              <div className="mt-4 text-base text-secondary-foreground">
+                {stageName}
+              </div>
+              <div className="mt-4 h-[6px] w-full overflow-hidden rounded-full bg-background-muted">
+                <div
+                  className="h-full bg-success transition-all duration-500 ease-out"
+                  style={{ width: step === "done" ? "100%" : `${progress}%` }}
+                />
+              </div>
+              <div className="mt-1 text-right text-xs text-white/70">
+                {step === "done" ? 100 : progress}%
+              </div>
             </div>
-            <div className="mt-1 text-right text-xs text-white/70">
-              {progress}%
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* ── Step 4: Done ── */}
-      {step === "done" && createNodeResult && (
-        <div className="relative z-10 w-full max-w-3xl rounded-xl border border-white/15 bg-black/60 p-6 backdrop-blur">
-          <div className="text-xl font-semibold text-emerald-400">
-            Node Ready
-          </div>
-          <div className="mt-1 text-sm text-white/70">
-            Your RGB Lightning Node has been created and is running.
-          </div>
-
-          <div className="mt-4 rounded-md border border-white/15 bg-white/5 p-3 text-xs text-white/70 space-y-1">
-            <div>
-              <span className="text-white/50">Name: </span>
-              {createNodeResult.display_name}
-            </div>
-            <div>
-              <span className="text-white/50">Node ID: </span>
-              {createNodeResult.node_id}
-            </div>
-            <div>
-              <span className="text-white/50">Main API: </span>
-              {createNodeResult.main_api_base_url}
-            </div>
-            <div>
-              <span className="text-white/50">Control API: </span>
-              {createNodeResult.control_api_base_url}
-            </div>
-            <div>
-              <span className="text-white/50">Container: </span>
-              {createNodeResult.container_name}
-            </div>
-          </div>
-
-          {/* Progress bar at 100% */}
-          <div className="mt-4 rounded-md border border-white/15 bg-white/5 p-3">
-            <div className="text-sm font-medium text-white">Progress</div>
-            <div className="mt-2 text-xs text-white/70">
-              Node created successfully
-            </div>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-white/15">
-              <div className="h-full bg-emerald-400 w-full transition-all duration-500 ease-out" />
-            </div>
-            <div className="mt-1 text-right text-xs text-white/70">100%</div>
+            {createNodeResult ? (
+              <div className="rounded-3xl bg-background-2 p-4">
+                <div className="text-lg font-medium">Setup Details</div>
+                <div className="mt-4 text-base text-secondary-foreground space-y-1">
+                  <div>
+                    <span className="text-">Name: </span>
+                    {createNodeResult?.display_name}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Node ID: </span>
+                    {createNodeResult?.node_id}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Main API: </span>
+                    {createNodeResult?.main_api_base_url}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Control API: </span>
+                    {createNodeResult?.control_api_base_url}
+                  </div>
+                  <div>
+                    <span className="text-white/50">Container: </span>
+                    {createNodeResult?.container_name}
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
-          <div className="mt-4">
-            <Button type="button" className="w-full" onClick={onEnterWallet}>
+          <DialogFooter>
+            <Button
+              variant="white"
+              type="button"
+              size="lg"
+              className="rounded-full w-full"
+              disabled={!canCreate}
+              onClick={() => onEnterWallet()}
+            >
               Enter Wallet
             </Button>
-          </div>
-        </div>
-      )}
-    </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Node */}
+      {deleteNodeId !== "" ? (
+        <DeleteNodeDialog
+          show
+          nodeId={deleteNodeId}
+          onClose={() => setDeleteNodeId("")}
+          pending={deleteNodeMutation.isPending}
+          onSubmit={async (id) => {
+            await deleteNodeMutation.mutate(id);
+            setDeleteNodeId("");
+          }}
+        />
+      ) : null}
+    </>
   );
 }

@@ -30,3 +30,4 @@ e2e-tests/artifacts
 *-2.docker-compose.yml
 vendor
 !.env.example
+nohup.out

@@ -44,10 +44,10 @@ impl ContextStore {
 			},
 		};
 
-	Ok(Self {
-		path,
-		data: Mutex::new(data),
-	})
+		Ok(Self {
+			path,
+			data: Mutex::new(data),
+		})
 	}
 
 	pub fn path(&self) -> &Path {
