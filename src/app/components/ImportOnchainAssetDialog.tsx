@@ -32,6 +32,10 @@ export default function ImportOnchainAsset(props: IProps) {
       }
 
       const config = getNetworkOption(node.network as BitcoinNetwork)
+      if(!config) {
+        throw new Error('Network not supported')
+      }
+
       const url = config.coreUrl
       if(!url) {
         throw new Error('Core URL not configured for this network')

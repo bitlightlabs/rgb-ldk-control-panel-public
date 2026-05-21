@@ -1,4 +1,4 @@
-use serde::ser::{SerializeStruct, Serializer};
+use serde::ser::{SerializeMap, SerializeStruct, Serializer};
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error, Clone)]
@@ -79,6 +79,15 @@ pub enum CommandError {
 		hint: Option<String>,
 	},
 
+	#[error("rgbldkd subcommand failed: {subcommand} (exit {exit_code})")]
+	SubcommandFailed {
+		subcommand: String,
+		exit_code: i32,
+		kind: Option<String>,
+		message: Option<String>,
+		hint: Option<String>,
+	},
+
 	#[error("invalid log level: {level}")]
 	InvalidLogLevel { level: String },
 }
@@ -88,6 +97,29 @@ impl serde::Serialize for CommandError {
 	where
 		S: Serializer,
 	{
+		// SubcommandFailed has extra structured fields (subcommand/exit_code/kind)
+		// so the frontend can route UI copy by exit code without parsing the message.
+		if let CommandError::SubcommandFailed {
+			subcommand,
+			exit_code,
+			kind,
+			message,
+			hint,
+		} = self
+		{
+			let msg = message
+				.clone()
+				.unwrap_or_else(|| format!("{subcommand} failed with exit {exit_code}"));
+			let mut st = serializer.serialize_map(Some(6))?;
+			st.serialize_entry("code", "subcommand_failed")?;
+			st.serialize_entry("message", &msg)?;
+			st.serialize_entry("hint", &hint.as_deref())?;
+			st.serialize_entry("subcommand", subcommand)?;
+			st.serialize_entry("exit_code", exit_code)?;
+			st.serialize_entry("kind", &kind.as_deref())?;
+			return st.end();
+		}
+
 		let (code, message, hint): (&str, String, Option<&str>) = match self {
 			CommandError::InvalidContext {
 				field,
@@ -207,6 +239,7 @@ impl serde::Serialize for CommandError {
 					.unwrap_or_else(|| format!("external command failed: {command}")),
 				hint.as_deref(),
 			),
+			CommandError::SubcommandFailed { .. } => unreachable!("handled above"),
 			CommandError::InvalidLogLevel { level } => (
 				"invalid_log_level",
 				format!("invalid log level: {level}"),

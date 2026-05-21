@@ -1,9 +1,11 @@
 // Domain types that are not provided by the local SDK types (or are backend-specific)
 
 export type NodeContext = {
-  /** context node alias, not pubkey */
+  /** primary key */
   node_id: string;
+  /** also node alias */
   display_name: string;
+  container_name: string;
   main_api_base_url: string;
   main_api_token_file_path?: string | null;
   control_api_base_url?: string | null;
@@ -13,12 +15,18 @@ export type NodeContext = {
   rgb_consignment_base_url?: string | null;
   allow_non_loopback?: boolean | null;
   network: string
+  password_hash: string;
+  /**
+   * Docker image tag the daemon container was started with. Used by the
+   * milestone1 wallet/backup CLI commands as the default image when the
+   * caller does not pass an override. May be `null` on contexts created
+   * before this field was added.
+   */
+  image?: string | null;
 };
 
 export type ControlStatusDto = {
-  ok: boolean;
   locked: boolean;
-  running: boolean;
 };
 
 export type EventsStatus = {
@@ -39,18 +47,6 @@ export type DockerEnvironmentResponse = {
   version?: string | null;
   detail?: string | null;
 };
-export type BootstrapLocalNodeResponse = {
-  node_id: string;
-  display_name: string;
-  container_name: string;
-  network: BitcoinNetwork;
-  main_api_base_url: string;
-  control_api_base_url: string;
-  main_api_port: number;
-  control_api_port: number;
-  p2p_port: number;
-  created: boolean;
-};
 export type BitcoinNetwork = "mainnet" | "testnet" | "testnet4" | "regtest";
 
 export type NetworkOption = {
@@ -61,6 +57,7 @@ export type NetworkOption = {
 
 export type BootstrapLocalNodeRequest = {
   ldkImage: string;
+  passwordHash: string;
   nodeName?: string;
   containerName?: string;
   mainApiPort?: number;

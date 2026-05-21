@@ -1,7 +1,13 @@
 import { useMemo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -54,16 +60,24 @@ function NodePicker({
             variant="outline"
             type="button"
             className="justify-between"
-            data-testid={`rgb-ln-picker-${label.toLowerCase().replace(/\s+/g, "-")}-trigger`}
+            data-testid={`rgb-ln-picker-${label
+              .toLowerCase()
+              .replace(/\s+/g, "-")}-trigger`}
           >
-            <span className="truncate">{active ? active.display_name : "Pick a node…"}</span>
-            <span className="ml-2 shrink-0 font-mono text-xs ui-muted">{active ? active.node_id.slice(0, 8) : ""}</span>
+            <span className="truncate">
+              {active ? active.display_name : "Pick a node…"}
+            </span>
+            <span className="ml-2 shrink-0 font-mono text-xs ui-muted">
+              {active ? active.node_id.slice(0, 8) : ""}
+            </span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           className="w-[520px]"
           align="start"
-          data-testid={`rgb-ln-picker-${label.toLowerCase().replace(/\s+/g, "-")}-menu`}
+          data-testid={`rgb-ln-picker-${label
+            .toLowerCase()
+            .replace(/\s+/g, "-")}-menu`}
         >
           <DropdownMenuLabel>Nodes</DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -78,21 +92,32 @@ function NodePicker({
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm">{c.display_name}</div>
-                  <div className="truncate font-mono text-xs ui-muted">{c.main_api_base_url}</div>
+                  <div className="truncate font-mono text-xs ui-muted">
+                    {c.main_api_base_url}
+                  </div>
                 </div>
               </DropdownMenuItem>
             ))
           )}
         </DropdownMenuContent>
         <div
-          style={{ position: "absolute", left: "-10000px", top: 0, width: 1, height: 1, opacity: 1 }}
+          style={{
+            position: "absolute",
+            left: "-10000px",
+            top: 0,
+            width: 1,
+            height: 1,
+            opacity: 1,
+          }}
           aria-hidden="true"
         >
           {contexts.map((c) => (
             <button
               key={c.node_id}
               type="button"
-              data-testid={`rgb-ln-picker-${label.toLowerCase().replace(/\s+/g, "-")}-hack-${c.node_id}`}
+              data-testid={`rgb-ln-picker-${label
+                .toLowerCase()
+                .replace(/\s+/g, "-")}-hack-${c.node_id}`}
               onClick={() => onChange(c.node_id)}
             />
           ))}
@@ -111,12 +136,18 @@ export function RgbLnPanel({
 }) {
   const otherNodeId = useMemo(
     () => contexts.find((c) => c.node_id !== activeNodeId)?.node_id ?? null,
-    [activeNodeId, contexts],
+    [activeNodeId, contexts]
   );
 
-  const [issuerNodeId, setIssuerNodeId] = useState<string | null>(activeNodeId ?? null);
-  const [receiverNodeId, setReceiverNodeId] = useState<string | null>(otherNodeId);
-  const [payerNodeId, setPayerNodeId] = useState<string | null>(activeNodeId ?? null);
+  const [issuerNodeId, setIssuerNodeId] = useState<string | null>(
+    activeNodeId ?? null
+  );
+  const [receiverNodeId, setReceiverNodeId] = useState<string | null>(
+    otherNodeId
+  );
+  const [payerNodeId, setPayerNodeId] = useState<string | null>(
+    activeNodeId ?? null
+  );
 
   useEffect(() => {
     if (activeNodeId) {
@@ -138,8 +169,12 @@ export function RgbLnPanel({
   const [issuedSupply, setIssuedSupply] = useState("1000000");
 
   const [issuedContractId, setIssuedContractId] = useState<string | null>(null);
-  const [issuedAssetContractId, setIssuedAssetContractId] = useState<string | null>(null);
-  const [lastExport, setLastExport] = useState<RgbContractsExportBundle | null>(null);
+  const [issuedAssetContractId, setIssuedAssetContractId] = useState<
+    string | null
+  >(null);
+  const [lastExport, setLastExport] = useState<RgbContractsExportBundle | null>(
+    null
+  );
 
   const issueMutation = useMutation({
     mutationFn: async () => {
@@ -174,7 +209,12 @@ export function RgbLnPanel({
     mutationFn: async () => {
       if (!receiverNodeId) throw new Error("Missing receiver node");
       if (!lastExport) throw new Error("Missing export bundle");
-      return nodeRgbContractImportBundle(receiverNodeId, lastExport.contract_id, lastExport.archive_base64, lastExport.format as any);
+      return nodeRgbContractImportBundle(
+        receiverNodeId,
+        lastExport.contract_id,
+        lastExport.archive_base64,
+        lastExport.format as any
+      );
     },
   });
 
@@ -182,7 +222,9 @@ export function RgbLnPanel({
     mutationFn: async (nodeId: string) => nodeRgbSync(nodeId),
   });
 
-  const [invoiceContractId, setInvoiceContractId] = useState<string | null>(issuedAssetContractId);
+  const [invoiceContractId, setInvoiceContractId] = useState<string | null>(
+    issuedAssetContractId
+  );
   const [invoiceAssetAmount, setInvoiceAssetAmount] = useState("1000");
   const [invoiceDesc, setInvoiceDesc] = useState("RGB LN transfer");
   const [invoiceExpiry, setInvoiceExpiry] = useState("600");
@@ -224,8 +266,12 @@ export function RgbLnPanel({
     },
   });
 
-  const [balanceContractId, setBalanceContractId] = useState<string | null>(null);
-  const [balances, setBalances] = useState<Record<string, RgbContractBalanceResponse>>({});
+  const [balanceContractId, setBalanceContractId] = useState<string | null>(
+    null
+  );
+  const [balances, setBalances] = useState<
+    Record<string, RgbContractBalanceResponse>
+  >({});
   useEffect(() => {
     if (!balanceContractId && issuedContractId) {
       setBalanceContractId(issuedContractId);
@@ -233,7 +279,13 @@ export function RgbLnPanel({
   }, [balanceContractId, issuedContractId]);
 
   const balanceMutation = useMutation({
-    mutationFn: async ({ nodeId, contractId }: { nodeId: string; contractId: string }) => {
+    mutationFn: async ({
+      nodeId,
+      contractId,
+    }: {
+      nodeId: string;
+      contractId: string;
+    }) => {
       return nodeRgbContractBalance(nodeId, contractId);
     },
     onSuccess: (resp, vars) => {
@@ -244,43 +296,76 @@ export function RgbLnPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-sm">RGB Lightning (BOLT-11) — RGB20</CardTitle>
-        <CardDescription>Issue → export/import → invoice → pay → balance check.</CardDescription>
+        <CardTitle className="text-sm">
+          RGB Lightning (BOLT-11) — RGB20
+        </CardTitle>
+        <CardDescription>
+          Issue → export/import → invoice → pay → balance check.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <NodePicker label="Issuer node" contexts={contexts} value={issuerNodeId} onChange={setIssuerNodeId} />
-          <NodePicker label="Receiver node" contexts={contexts} value={receiverNodeId} onChange={setReceiverNodeId} />
+          <NodePicker
+            label="Issuer node"
+            contexts={contexts}
+            value={issuerNodeId}
+            onChange={setIssuerNodeId}
+          />
+          <NodePicker
+            label="Receiver node"
+            contexts={contexts}
+            value={receiverNodeId}
+            onChange={setReceiverNodeId}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-3 rounded-md border ui-border p-3 md:grid-cols-2">
           <div className="grid gap-2">
             <Label>Issuer name</Label>
-            <Input value={issuerName} onChange={(e) => setIssuerName(e.currentTarget.value)} />
+            <Input
+              value={issuerName}
+              onChange={(e) => setIssuerName(e.currentTarget.value)}
+            />
           </div>
           <div className="grid gap-2">
             <Label>Contract name</Label>
-            <Input value={contractName} onChange={(e) => setContractName(e.currentTarget.value)} />
+            <Input
+              value={contractName}
+              onChange={(e) => setContractName(e.currentTarget.value)}
+            />
           </div>
           <div className="grid gap-2">
             <Label>Ticker</Label>
-            <Input value={ticker} onChange={(e) => setTicker(e.currentTarget.value)} placeholder="RGB20" />
+            <Input
+              value={ticker}
+              onChange={(e) => setTicker(e.currentTarget.value)}
+              placeholder="RGB20"
+            />
           </div>
           <div className="grid gap-2">
             <Label>Precision</Label>
-            <Input value={precision} onChange={(e) => setPrecision(e.currentTarget.value)} inputMode="numeric" />
+            <Input
+              value={precision}
+              onChange={(e) => setPrecision(e.currentTarget.value)}
+              inputMode="numeric"
+            />
           </div>
           <div className="grid gap-2">
             <Label>Issued supply</Label>
-            <Input value={issuedSupply} onChange={(e) => setIssuedSupply(e.currentTarget.value)} inputMode="numeric" />
+            <Input
+              value={issuedSupply}
+              onChange={(e) => setIssuedSupply(e.currentTarget.value)}
+              inputMode="numeric"
+            />
           </div>
           <div className="flex items-end">
             <Button
               type="button"
               onClick={() => issueMutation.mutate()}
               disabled={issueMutation.isPending || !issuerNodeId}
+              loading={issueMutation.isPending}
             >
-              {issueMutation.isPending ? "Issuing…" : "Issue asset"}
+              Issue asset
             </Button>
           </div>
         </div>
@@ -291,7 +376,10 @@ export function RgbLnPanel({
           </div>
         ) : null}
         {issuedContractId ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs" data-testid="contract-info">
+          <div
+            className="flex flex-wrap items-center gap-2 text-xs"
+            data-testid="contract-info"
+          >
             <Badge variant="secondary">contract_id</Badge>
             <span className="font-mono ui-muted" data-testid="contract-id">
               {issuedContractId}
@@ -311,7 +399,9 @@ export function RgbLnPanel({
           <Button
             variant="outline"
             type="button"
-            onClick={() => receiverNodeId && syncMutation.mutate(receiverNodeId)}
+            onClick={() =>
+              receiverNodeId && syncMutation.mutate(receiverNodeId)
+            }
             disabled={syncMutation.isPending || !receiverNodeId}
           >
             RGB sync receiver
@@ -319,28 +409,52 @@ export function RgbLnPanel({
           <Button
             type="button"
             onClick={() => exportMutation.mutate()}
-            disabled={exportMutation.isPending || !issuerNodeId || !issuedContractId}
+            disabled={
+              exportMutation.isPending || !issuerNodeId || !issuedContractId
+            }
+            loading={exportMutation.isPending}
           >
-            {exportMutation.isPending ? "Exporting…" : "Export contract"}
+            Export contract
           </Button>
           <Button
             variant="outline"
             type="button"
             onClick={() => importMutation.mutate()}
-            disabled={importMutation.isPending || !receiverNodeId || !lastExport}
+            disabled={
+              importMutation.isPending || !receiverNodeId || !lastExport
+            }
+            loading={importMutation.isPending}
           >
-            {importMutation.isPending ? "Importing…" : "Import to receiver"}
+            Import to receiver
           </Button>
         </div>
 
-        {exportMutation.isError ? <div className="text-sm ui-danger">{errorToText(exportMutation.error)}</div> : null}
-        {importMutation.isError ? <div className="text-sm ui-danger">{errorToText(importMutation.error)}</div> : null}
+        {exportMutation.isError ? (
+          <div className="text-sm ui-danger">
+            {errorToText(exportMutation.error)}
+          </div>
+        ) : null}
+        {importMutation.isError ? (
+          <div className="text-sm ui-danger">
+            {errorToText(importMutation.error)}
+          </div>
+        ) : null}
 
         <Separator />
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <NodePicker label="Invoice receiver" contexts={contexts} value={receiverNodeId} onChange={setReceiverNodeId} />
-          <NodePicker label="Invoice payer" contexts={contexts} value={payerNodeId} onChange={setPayerNodeId} />
+          <NodePicker
+            label="Invoice receiver"
+            contexts={contexts}
+            value={receiverNodeId}
+            onChange={setReceiverNodeId}
+          />
+          <NodePicker
+            label="Invoice payer"
+            contexts={contexts}
+            value={payerNodeId}
+            onChange={setPayerNodeId}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-3 rounded-md border ui-border p-3 md:grid-cols-2">
@@ -363,11 +477,18 @@ export function RgbLnPanel({
           </div>
           <div className="grid gap-2">
             <Label>description</Label>
-            <Input value={invoiceDesc} onChange={(e) => setInvoiceDesc(e.currentTarget.value)} />
+            <Input
+              value={invoiceDesc}
+              onChange={(e) => setInvoiceDesc(e.currentTarget.value)}
+            />
           </div>
           <div className="grid gap-2">
             <Label>expiry (secs)</Label>
-            <Input value={invoiceExpiry} onChange={(e) => setInvoiceExpiry(e.currentTarget.value)} inputMode="numeric" />
+            <Input
+              value={invoiceExpiry}
+              onChange={(e) => setInvoiceExpiry(e.currentTarget.value)}
+              inputMode="numeric"
+            />
           </div>
           <div className="grid gap-2">
             <Label>carrier amount (msat)</Label>
@@ -383,13 +504,18 @@ export function RgbLnPanel({
               type="button"
               onClick={() => createInvoiceMutation.mutate()}
               disabled={createInvoiceMutation.isPending || !receiverNodeId}
+              loading={createInvoiceMutation.isPending}
             >
-              {createInvoiceMutation.isPending ? "Creating…" : "Create RGB invoice"}
+              Create RGB invoice
             </Button>
           </div>
         </div>
 
-        {createInvoiceMutation.isError ? <div className="text-sm ui-danger">{errorToText(createInvoiceMutation.error)}</div> : null}
+        {createInvoiceMutation.isError ? (
+          <div className="text-sm ui-danger">
+            {errorToText(createInvoiceMutation.error)}
+          </div>
+        ) : null}
         {createdInvoice ? (
           <div className="grid gap-2">
             <Label>Invoice</Label>
@@ -398,7 +524,9 @@ export function RgbLnPanel({
               variant="outline"
               size="sm"
               type="button"
-              onClick={async () => navigator.clipboard.writeText(createdInvoice)}
+              onClick={async () =>
+                navigator.clipboard.writeText(createdInvoice)
+              }
             >
               Copy invoice
             </Button>
@@ -407,14 +535,21 @@ export function RgbLnPanel({
 
         <div className="grid gap-2">
           <Label>Pay invoice</Label>
-          <Input value={payInvoice} onChange={(e) => setPayInvoice(e.currentTarget.value)} placeholder="rgb invoice" />
+          <Input
+            value={payInvoice}
+            onChange={(e) => setPayInvoice(e.currentTarget.value)}
+            placeholder="rgb invoice"
+          />
           <div className="flex items-center gap-2">
             <Button
               type="button"
               onClick={() => payMutation.mutate()}
-              disabled={payMutation.isPending || !payerNodeId || !payInvoice.trim()}
+              disabled={
+                payMutation.isPending || !payerNodeId || !payInvoice.trim()
+              }
+              loading={payMutation.isPending}
             >
-              {payMutation.isPending ? "Paying…" : "Pay RGB invoice"}
+              Pay RGB invoice
             </Button>
             {payMutation.isSuccess ? (
               <Badge variant="success" data-testid="pay-success">
@@ -444,16 +579,36 @@ export function RgbLnPanel({
             <Button
               variant="outline"
               type="button"
-              onClick={() => issuerNodeId && balanceContractId && balanceMutation.mutate({ nodeId: issuerNodeId, contractId: balanceContractId })}
-              disabled={balanceMutation.isPending || !issuerNodeId || !balanceContractId}
+              onClick={() =>
+                issuerNodeId &&
+                balanceContractId &&
+                balanceMutation.mutate({
+                  nodeId: issuerNodeId,
+                  contractId: balanceContractId,
+                })
+              }
+              disabled={
+                balanceMutation.isPending || !issuerNodeId || !balanceContractId
+              }
             >
               Check issuer balance
             </Button>
             <Button
               variant="outline"
               type="button"
-              onClick={() => receiverNodeId && balanceContractId && balanceMutation.mutate({ nodeId: receiverNodeId, contractId: balanceContractId })}
-              disabled={balanceMutation.isPending || !receiverNodeId || !balanceContractId}
+              onClick={() =>
+                receiverNodeId &&
+                balanceContractId &&
+                balanceMutation.mutate({
+                  nodeId: receiverNodeId,
+                  contractId: balanceContractId,
+                })
+              }
+              disabled={
+                balanceMutation.isPending ||
+                !receiverNodeId ||
+                !balanceContractId
+              }
             >
               Check receiver balance
             </Button>
@@ -464,12 +619,14 @@ export function RgbLnPanel({
           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             {issuerNodeId && balances[issuerNodeId] ? (
               <pre className="rounded-md border ui-border ui-muted-30 p-2 text-xs">
-                issuer: {JSON.stringify(balances[issuerNodeId].balance, null, 2)}
+                issuer:{" "}
+                {JSON.stringify(balances[issuerNodeId].balance, null, 2)}
               </pre>
             ) : null}
             {receiverNodeId && balances[receiverNodeId] ? (
               <pre className="rounded-md border ui-border ui-muted-30 p-2 text-xs">
-                receiver: {JSON.stringify(balances[receiverNodeId].balance, null, 2)}
+                receiver:{" "}
+                {JSON.stringify(balances[receiverNodeId].balance, null, 2)}
               </pre>
             ) : null}
           </div>

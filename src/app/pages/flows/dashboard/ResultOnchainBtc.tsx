@@ -25,15 +25,15 @@ export default function ResultOnchainBtc(props: IProps) {
   }
 
   return (
-    <div>
+    <div className="pt-3">
       <div className="w-[280px] h-[280px] mx-auto rounded-xl overflow-hidden">
         <QRCodeSVG value={props.address} size={280} marginSize={2} />
       </div>
-      <div className="mt-6 p-4 flex flex-col gap-4 bg-background-3 rounded-2xl">
+      <div className="mt-6 p-4 flex flex-col gap-2 bg-background-3 rounded-2xl">
         <div className="text-base text-secondary-foreground">On-chain Address</div>
         <div className="text-base break-all">{processColor(props.address)}</div>
       </div>
-      <div className="mt-10">
+      <div className="mt-8">
         <Button
           type="button"
           variant="outline"

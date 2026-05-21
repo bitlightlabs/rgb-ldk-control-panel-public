@@ -11,6 +11,7 @@ export function AppProviders({ children }: PropsWithChildren) {
       document.documentElement.classList.remove("dark");
     };
   }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>

@@ -232,7 +232,7 @@ export function DashboardPage({
 
   const healthOk = mainHealthzQuery.data?.ok ?? null;
   const readyOk = mainReadyzQuery.data?.ok ?? null;
-  const controlOk = controlStatusQuery.data?.ok ?? null;
+  const controlOk = controlStatusQuery.isError ? false : controlStatusQuery.data ? true : null;
 
   return (
     <div className="space-y-4">
@@ -341,7 +341,7 @@ export function DashboardPage({
               <span className="ui-muted">status</span>
               <HealthBadge ok={mainStatusQuery.isError ? false : mainStatusQuery.data ? true : null} />
               <span className="ui-muted">control</span>
-              <HealthBadge ok={controlConfigured ? controlOk : null} />
+              <HealthBadge ok={controlConfigured ? !!controlOk : null} />
             </div>
           </div>
 

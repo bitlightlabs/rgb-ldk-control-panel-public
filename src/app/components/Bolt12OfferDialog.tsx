@@ -1,7 +1,14 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,8 +53,14 @@ export function Bolt12OfferDialog({
   const [payerNodeId, setPayerNodeId] = useState<string>(defaultPayerNodeId);
   const [payeeNodeId, setPayeeNodeId] = useState<string | null>(null);
 
-  const payer = useMemo(() => contexts.find((c) => c.node_id === payerNodeId) ?? null, [contexts, payerNodeId]);
-  const payee = useMemo(() => contexts.find((c) => c.node_id === payeeNodeId) ?? null, [contexts, payeeNodeId]);
+  const payer = useMemo(
+    () => contexts.find((c) => c.node_id === payerNodeId) ?? null,
+    [contexts, payerNodeId]
+  );
+  const payee = useMemo(
+    () => contexts.find((c) => c.node_id === payeeNodeId) ?? null,
+    [contexts, payeeNodeId]
+  );
 
   const [mode, setMode] = useState<"fixed" | "variable">("fixed");
   const [amountMsat, setAmountMsat] = useState("100000");
@@ -62,7 +75,9 @@ export function Bolt12OfferDialog({
   useEffect(() => {
     if (!open) return;
     setPayerNodeId(defaultPayerNodeId);
-    setPayeeNodeId(contexts.find((c) => c.node_id !== defaultPayerNodeId)?.node_id ?? null);
+    setPayeeNodeId(
+      contexts.find((c) => c.node_id !== defaultPayerNodeId)?.node_id ?? null
+    );
     setMode("fixed");
     setAmountMsat("100000");
     setDescription("offer");
@@ -83,7 +98,8 @@ export function Bolt12OfferDialog({
 
   const offerDecodeQuery = useQuery({
     queryKey: ["bolt12_offer_decode", payerNodeId, createdOffer],
-    queryFn: async () => nodeBolt12OfferDecode(payerNodeId, { offer: createdOffer! }),
+    queryFn: async () =>
+      nodeBolt12OfferDecode(payerNodeId, { offer: createdOffer! }),
     enabled: !!createdOffer,
     retry: 0,
   });
@@ -93,7 +109,10 @@ export function Bolt12OfferDialog({
       const ex = expiryValue;
       const offerResp =
         mode === "variable"
-          ? await nodeBolt12OfferReceiveVar(payeeNodeId!, { description: description.trim(), expiry_secs: ex })
+          ? await nodeBolt12OfferReceiveVar(payeeNodeId!, {
+              description: description.trim(),
+              expiry_secs: ex,
+            })
           : await nodeBolt12OfferReceive(payeeNodeId!, {
               amount_msat: u64(amountMsat.trim()),
               description: description.trim(),
@@ -121,7 +140,9 @@ export function Bolt12OfferDialog({
   const waitMutation = useMutation({
     mutationFn: async ({ timeoutSecs }: { timeoutSecs: number }) => {
       if (!lastPaymentId) throw new Error("missing payment_id");
-      return nodePaymentWait(payerNodeId, lastPaymentId, { timeout_secs: timeoutSecs });
+      return nodePaymentWait(payerNodeId, lastPaymentId, {
+        timeout_secs: timeoutSecs,
+      });
     },
   });
 
@@ -135,7 +156,8 @@ export function Bolt12OfferDialog({
   const validationError = useMemo(() => {
     if (!payer) return "Missing payer node.";
     if (!payee) return "Pick a payee node.";
-    if (payer.node_id === payee.node_id) return "Payer and payee must be different nodes.";
+    if (payer.node_id === payee.node_id)
+      return "Payer and payee must be different nodes.";
     if (!description.trim()) return "Description is required.";
     const ex = expirySecs.trim();
     if (ex && !isDigits(ex)) return "Expiry must be seconds (u32).";
@@ -158,7 +180,9 @@ export function Bolt12OfferDialog({
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>BOLT12 Offer</DialogTitle>
-          <DialogDescription>Create an offer on the payee and pay it from the payer (async).</DialogDescription>
+          <DialogDescription>
+            Create an offer on the payee and pay it from the payer (async).
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
@@ -167,19 +191,32 @@ export function Bolt12OfferDialog({
               <Label>Payer (source)</Label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" type="button" className="justify-between">
-                    <span className="truncate">{payer ? payer.display_name : payerNodeId}</span>
-                    <span className="ml-2 shrink-0 font-mono text-xs ui-muted">{payerNodeId.slice(0, 12)}</span>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="justify-between"
+                  >
+                    <span className="truncate">
+                      {payer ? payer.display_name : payerNodeId}
+                    </span>
+                    <span className="ml-2 shrink-0 font-mono text-xs ui-muted">
+                      {payerNodeId.slice(0, 12)}
+                    </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[520px]">
                   <DropdownMenuLabel>Pick payer</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {contexts.map((c) => (
-                    <DropdownMenuItem key={c.node_id} onClick={() => setPayerNodeId(c.node_id)}>
+                    <DropdownMenuItem
+                      key={c.node_id}
+                      onClick={() => setPayerNodeId(c.node_id)}
+                    >
                       <div className="min-w-0">
                         <div className="truncate text-sm">{c.display_name}</div>
-                        <div className="truncate font-mono text-xs ui-muted">{c.main_api_base_url}</div>
+                        <div className="truncate font-mono text-xs ui-muted">
+                          {c.main_api_base_url}
+                        </div>
                       </div>
                     </DropdownMenuItem>
                   ))}
@@ -191,9 +228,17 @@ export function Bolt12OfferDialog({
               <Label>Payee (destination)</Label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" type="button" className="justify-between">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="justify-between"
+                  >
                     <span className="truncate">
-                      {payee ? payee.display_name : contexts.length > 1 ? "Pick a node…" : "Need at least 2 nodes"}
+                      {payee
+                        ? payee.display_name
+                        : contexts.length > 1
+                        ? "Pick a node…"
+                        : "Need at least 2 nodes"}
                     </span>
                     <span className="ml-2 shrink-0 font-mono text-xs ui-muted">
                       {payeeNodeId ? payeeNodeId.slice(0, 12) : ""}
@@ -206,10 +251,17 @@ export function Bolt12OfferDialog({
                   {contexts
                     .filter((c) => c.node_id !== payerNodeId)
                     .map((c) => (
-                      <DropdownMenuItem key={c.node_id} onClick={() => setPayeeNodeId(c.node_id)}>
+                      <DropdownMenuItem
+                        key={c.node_id}
+                        onClick={() => setPayeeNodeId(c.node_id)}
+                      >
                         <div className="min-w-0">
-                          <div className="truncate text-sm">{c.display_name}</div>
-                          <div className="truncate font-mono text-xs ui-muted">{c.main_api_base_url}</div>
+                          <div className="truncate text-sm">
+                            {c.display_name}
+                          </div>
+                          <div className="truncate font-mono text-xs ui-muted">
+                            {c.main_api_base_url}
+                          </div>
                         </div>
                       </DropdownMenuItem>
                     ))}
@@ -222,11 +274,18 @@ export function Bolt12OfferDialog({
             <div className="space-y-1">
               <div className="text-sm font-semibold">Offer mode</div>
               <div className="text-xs ui-muted">
-                {mode === "fixed" ? "Fixed amount offer." : "Zero amount offer (payer supplies amount)."}
+                {mode === "fixed"
+                  ? "Fixed amount offer."
+                  : "Zero amount offer (payer supplies amount)."}
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant={mode === "fixed" ? "default" : "outline"} size="sm" type="button" onClick={() => setMode("fixed")}>
+              <Button
+                variant={mode === "fixed" ? "default" : "outline"}
+                size="sm"
+                type="button"
+                onClick={() => setMode("fixed")}
+              >
                 Fixed
               </Button>
               <Button
@@ -254,7 +313,9 @@ export function Bolt12OfferDialog({
               </div>
             ) : (
               <div className="grid gap-2">
-                <Label htmlFor="offer_send_amount_msat">Send amount (msat)</Label>
+                <Label htmlFor="offer_send_amount_msat">
+                  Send amount (msat)
+                </Label>
                 <Input
                   id="offer_send_amount_msat"
                   className="font-mono"
@@ -266,7 +327,9 @@ export function Bolt12OfferDialog({
               </div>
             )}
             <div className="grid gap-2">
-              <Label htmlFor="offer_expiry_secs">Offer expiry (secs, optional)</Label>
+              <Label htmlFor="offer_expiry_secs">
+                Offer expiry (secs, optional)
+              </Label>
               <Input
                 id="offer_expiry_secs"
                 className="font-mono"
@@ -280,12 +343,20 @@ export function Bolt12OfferDialog({
 
           <div className="grid gap-2">
             <Label htmlFor="offer_desc">Description</Label>
-            <Input id="offer_desc" value={description} onChange={(e) => setDescription(e.currentTarget.value)} />
+            <Input
+              id="offer_desc"
+              value={description}
+              onChange={(e) => setDescription(e.currentTarget.value)}
+            />
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="offer_payer_note">Payer note (optional)</Label>
-            <Input id="offer_payer_note" value={payerNote} onChange={(e) => setPayerNote(e.currentTarget.value)} />
+            <Input
+              id="offer_payer_note"
+              value={payerNote}
+              onChange={(e) => setPayerNote(e.currentTarget.value)}
+            />
           </div>
 
           {validationError ? (
@@ -296,7 +367,9 @@ export function Bolt12OfferDialog({
 
           {createAndSendMutation.isError ? (
             <Alert variant="destructive">
-              <AlertDescription>{errorToText(createAndSendMutation.error)}</AlertDescription>
+              <AlertDescription>
+                {errorToText(createAndSendMutation.error)}
+              </AlertDescription>
             </Alert>
           ) : null}
 
@@ -316,10 +389,19 @@ export function Bolt12OfferDialog({
                 </Button>
               </div>
               <Separator className="my-2" />
-              <Textarea className="font-mono text-xs" value={createdOffer} readOnly rows={4} />
+              <Textarea
+                className="font-mono text-xs"
+                value={createdOffer}
+                readOnly
+                rows={4}
+              />
               {offerDecodeQuery.isSuccess ? (
                 <div className="mt-2 text-xs ui-muted">
-                  decoded amount_msat={offerDecodeQuery.data.amount_msat ? offerDecodeQuery.data.amount_msat.toString() : "variable"} • paths={offerDecodeQuery.data.paths_count}
+                  decoded amount_msat=
+                  {offerDecodeQuery.data.amount_msat
+                    ? offerDecodeQuery.data.amount_msat.toString()
+                    : "variable"}{" "}
+                  • paths={offerDecodeQuery.data.paths_count}
                 </div>
               ) : null}
             </div>
@@ -335,9 +417,10 @@ export function Bolt12OfferDialog({
                     size="sm"
                     type="button"
                     disabled={waitMutation.isPending}
+                    loading={waitMutation.isPending}
                     onClick={() => waitMutation.mutate({ timeoutSecs: 60 })}
                   >
-                    {waitMutation.isPending ? "Waiting..." : "Wait 60s"}
+                    Wait 60s
                   </Button>
                   <Button
                     variant="destructive"
@@ -352,7 +435,9 @@ export function Bolt12OfferDialog({
               </div>
               <Separator className="my-2" />
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <code className="max-w-full truncate rounded-md border ui-border ui-surface-40 px-2 py-1 text-xs">{lastPaymentId}</code>
+                <code className="max-w-full truncate rounded-md border ui-border ui-surface-40 px-2 py-1 text-xs">
+                  {lastPaymentId}
+                </code>
                 <Button
                   variant="outline"
                   size="sm"
@@ -367,11 +452,19 @@ export function Bolt12OfferDialog({
 
               {waitMutation.data ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs ui-muted">
-                  <Badge variant={waitMutation.data.payment.status === "Succeeded" ? "default" : "secondary"}>
+                  <Badge
+                    variant={
+                      waitMutation.data.payment.status === "Succeeded"
+                        ? "default"
+                        : "secondary"
+                    }
+                  >
                     {waitMutation.data.payment.status}
                   </Badge>
                   <span>
-                    amount_msat={waitMutation.data.payment.amount_msat?.toString() ?? "—"} fee_msat=
+                    amount_msat=
+                    {waitMutation.data.payment.amount_msat?.toString() ?? "—"}{" "}
+                    fee_msat=
                     {waitMutation.data.payment.fee_paid_msat?.toString() ?? "—"}
                   </span>
                 </div>
@@ -379,13 +472,17 @@ export function Bolt12OfferDialog({
 
               {waitMutation.isError ? (
                 <Alert className="mt-8" variant="destructive">
-                  <AlertDescription>{errorToText(waitMutation.error)}</AlertDescription>
+                  <AlertDescription>
+                    {errorToText(waitMutation.error)}
+                  </AlertDescription>
                 </Alert>
               ) : null}
 
               {abandonMutation.isError ? (
                 <Alert className="mt-8" variant="destructive">
-                  <AlertDescription>{errorToText(abandonMutation.error)}</AlertDescription>
+                  <AlertDescription>
+                    {errorToText(abandonMutation.error)}
+                  </AlertDescription>
                 </Alert>
               ) : null}
             </div>
@@ -393,11 +490,21 @@ export function Bolt12OfferDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={createAndSendMutation.isPending}>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => onOpenChange(false)}
+            disabled={createAndSendMutation.isPending}
+          >
             Close
           </Button>
-          <Button type="button" disabled={createAndSendMutation.isPending || !!validationError} onClick={() => createAndSendMutation.mutate()}>
-            {createAndSendMutation.isPending ? "Sending..." : "Create offer + send"}
+          <Button
+            type="button"
+            disabled={createAndSendMutation.isPending || !!validationError}
+            loading={createAndSendMutation.isPending}
+            onClick={() => createAndSendMutation.mutate()}
+          >
+            Create offer + send
           </Button>
         </DialogFooter>
       </DialogContent>

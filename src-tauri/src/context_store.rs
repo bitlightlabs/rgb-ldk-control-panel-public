@@ -8,6 +8,7 @@ use crate::app_dirs;
 pub struct NodeContext {
 	pub node_id: String,
 	pub display_name: String,
+	pub container_name: String,
 	pub main_api_base_url: String,
 	pub main_api_token_file_path: Option<String>,
 	pub control_api_base_url: Option<String>,
@@ -18,6 +19,21 @@ pub struct NodeContext {
 	#[serde(default)]
 	pub allow_non_loopback: bool,
 	pub network: String,
+	pub password_hash: String,
+	/// Docker image tag the node's long-running daemon container was started
+	/// with. milestone1 wallet/backup CLI commands default to this image when
+	/// the caller does not pass an override, so the frontend doesn't need to
+	/// track the tag separately. `None` on contexts created before this field
+	/// existed — those callers must pass `image` explicitly.
+	#[serde(default)]
+	pub image: Option<String>,
+	/// Esplora REST URL the daemon should use for chain access (passed to
+	/// rgbldkd as `--esplora-url`). Stored on the context so the node can be
+	/// restarted via `node_run_cli` without the frontend having to remember
+	/// it. `None` on contexts created before this field existed — those nodes
+	/// can only be (re-)started via a path that supplies the URL explicitly.
+	#[serde(default)]
+	pub esplora_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

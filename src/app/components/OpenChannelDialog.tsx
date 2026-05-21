@@ -578,9 +578,10 @@ export function OpenChannelDialog({
           <Button
             type="button"
             disabled={openMutation.isPending || !!validationError}
+            loading={openMutation.isPending}
             onClick={() => openMutation.mutate()}
           >
-            {openMutation.isPending ? "Opening..." : "Open channel"}
+            Open channel
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -54,7 +54,7 @@ export default function SendOfferConfirm(props: IProps) {
             onChange={(e) => setOfferAmountMsat(e.currentTarget.value)}
             placeholder="20"
             inputMode="numeric"
-            className="h-14 rounded-2xl text-[22px] font-bold"
+            className="h-14 rounded-2xl"
             action={<span className="text-base">sats</span>}
             // bottom={
             //   <span className="text-sm font-normal">Available: 10 BTC</span>

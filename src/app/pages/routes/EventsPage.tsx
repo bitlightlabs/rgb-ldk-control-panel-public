@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useNodeStore } from "@/app/stores/nodeStore";
 import type { StoredEvent } from "@/lib/domain";
 import {
   eventsClear,
@@ -26,6 +25,7 @@ import {
   nodeMainStatus,
 } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
+import { useContextStore } from "@/app/stores/contextStore";
 
 type EventGroup =
   | "payment"
@@ -98,7 +98,7 @@ function typeKeyOf(ev: StoredEvent): string {
 
 export function EventsPage() {
   const queryClient = useQueryClient();
-  const activeNodeId = useNodeStore((s) => s.activeNodeId);
+  const currentContext = useContextStore((s) => s.currentContext);
   const [tailLimit, setTailLimit] = useState(200);
   const [tailFilter, setTailFilter] = useState("");
   const [tailFollow, setTailFollow] = useState(true);
@@ -114,6 +114,8 @@ export function EventsPage() {
     http_error: false,
     other: false,
   });
+
+  const activeNodeId = currentContext?.node_id ?? '';
 
   const eventsStatusQuery = useQuery({
     queryKey: ["events_status", activeNodeId],

@@ -81,7 +81,7 @@ export function TransferDialog({
   const transferMutation = useMutation({
     mutationFn: async () => {
       const invoiceResp = await nodeBolt11Receive(payeeNodeId!, {
-        amount_msat: u64(amountMsat.trim()),
+        amount_msat: BigInt(amountMsat.trim()).toString(),
         description: description.trim(),
         expiry_secs: Number(expirySecs.trim()),
       });

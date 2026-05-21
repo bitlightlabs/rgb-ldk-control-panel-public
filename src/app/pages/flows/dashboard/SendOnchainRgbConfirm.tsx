@@ -47,7 +47,7 @@ export default function SendOnchainRGBConfirm(props: IProps) {
           onChange={(e) => changeFeeRage(e.currentTarget.value)}
           placeholder="20"
           inputMode="numeric"
-          className="h-13 rounded-2xl text-[22px] font-bold"
+          className="h-13 rounded-2xl"
         />
       </Field>
 

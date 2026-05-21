@@ -1,5 +1,6 @@
 mod commands;
 mod app_dirs;
+mod cli_spawn;
 mod context_store;
 mod error;
 mod events_manager;
@@ -7,6 +8,9 @@ mod logger;
 mod rgbldkd_http;
 mod wallet;
 mod util;
+mod mem_cache;
+mod constant;
+mod ensure_image;
 
 use context_store::ContextStore;
 use events_manager::EventsManager;
@@ -14,9 +18,7 @@ use logger::FileLogger;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tauri::{
-    AppHandle, Manager,
-    tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
-    menu::{Menu, MenuItem, PredefinedMenuItem},
+    AppHandle, Manager, menu::{Menu, MenuItem, PredefinedMenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 };
 
 pub struct AppState {
@@ -25,6 +27,7 @@ pub struct AppState {
 	pub(crate) events: EventsManager,
 	pub(crate) logger: FileLogger,
 	pub(crate) http_event_debug_responses: Arc<RwLock<bool>>,
+	// pub(crate) mem_cache: mem_cache::Cache,
 }
 
 impl AppState {
@@ -40,6 +43,7 @@ impl AppState {
 			events: EventsManager::new(),
 			logger: FileLogger::new_default().expect("failed to init file logger"),
 			http_event_debug_responses: Arc::new(RwLock::new(false)),
+			// mem_cache: mem_cache::Cache::new(),
 		}
 	}
 }
@@ -51,23 +55,26 @@ pub fn run() {
 				create_tray(app)?;
 				Ok(())
 		})
-		.on_window_event(|window, event| {
-				if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-						// Intercept close requests
-						api.prevent_close();
-						window.hide().unwrap();
-				}
-		})
+		// Frontend intercept close requests to hide the window.
+		// .on_window_event(|window, event| {
+		// 		if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+		// 				// Intercept close requests
+		// 				api.prevent_close();
+		// 				window.hide().unwrap();
+		// 		}
+		// })
 		.manage(AppState::new())
+		.manage(mem_cache::Cache::new())
 		.plugin(tauri_plugin_opener::init())
 		.plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_dialog::init())
-		.plugin(tauri_plugin_clipboard_manager::init());
+		.plugin(tauri_plugin_clipboard_manager::init())
+		.plugin(tauri_plugin_store::Builder::default().build());
 
 	#[cfg(debug_assertions)]
 	let builder = builder.plugin(tauri_plugin_webdriver::init());
 
-	builder.invoke_handler(tauri::generate_handler![
+	let app = builder.invoke_handler(tauri::generate_handler![
 			commands::contexts_list,
 			commands::contexts_reload,
 			commands::contexts_path,
@@ -87,6 +94,7 @@ pub fn run() {
 			commands::log_ui,
 			commands::docker_environment,
 			commands::bootstrap_local_node,
+			commands::prepare_node_resources,
 			commands::bootstrap_local_environment,
 			commands::node_main_http,
 			commands::node_main_status,
@@ -149,9 +157,43 @@ pub fn run() {
 			commands::node_rgb_descriptor,
 			commands::node_rgb_sign_message,
 			commands::download_transfer_consignment_from_link_no_verify,
+			mem_cache::mem_cache_get,
+			mem_cache::mem_cache_set,
+			mem_cache::mem_cache_remove,
+			commands::node_rgb_ln_invoice_decode,
+			// commands::node_rgb_cli_wallet_new_mnemonic,
+			// commands::node_rgb_cli_wallet_init,
+			// commands::node_rgb_cli_wallet_backup_export,
+			// commands::node_rgb_cli_wallet_backup_import,
+			commands::node_run_cli,
+			commands::wallet_new_mnemonic_cli,
+			commands::wallet_init_cli,
+			commands::wallet_show_mnemonic_cli,
+			commands::backup_export_cli,
+			commands::backup_import_cli,
+			commands::backup_inspect_archive_cli,
+			commands::hash_password,
+			commands::verify_password,
+			ensure_image::ensure_docker_image,
 		])
-		.run(tauri::generate_context!())
+		.build(tauri::generate_context!())
 		.expect("error while running tauri application");
+
+	// Reopen
+	app.run(|app_handle, event| {
+			match event {
+					#[cfg(target_os = "macos")]
+					tauri::RunEvent::Reopen {
+							has_visible_windows,
+							..
+					} => {
+							if !has_visible_windows {
+									show_window(app_handle);
+							}
+					}
+					_ => {}
+			}
+	});
 }
 
 fn create_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -188,6 +230,6 @@ fn show_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
-        // let _ = w.set_focus();
+        let _ = w.set_focus();
     }
 }

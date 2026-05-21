@@ -1,11 +1,12 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { node_rgb_utxos_summary } from "@/lib/commands"
 import { useEffect, useState } from "react"
-import { useNodeStore } from "../stores/nodeStore";
+import { useContextStore } from "../stores/contextStore";
 
 export default function RgbUtxoSelect(props: {onChangeUtxo: (utxo: string) => void}) {
   const [utxos, setUtxos] = useState<{outpoint: string, value_sats: number}[]>([])
-  const activeNodeId = useNodeStore((s) => s.activeNodeId);
+  const currentContext = useContextStore((s) => s.currentContext);
+  const activeNodeId = currentContext?.node_id;
 
   const loadUtxos = async () => {
     try {

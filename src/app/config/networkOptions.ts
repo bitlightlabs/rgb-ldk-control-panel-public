@@ -5,7 +5,7 @@ import type { BitcoinNetwork, NetworkOption } from "@/lib/domain";
 
 export type AppNetworkOption = NetworkOption & {
     iconSrc?: string;
-    coreUrl?: string;
+    coreUrl: string;
     enabled?: boolean;
     explorerUrl?: string;
 };
@@ -18,6 +18,9 @@ export const NETWORK_OPTIONS: AppNetworkOption[] = [
             import.meta.env.VITE_BITCOIN_API ??
             "https://bitcoin-mainnet-api.bitlightdev.info",
         enabled: false,
+        coreUrl:
+            import.meta.env.VITE_BITCOIN_CORE_API ??
+            '',
         iconSrc: mainnetIcon,
     },
 
@@ -28,6 +31,9 @@ export const NETWORK_OPTIONS: AppNetworkOption[] = [
             import.meta.env.VITE_TESTNET4_API ??
             "https://testnet4-api.dev.bitlightdev.info",
         enabled: false,
+        coreUrl:
+            import.meta.env.VITE_TESTNET4_CORE_API ??
+            '',
         iconSrc: testnet4Icon,
     },
     {
@@ -49,6 +55,11 @@ export function getDefaultNetworkOption(): AppNetworkOption {
     return NETWORK_OPTIONS.find((item) => item.enabled !== false) ?? NETWORK_OPTIONS[0];
 }
 
-export function getNetworkOption(value: BitcoinNetwork | null): AppNetworkOption {
-    return NETWORK_OPTIONS.find((item) => item.value === value) ?? getDefaultNetworkOption();
+export function getNetworkOption(value: BitcoinNetwork | null): AppNetworkOption | null {
+    const config = NETWORK_OPTIONS.find((item) => item.value === value);
+    if(!config) {
+        return null;
+    }
+
+    return config;
 }

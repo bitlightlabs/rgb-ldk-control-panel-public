@@ -11,10 +11,7 @@ export interface UnlockedStatusDto {
 }
 
 export interface LockedStatusDto {
-  ok: boolean;
   locked: true;
-  running: boolean;
-  checks?: HealthCheckDto[];
 }
 
 export type StatusDto = UnlockedStatusDto | LockedStatusDto;
@@ -112,7 +109,7 @@ export interface CloseChannelRequest {
 }
 
 export interface Bolt11ReceiveRequest {
-  amount_msat: U64;
+  amount_msat: string;
   description: string;
   expiry_secs: number;
 }
@@ -414,7 +411,7 @@ export interface Bolt12OfferDecodeResponse {
 
 export interface Bolt12OfferSendRequest {
   offer: string;
-  amount_msat?: U64 | null;
+  amount_msat?: U64 | string | null;
   quantity?: U64 | null;
   payer_note?: string | null;
 }

@@ -30,7 +30,7 @@ export default function RGBInvoiceForm(props: IProps) {
   const selectedRgbContract = contracts.find(c => c.contract_id === selectedContractId)
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <Field>
         <FieldLabel>
           Asset
@@ -51,7 +51,7 @@ export default function RGBInvoiceForm(props: IProps) {
           }
           inputMode="numeric"
           placeholder="21"
-          className="h-14 rounded-2xl text-[22px] font-bold"
+          className="h-14 rounded-2xl"
           action={
             <>
               <span className="text-base">{selectedRgbContract?.name}</span>
@@ -70,7 +70,7 @@ export default function RGBInvoiceForm(props: IProps) {
           }
           inputMode="numeric"
           placeholder="5000"
-          className="h-14 rounded-2xl text-[22px] font-bold"
+          className="h-14 rounded-2xl"
           action={
             <>
               <span className="text-base">sat</span>
@@ -83,7 +83,7 @@ export default function RGBInvoiceForm(props: IProps) {
         <Input
           value={description}
           onChange={(e) => setDescription(e.currentTarget.value)}
-          className="h-13 rounded-2xl text-[22px] font-bold"
+          className="h-13 rounded-2xl"
         />
       </Field>
     </div>

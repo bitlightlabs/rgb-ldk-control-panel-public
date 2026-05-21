@@ -463,13 +463,13 @@ pub struct Bolt11DecodeRequest {
 	pub invoice: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Bolt11DecodeResponse {
-	pub payment_hash: String,
-	pub destination: String,
-	pub amount_msat: Option<String>,
-	pub expiry_secs: u32,
-}
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// pub struct Bolt11DecodeResponse {
+// 	pub payment_hash: String,
+// 	pub destination: String,
+// 	pub amount_msat: Option<String>,
+// 	pub expiry_secs: u32,
+// }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bolt11PayResponse {
@@ -661,10 +661,7 @@ pub struct StatusDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LockedStatusDto {
-	pub ok: bool,
 	pub locked: bool,
-	pub running: bool,
-	pub checks: Option<Vec<HealthCheckDto>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -676,9 +673,7 @@ pub enum MainStatusResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ControlStatusDto {
-	pub ok: bool,
 	pub locked: bool,
-	pub running: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2461,6 +2456,35 @@ pub async fn rgb_sign_message(
 	}
 
 	resp.json::<RgbSignMessageResponse>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+pub async fn bolt11_rgb_ln_invoice_decode(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	req_body: Bolt11DecodeRequest,
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/rgb/ln/invoice/decode").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.post(url).json(&req_body);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }

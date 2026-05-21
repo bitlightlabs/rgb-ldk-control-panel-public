@@ -1,8 +1,7 @@
-import type { NodeContext } from "@/lib/domain";
 import CopyText from "@/app/components/CopyText";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,7 +16,6 @@ import {
   nodeMainNodeId,
   nodeMainReadyz,
 } from "@/lib/commands";
-import { useSetupStore } from "@/app/stores/setupStore";
 import { cn, formatAddress } from "@/lib/utils";
 import {
   Activity,
@@ -30,21 +28,15 @@ import {
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useContextStore } from "../stores/contextStore";
 
-export function NodeSelector({
-  contexts,
-  activeNodeId,
-  onPick,
-}: {
-  contexts: NodeContext[];
-  activeNodeId: string | null;
-  onPick: (nodeId: string) => void;
-}) {
-  const openInitialSetup = useSetupStore((s) => s.openInitialSetup);
+export function NodeSelector() {
+  const nav = useNavigate();
+  const currentContext = useContextStore((s) => s.currentContext);
 
-  const active = activeNodeId
-    ? contexts.find((c) => c.node_id === activeNodeId) ?? null
-    : null;
+  const activeNodeId = currentContext?.node_id ?? '';
+
   const healthzQuery = useQuery({
     queryKey: ["node_selector_healthz", activeNodeId],
     queryFn: () => nodeMainHealthz(activeNodeId!),
@@ -66,13 +58,11 @@ export function NodeSelector({
     refetchInterval: 10_000,
     retry: 0,
   });
-  const nodeIdQueries = useQueries({
-    queries: contexts.map((c) => ({
-      queryKey: ["node_selector_node_id", c.node_id],
-      queryFn: () => nodeMainNodeId(c.node_id),
-      retry: 0,
-      refetchInterval: 10_000,
-    })),
+
+  const nodeIdQuery = useQuery({
+    queryKey: ["node_main_node_id", activeNodeId],
+    queryFn: () => nodeMainNodeId(activeNodeId),
+    enabled: !!activeNodeId,
   });
 
   type StatusBadge = {
@@ -120,7 +110,7 @@ export function NodeSelector({
           className="h-9 justify-between gap-2 rounded-full"
         >
           <span className="max-w-[220px] truncate font-mono text-xs">
-            {active ? active.display_name : "No active node"}
+            {currentContext ? currentContext.display_name : "No active node"}
           </span>
           <Badge variant={upBadge.variant} className="gap-1">
             <upBadge.Icon
@@ -148,7 +138,8 @@ export function NodeSelector({
             <button
               type="button"
               className="text-xs text-accent-foreground hover:text-foreground transition-colors"
-              onClick={() => openInitialSetup()}
+              // onClick={() => openInitialSetup()}
+              onClick={() => nav('/')}
             >
               <Plus className="mr-1 inline h-3 w-3" />
               <span>create new node</span>
@@ -156,46 +147,36 @@ export function NodeSelector({
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {contexts.length === 0 ? (
+        {currentContext === null ? (
           <DropdownMenuItem disabled>No contexts yet</DropdownMenuItem>
         ) : (
-          contexts.map((c, idx) => {
-            const nodePubkey = nodeIdQueries[idx]?.data?.node_id ?? c.node_id;
-            const nodeAddress = c.p2p_listen ?? "";
-
-            return (
-              <DropdownMenuItem
-                key={c.node_id}
-                onClick={() => onPick(c.node_id)}
-              >
-                <div className="flex w-full min-w-0 flex-col gap-1.5">
-                  <div className="truncate text-sm">{c.display_name}</div>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 text-xs opacity-70">Pubkey:</span>
-                    <span className="truncate font-mono text-xs opacity-60">
-                      {formatAddress(nodePubkey)}
-                    </span>
-                    <CopyText
-                      text={nodePubkey}
-                      className="shrink-0 text-secondary-foreground"
-                    />
-                  </div>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 text-xs opacity-70">
-                      Address:
-                    </span>
-                    <span className="truncate font-mono text-xs opacity-60">
-                      {formatAddress(nodeAddress)}
-                    </span>
-                    <CopyText
-                      text={nodeAddress}
-                      className="shrink-0 text-secondary-foreground"
-                    />
-                  </div>
-                </div>
-              </DropdownMenuItem>
-            );
-          })
+          <DropdownMenuItem>
+            <div className="flex w-full min-w-0 flex-col gap-1.5">
+              <div className="truncate text-sm">{currentContext.display_name}</div>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-xs opacity-70">Pubkey:</span>
+                <span className="truncate font-mono text-xs opacity-60">
+                  {formatAddress(nodeIdQuery.data?.node_id)}
+                </span>
+                <CopyText
+                  text={nodeIdQuery.data?.node_id ?? ''}
+                  className="shrink-0 text-secondary-foreground"
+                />
+              </div>
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-xs opacity-70">
+                  Address:
+                </span>
+                <span className="truncate font-mono text-xs opacity-60">
+                  {formatAddress(currentContext.p2p_listen ?? '')}
+                </span>
+                <CopyText
+                  text={currentContext.p2p_listen ?? ''}
+                  className="shrink-0 text-secondary-foreground"
+                />
+              </div>
+            </div>
+          </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>

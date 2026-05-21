@@ -1,7 +1,7 @@
 {
   "name": "rgb-lightning-node",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.0.3",
   "license": "(MIT OR Apache-2.0)",
   "type": "module",
   "scripts": {
@@ -36,6 +36,8 @@
     "@tauri-apps/plugin-dialog": "^2.6.0",
     "@tauri-apps/plugin-fs": "^2.4.5",
     "@tauri-apps/plugin-opener": "^2",
+    "@tauri-apps/plugin-store": "^2.4.3",
+    "bignumber.js": "^11.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lossless-json": "^4.2.0",
@@ -60,7 +62,8 @@
     "@vitejs/plugin-react": "^4.6.0",
     "tailwindcss": "^4.1.11",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vite-plugin-node-polyfills": "^0.26.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -1,13 +1,14 @@
-import { useNodeStore } from "@/app/stores/nodeStore";
 import { Button } from "@/components/ui/button";
 import Pubkey from "../nodes/Pubkey";
 import IconPlus from "@/app/icons/IconPlus";
+import { useContextStore } from "@/app/stores/contextStore";
 
 interface IProps {
   onCreateNode: () => void
 }
 export default function Header(props: IProps) {
-  const activeNodeId = useNodeStore((s) => s.activeNodeId);
+  const currentContext = useContextStore((s) => s.currentContext);
+  const activeNodeId = currentContext?.node_id ?? '';
 
   return (
     <div className="sticky top-0 z-40 flex h-[68px] justify-between items-center ">

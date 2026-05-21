@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useNodeStore } from "@/app/stores/nodeStore";
 import {
   contextsList,
   nodeBolt11Decode,
@@ -26,6 +25,7 @@ import SendLnRGBConfirm from "./SendLnRgbConfirm";
 import SendOnchainRGBConfirm from "./SendOnchainRgbConfirm";
 import PayResult from "./PayResult";
 import SendOfferConfirm from "./SendOfferForm";
+import { useContextStore } from "@/app/stores/contextStore";
 
 type PayloadKind = "invoice" | "offer" | "onchain_asset" | "unknown";
 type SendStep = "form" | "confirm" | "result";
@@ -106,9 +106,9 @@ function formatRgbAtomicAmount(amount: string, precision: number): string {
   return fraction ? `${integer}.${fraction}` : integer.toString();
 }
 
-export function SendPage({ onBackRoot }: { onBackRoot?: () => void }) {
+export function SendPage() {
   const navigate = useNavigate();
-  const activeNodeId = useNodeStore((s) => s.activeNodeId);
+  const currentContext = useContextStore((s) => s.currentContext);
   const [step, setStep] = useState<SendStep>("form");
   const [payload, setPayload] = useState("");
   const [decodePayload, setDecodePayload] = useState("");
@@ -119,14 +119,11 @@ export function SendPage({ onBackRoot }: { onBackRoot?: () => void }) {
   const [sentAmountText, setSentAmountText] = useState("");
   const [sentTypeText, setSentTypeText] = useState("");
   const [sentExtraText, setSentExtraText] = useState("");
-  const [copied, setCopied] = useState(false);
+  // const [copied, setCopied] = useState(false);
+
+  const activeNodeId = currentContext?.node_id ?? '';
 
   const goBackRoot = () => {
-    if (onBackRoot) {
-      onBackRoot();
-      return;
-    }
-    // navigate("/dashboard");
     navigate(-1)
   };
 
@@ -617,7 +614,7 @@ export function SendPage({ onBackRoot }: { onBackRoot?: () => void }) {
                   <FieldLabel htmlFor="send_desc">Description</FieldLabel>
                   <Input
                     id="send_desc"
-                    className="h-14 rounded-2xl text-[22px] font-bold"
+                    className="h-14 rounded-2xl"
                     value={description}
                     onChange={(e) => setDescription(e.currentTarget.value)}
                     placeholder="Pay BTC"
@@ -633,7 +630,7 @@ export function SendPage({ onBackRoot }: { onBackRoot?: () => void }) {
                     id="send_offer_amount_msat"
                     value={offerAmountMsat}
                     onChange={(e) => setOfferAmountMsat(e.currentTarget.value)}
-                    className="h-14 rounded-2xl text-[22px] font-bold"
+                    className="h-14 rounded-2xl"
                     placeholder={
                       decodedAmountMsat
                         ? decodedAmountMsat

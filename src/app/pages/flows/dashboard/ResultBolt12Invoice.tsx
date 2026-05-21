@@ -13,14 +13,14 @@ export default function ResultBolt12Invoice(props: IProps) {
   if(!props.invoice) return null;
 
   return (
-    <div>
-      <div className="h-5 flex justify-center items-center gap-2">
+    <div className="pt-3">
+      <div className="h-5 flex justify-center items-center gap-2 text-base">
         <div>
           <Loader2 width={20} height={20} className="animate-spin" />
         </div>
         <div>Waiting for payment</div>
       </div>
-      <div className="mt-3 w-[280px] h-[280px] mx-auto rounded-xl overflow-hidden">
+      <div className="mt-6 w-[280px] h-[280px] mx-auto rounded-xl overflow-hidden">
         <QRCodeSVG value={props.invoice} size={280} marginSize={2} />
       </div>
       <div className="h-5 mt-6 text-base text-secondary-foreground text-center">

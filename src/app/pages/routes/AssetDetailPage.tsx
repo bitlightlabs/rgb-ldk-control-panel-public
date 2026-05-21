@@ -6,7 +6,7 @@ import IconExport from "@/app/icons/export";
 import IconImport from "@/app/icons/import";
 import IconReceive from "@/app/icons/receive";
 import IconSend from "@/app/icons/send";
-import { useNodeStore } from "@/app/stores/nodeStore";
+import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { nodeRgbContracts } from "@/lib/commands";
@@ -17,9 +17,10 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 
 export function AssetDetailPage() {
   const nav = useNavigate()
-  const activeNodeId = useNodeStore((s) => s.activeNodeId);
+  const currentContext = useContextStore((s) => s.currentContext);
   const [search] = useSearchParams()
 
+  const activeNodeId = currentContext?.node_id ?? '';
   const contractId = search.get("contract_id") ?? "";
 
   const rgbContractsQuery = useQuery({
@@ -99,7 +100,7 @@ export function AssetDetailPage() {
             variant="destructive"
             size="lg"
             className="rounded-full flex-1"
-            onClick={() => nav('/rgb/import')}
+            onClick={() => nav('/dashboard/rgb/import')}
           >
             <IconImport />
             <span>Import</span>
@@ -108,7 +109,7 @@ export function AssetDetailPage() {
             variant="destructive"
             size="lg"
             className="rounded-full flex-1"
-            onClick={() => nav('/rgb/export')}
+            onClick={() => nav('/dashboard/rgb/export')}
           >
             <IconExport />
             <span>Export</span>

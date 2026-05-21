@@ -33,7 +33,7 @@ export default function ResultReceiveRGB(props: IProps) {
         <AssetAvatar name="asdf" className="w-14 h-14" />
         <div className="font-bold text-[22px]">${props.assetName}</div>
       </div>
-      <div className="mt-10 p-4 flex flex-col gap-4 bg-background-3 rounded-2xl">
+      <div className="mt-8 p-4 flex flex-col gap-4 bg-background-3 rounded-2xl">
         <div className="flex justify-between">
           <label className="text-base text-secondary-foreground">Amount to Receive</label>
           <span className="text-base font-medium">{props.amount} ${props.assetName}</span>
@@ -43,12 +43,12 @@ export default function ResultReceiveRGB(props: IProps) {
           <span className="text-base font-medium">{props.btcCarrier} {props.btcCarrierSymbol}</span>
         </div>
       </div>
-      <div className="mt-10 p-4 flex flex-col gap-4 bg-background-3 rounded-2xl">
+      <div className="mt-3 p-4 flex flex-col gap-2 bg-background-3 rounded-2xl">
         <div className="text-base text-secondary-foreground">RGB Invoice</div>
         <div className="text-base break-all">{processInvoice(props.invoice)}</div>
       </div>
-      <div className="mt-3 text-sm text-secondary-foreground text-center">Please send only RGB assets to this invoice.</div>
-      <div className="mt-10">
+      <div className="mt-3 text-xs text-secondary-foreground text-center">Please send only RGB assets to this invoice.</div>
+      <div className="mt-8">
         <Button
           type="button"
           variant="outline"

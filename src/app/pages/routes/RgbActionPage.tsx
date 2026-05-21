@@ -31,7 +31,7 @@ export function RgbActionPage() {
           size="lg"
           variant="secondary"
           className="h-14 w-full justify-between"
-          onClick={() => navigate("/rgb/export")}
+          onClick={() => navigate("/dashboard/rgb/export")}
         >
           <span className="flex items-center gap-2">
             <Upload className="h-4 w-4" />

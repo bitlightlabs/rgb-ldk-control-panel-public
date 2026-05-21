@@ -21,6 +21,19 @@ export function ContentHeader(props: PropsWithChildren & {title: string, onBack:
     </div>
   )
 }
+export function ActionHeader(props: PropsWithChildren & {title: string, onBack: () => void}) {
+  return (
+    <div className="flex justify-between h-9 items-center">
+      <div className='h-full flex items-center gap-x-[14px]'>
+        <BackButton onClick={props.onBack}>
+          <IconBack/>
+        </BackButton>
+        <h2 className="text-xl font-bold">{props.title}</h2>
+      </div>
+      <div>{props.children}</div>
+    </div>
+  )
+}
 
 export function Content(props: PropsWithChildren & {className?: string}) {
   return (
@@ -30,12 +43,12 @@ export function Content(props: PropsWithChildren & {className?: string}) {
   )
 }
 
-export function BackButton(props: PropsWithChildren & {onClick: () => void}) {
+export function BackButton(props: PropsWithChildren & {onClick: () => void, className?: string}) {
   return (
     <button
       type="button"
       onClick={props.onClick}
-      className="w-6 h-6 cursor-pointer border-0"
+      className={cn("w-6 h-6 cursor-pointer border-0", props.className)}
     >{props.children}</button>
   )
 }

@@ -1,7 +1,6 @@
 import type {
   BootstrapLocalEnvironmentResponse,
   BootstrapLocalNodeRequest,
-  BootstrapLocalNodeResponse,
   ControlStatusDto,
   DockerEnvironmentResponse,
   EventsStatus,
@@ -100,11 +99,51 @@ export async function dockerEnvironment(): Promise<DockerEnvironmentResponse> {
   return tauriInvoke("docker_environment");
 }
 
-export async function bootstrapLocalNode(request?: BootstrapLocalNodeRequest): Promise<BootstrapLocalNodeResponse> {
+export async function bootstrapLocalNode(request?: BootstrapLocalNodeRequest): Promise<NodeContext> {
   return tauriInvoke("bootstrap_local_node", {
+    passwordHash: request?.passwordHash ?? "",
     ldkImage: request?.ldkImage ?? null,
     nodeName: request?.nodeName ?? null,
     containerName: request?.containerName ?? null,
+    mainApiPort: request?.mainApiPort ?? null,
+    controlApiPort: request?.controlApiPort ?? null,
+    p2pPort: request?.p2pPort ?? null,
+    network: request?.network ?? null,
+    esploraUrl: request?.esploraUrl ?? null,
+  });
+}
+
+/**
+ * Production "user supplies their own mnemonic" flow — step 1 of 5.
+ *
+ * Collects user-supplied node configuration, allocates the resources the
+ * daemon will eventually need (ports, secret files, data volume name, full
+ * NodeContext), and persists the NodeContext to contexts.json. **Does not
+ * start any container.**
+ *
+ * After this resolves, the frontend has a `node_id` and can drive the rest
+ * of the flow itself:
+ *
+ *   1. prepareNodeResources(...)              ← you are here
+ *   2. walletNewMnemonicCli(ldkImage)         → show the mnemonic to the user
+ *   3. walletInitCli(node_id, mnemonic)       → write the keystore into the data volume
+ *   4. nodeRunCli(node_id)                    → start the daemon container
+ *   5. nodeUnlock(node_id)                    → enter business state
+ *
+ * The mnemonic can come from anywhere — `walletNewMnemonicCli` is the
+ * recommended source, but a frontend-side BIP39 generator works just as
+ * well; `walletInitCli` only cares about the resulting string.
+ *
+ * `bootstrapLocalNode` is the demo one-click counterpart and runs steps
+ * 1–5 internally (mnemonic auto-generated, never exposed to the frontend).
+ */
+export async function prepareNodeResources(
+  request?: BootstrapLocalNodeRequest,
+): Promise<NodeContext> {
+  return tauriInvoke("prepare_node_resources", {
+    passwordHash: request?.passwordHash ?? "",
+    ldkImage: request?.ldkImage ?? null,
+    nodeName: request?.nodeName ?? null,
     mainApiPort: request?.mainApiPort ?? null,
     controlApiPort: request?.controlApiPort ?? null,
     p2pPort: request?.p2pPort ?? null,
@@ -406,7 +445,7 @@ export async function pluginWalletAssetExport(
 ): Promise<RgbContractsExportBundle> {
   // Get descriptor from node
   const descriptorData = await nodeRgbDescriptor(nodeId);
-  if(descriptorData.error) {
+  if (descriptorData.error) {
     throw new Error(descriptorData.error);
   }
 
@@ -441,7 +480,7 @@ export async function downloadTransferConsignmentFromLink(nodeId: string, fullLi
 
   // Get descriptor from node
   const descriptorData = await nodeRgbDescriptor(nodeId);
-  if(descriptorData.error) {
+  if (descriptorData.error) {
     throw new Error(descriptorData.error);
   }
 
@@ -538,4 +577,319 @@ export async function nodeRgbDescriptor(nodeId: string): Promise<RgbDescriptorRe
 
 export async function nodeSignMessage(nodeId: string, body: SignmessageRequest): Promise<SignmessageResponse> {
   return tauriInvoke("node_rgb_sign_message", { nodeId: nodeId, request: body });
+}
+
+export async function nodeRgbLnInvoiceDecode(nodeId: string, request: Bolt11DecodeRequest): Promise<{
+  "asset_amount": string,
+  "carrier_amount_msat": string
+  "contract_id": string
+  "destination": string,
+  "expiry_secs": string,
+  "payment_hash": string
+}> {
+  return tauriInvoke("node_rgb_ln_invoice_decode", { nodeId, request });
+}
+
+export async function mem_cache_set(key: string, value: string): Promise<void> {
+  return tauriInvoke("mem_cache_set", { key, value });
+}
+export async function mem_cache_get(key: string): Promise<string | null> {
+  return tauriInvoke("mem_cache_get", { key });
+}
+export async function mem_cache_remove(key: string): Promise<string | null> {
+  return tauriInvoke("mem_cache_remove", { key });
+}
+
+export async function nodeRgbCli(nodeId: string, args: string[]): Promise<string> {
+  return tauriInvoke("node_rgb_cli", { nodeId, args });
+}
+
+export async function nodeRgbBackUpWallet(nodeId: string, saveDir: string): Promise<{ backup_path: string }> {
+  return tauriInvoke("node_rgb_cli_wallet_backup_export", {
+    nodeId: nodeId,
+    saveDir: saveDir,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// PR #102 milestone1: wallet / backup CLI bindings (docker run --rm).
+//
+// On failure these commands reject with a CommandError shaped like:
+//   { code: "subcommand_failed", message, hint, subcommand, exit_code, kind }
+// Frontend should branch UI copy on `exit_code` (10/11/12/13/14/15/16/20+/21).
+// ---------------------------------------------------------------------------
+
+export type WalletNewMnemonicResponse = {
+  /** Space-separated 24-word BIP39 mnemonic. Never logged or persisted by Rust. */
+  mnemonic: string;
+};
+
+/**
+ * Spawn `docker run --rm <image> rgbldkd --output-format=json wallet new-mnemonic`
+ * and return the freshly generated mnemonic. Pure function on rgbldkd's side
+ * — no data-dir, no passphrase, no mounts required.
+ */
+export async function walletNewMnemonicCli(image: string): Promise<WalletNewMnemonicResponse> {
+  return tauriInvoke("wallet_new_mnemonic_cli", { image });
+}
+
+export type NodeRunResponse = {
+  /** Name of the daemon container that is now running. */
+  container_name: string;
+  /**
+   * True if the daemon container was already running when this command was
+   * called; false if we just (re-)started it. Use this to suppress redundant
+   * "node started" toasts when the user retriggers the action.
+   */
+  already_running: boolean;
+};
+
+/**
+ * Start (or restart) the node's persistent rgbldkd daemon container.
+ *
+ * This is the standardized counterpart to the daemon-start step inside
+ * bootstrap_local_node — used for the production flow (after the user has
+ * been shown the mnemonic and `walletInitCli` has populated the keystore)
+ * and for the recovery flow (after `backupImportCli` has restored the data
+ * volume). All run parameters (ports, volume, secrets, network, alias,
+ * esplora URL) are recovered from the NodeContext, so the frontend only
+ * needs to pass `nodeId`.
+ *
+ * `image` is optional; falls back to `ctx.image` recorded at bootstrap.
+ *
+ * Idempotent: returns `already_running: true` if the container is already
+ * up. If the container exists but is stopped, runs `docker start` rather
+ * than recreating it (preserves the original docker config).
+ */
+export async function nodeRunCli(
+  nodeId: string,
+  image?: string,
+): Promise<NodeRunResponse> {
+  return tauriInvoke("node_run_cli", { nodeId, image: image ?? null });
+}
+
+export type WalletInitResponse = {
+  /** Optional human-readable confirmation from rgbldkd. */
+  message: string | null;
+};
+
+/**
+ * Initialize the keystore for a previously-bootstrapped node using a
+ * user-supplied BIP39 mnemonic. The node's container must be stopped
+ * first (otherwise rejects with exit 16 `node_not_stopped`).
+ *
+ * `image` is optional: when omitted, the backend falls back to the image
+ * tag recorded on the node's NodeContext (set by bootstrap_local_node).
+ * Pass an explicit override only for the migration-period case where you
+ * need to run a newer CLI image against an older daemon's data volume.
+ *
+ * The control panel writes the mnemonic to a host file with mode 0600,
+ * bind-mounts it into the throwaway container, and unconditionally deletes
+ * it after the command completes. The passphrase reuses the existing
+ * `<data-root>/secrets/keystore.passphrase` — the user never sees it.
+ */
+export async function walletInitCli(
+  nodeId: string,
+  mnemonic: string,
+  image?: string,
+): Promise<WalletInitResponse> {
+  return tauriInvoke("wallet_init_cli", { nodeId, image: image ?? null, mnemonic });
+}
+
+export type WalletShowMnemonicResponse = {
+  /**
+   * The decrypted BIP39 mnemonic. Highly sensitive — display only, never
+   * log, persist, or send across the network. Clear from memory as soon as
+   * the reveal flow ends.
+   */
+  mnemonic: string;
+};
+
+/**
+ * Reveal the node's stored BIP39 mnemonic by spawning
+ * `docker run --rm <image> rgbldkd wallet show-mnemonic --confirm`.
+ *
+ * `image` is optional and defaults to the tag recorded on the NodeContext.
+ *
+ * Sensitive operation:
+ *   - The caller MUST pass `confirm: true` only after a UI-side
+ *     reauthentication / second-confirmation step. Passing `false` rejects
+ *     before any docker spawn happens.
+ *   - rgbldkd writes an audit-log entry on every invocation (server-side).
+ *   - The returned mnemonic must be cleared from React state as soon as the
+ *     reveal UI is dismissed; never store it in IndexedDB, localStorage, or
+ *     Zustand persisters.
+ */
+export async function walletShowMnemonicCli(
+  nodeId: string,
+  confirm: boolean,
+  image?: string,
+): Promise<WalletShowMnemonicResponse> {
+  return tauriInvoke("wallet_show_mnemonic_cli", { nodeId, image: image ?? null, confirm });
+}
+
+export type BackupExportResponse = {
+  /** Absolute path to the archive that was written. */
+  output_path: string;
+  /** Archive size in bytes (null if stat failed). */
+  size_bytes: number | null;
+};
+
+/**
+ * Export the node's data-dir as a backup archive to `outputPath`.
+ *
+ * The destination is the final user-chosen location — typically obtained
+ * via Tauri's `@tauri-apps/plugin-dialog` save dialog. The Tauri command
+ * does NOT pick the path itself; pass the absolute path you want rgbldkd
+ * to write to. On macOS / Windows, the parent directory must fall under
+ * Docker Desktop's "File Sharing" settings or the docker mount will fail.
+ *
+ * Suggested default filename: `<display_name>-<network>-<UTC-timestamp>.tar`
+ * so multiple node backups don't collide and the user can tell which is
+ * which on disk (the archive also records `node-alias` inside its manifest).
+ *
+ * Preconditions enforced server-side:
+ *   - Node must be locked or stopped. If the daemon is running unlocked,
+ *     this command attempts to lock it first via the control API. If the
+ *     lock fails, the export aborts (no inconsistent archive).
+ *
+ * `image` and `network` default to the context's values if omitted.
+ */
+export async function backupExportCli(
+  nodeId: string,
+  outputPath: string,
+  image?: string,
+  network?: string,
+): Promise<BackupExportResponse> {
+  return tauriInvoke("backup_export_cli", {
+    nodeId,
+    image: image ?? null,
+    outputPath,
+    network: network ?? null,
+  });
+}
+
+export type BackupImportResponse = {
+  /** Optional human-readable confirmation from rgbldkd. */
+  message: string | null;
+};
+
+/**
+ * Restore a node's data-dir from a backup archive.
+ *
+ * The Tauri command does NOT pick the archive — `archivePath` must be the
+ * absolute path returned from a Tauri open-file dialog (or similar). The
+ * path must fall under Docker Desktop's "File Sharing" settings on
+ * macOS/Windows so the bind mount succeeds.
+ *
+ * Stopping the node container:
+ *   - `autoStop=false` (recommended default): if the container is running,
+ *     this command rejects with `subcommand_failed` + `exit_code: 16` +
+ *     `kind: "node_not_stopped"`. UI should show a confirmation dialog
+ *     explaining that the node will be stopped, then re-invoke with
+ *     `autoStop=true`.
+ *   - `autoStop=true`: this command runs `docker stop` on the container
+ *     and waits for it to fully exit before importing. The container is
+ *     NOT restarted automatically afterwards — the post-restore flow
+ *     should walk the user through `wallet init` (with their original
+ *     mnemonic) and re-unlock.
+ *
+ * Exit codes to branch on:
+ *   - 11 fingerprint_mismatch — archive was made with a different mnemonic.
+ *   - 12 archive_corrupted    — tar / hash / manifest is broken.
+ *   - 13 network_mismatch     — archive's network differs from this node.
+ *   - 14 unsupported_format_version — archive is from a newer rgbldkd.
+ *   - 16 node_not_stopped     — see autoStop discussion above.
+ *
+ * Per the milestone1 contract, the archive does NOT contain the keystore.
+ * After a successful import the user must run `walletInitCli` with the
+ * mnemonic that was used to produce the backup, otherwise the node won't
+ * unlock.
+ */
+export async function backupImportCli(
+  nodeId: string,
+  archivePath: string,
+  autoStop: boolean,
+  image?: string,
+  network?: string,
+): Promise<BackupImportResponse> {
+  return tauriInvoke("backup_import_cli", {
+    nodeId,
+    image: image ?? null,
+    archivePath,
+    network: network ?? null,
+    autoStop,
+  });
+}
+
+/**
+ * Manifest preview returned by `backupInspectArchiveCli`. The `manifest`
+ * payload is the raw rgbldkd `BackupManifest` JSON; the UI should read the
+ * fields it cares about (typically `network`, `node_alias`, `rgbldkd_version`,
+ * `master_fingerprint`, `created_at_unix_secs`).
+ *
+ * The shape is deliberately untyped (`unknown`) so new backend fields surface
+ * automatically without a frontend recompile. Cast / narrow on use.
+ */
+export type BackupInspectResponse = {
+  manifest: {
+    format_version: number;
+    network: string;
+    created_at_unix_secs: number;
+    rgbldkd_version?: string | null;
+    master_fingerprint?: string | null;
+    node_alias?: string | null;
+    node_id?: string | null;
+    files?: Array<{ path: string; size: number; sha256: string }>;
+    [extra: string]: unknown;
+  };
+};
+
+/**
+ * Preview a backup archive's manifest without writing anything to disk.
+ *
+ * Intended for the recovery wizard's "user selected an archive" step:
+ *   1. User picks an archive via Tauri open-file dialog.
+ *   2. UI calls `backupInspectArchiveCli(LDK_IMAGE, archivePath)`.
+ *   3. UI uses `result.manifest.network` to auto-fill the network field on
+ *      the `prepareNodeResources` form (and optionally displays alias /
+ *      rgbldkd_version / created_at_unix_secs as context for the user).
+ *   4. After `prepareNodeResources` → `walletInitCli` → `backupImportCli` →
+ *      `nodeRunCli` → `nodeUnlock`, recovery is complete.
+ *
+ * No NodeContext is required — this command runs BEFORE the user creates
+ * the node. `image` must be supplied explicitly (typically `LDK_IMAGE`).
+ *
+ * Lenient about `format_version`: archives from newer / older rgbldkd
+ * builds still return their manifest. The UI can compare
+ * `manifest.rgbldkd_version` against the daemon version to warn the user
+ * about potential incompatibility, but inspect itself never rejects.
+ */
+export async function backupInspectArchiveCli(
+  image: string,
+  archivePath: string,
+): Promise<BackupInspectResponse> {
+  return tauriInvoke("backup_inspect_archive_cli", {
+    image,
+    archivePath,
+  });
+}
+
+/**
+ * Hash a password with PBKDF2-HMAC-SHA256 (600,000 iterations, random salt).
+ * Returns a self-contained string `pbkdf2-sha256:<iter>:<salt_hex>:<hash_hex>`
+ * suitable for storing in contexts.json as `password_hash`.
+ */
+export async function hashPassword(password: string): Promise<string> {
+  return tauriInvoke("hash_password", { password });
+}
+
+/**
+ * Verify a password against a stored `password_hash`.
+ * Supports both the new PBKDF2 format and the legacy bare-SHA256 format
+ * so existing nodes survive upgrade without re-bootstrapping.
+ * Returns `true` on match, `false` on mismatch.
+ */
+export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  return tauriInvoke("verify_password", { password, storedHash });
 }

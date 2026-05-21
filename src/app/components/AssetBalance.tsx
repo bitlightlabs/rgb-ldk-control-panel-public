@@ -13,12 +13,10 @@ export default function AssetBalance(props: {
 
   const loadData = async () => {
     if(!props.nodeId || !props.contractId) return;
-    console.log('load balance', props.nodeId, props.contractId)
 
     try {
       setLoading(true);
       const data = await nodeRgbContractBalance(props.nodeId, props.contractId);
-      console.log('balance', data)
       const result = Number(data.balance.total) / (10 ** props.precision);
       setBalance(result.toString())
       setLoading(false);

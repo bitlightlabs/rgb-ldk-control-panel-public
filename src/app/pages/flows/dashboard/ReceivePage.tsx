@@ -1,8 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { useNodeStore } from "@/app/stores/nodeStore";
 import {
   nodeBolt11Receive,
   nodeBolt12OfferReceiveVar,
@@ -31,6 +30,7 @@ import RGBInvoiceForm from "./RGBInvoiceForm";
 import ResultOnchainBtc from "./ResultOnchainBtc";
 import ResultReceiveOnchainRGB from "./ResultReceiveOnchainRGB";
 import ResultBolt12Invoice from "./ResultBolt12Invoice";
+import { useContextStore } from "@/app/stores/contextStore";
 
 type ReceiveMode =
   | "invoice"
@@ -44,9 +44,9 @@ function isDigits(s: string): boolean {
   return /^\d+$/.test(s.trim());
 }
 
-export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
+export function ReceivePage() {
   const navigate = useNavigate();
-  const activeNodeId = useNodeStore((s) => s.activeNodeId);
+  const currentContext = useContextStore((s) => s.currentContext);
   const [step, setStep] = useState<ReceiveStep>("select");
   const [mode, setMode] = useState<ReceiveMode | null>(null);
   const [amountSat, setAmountSat] = useState("5000");
@@ -59,6 +59,8 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
   const [rgbCarrierAmountSat, setRgbCarrierAmountSat] = useState("5000");
   const [currentRgbUtxo, setCurrentRgbUtxo] = useState("");
   const [currentOnchainContractId, setCurrentOnchainContractId] = useState(""); // onchain
+
+  const activeNodeId = currentContext?.node_id ?? '';
 
   const rgbContractsQuery = useQuery({
     queryKey: ["receive_rgb_contracts", activeNodeId],
@@ -156,7 +158,7 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
       // bolt11 invoice
       if (receiveMode === "invoice") {
         const resp = await nodeBolt11Receive(activeNodeId, {
-          amount_msat: u64(amount).mul(1000),
+          amount_msat: (BigInt(amount) * 1000n).toString(),
           description: desc,
           expiry_secs: 3600,
         });
@@ -227,11 +229,6 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
       : "Receive BTC / RGB";
 
   const goBackRoot = () => {
-    if (onBackRoot) {
-      onBackRoot();
-      return;
-    }
-    // navigate("/dashboard");
     navigate(-1);
   };
 
@@ -258,7 +255,7 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
         }}
       />
       <Content>
-        <div className="space-y-4">
+        <div>
           {step === "select" ? (
             <div className="grid grid-cols-1 gap-4">
               <div className="space-y-3 rounded-lg">
@@ -373,7 +370,7 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
           ) : null}
 
           {step === "form" ? (
-            <>
+            <div>
               <div>
                 {mode === "rgb_onchain_invoice" ? (
                   <OnchainInvoiceRGBForm
@@ -416,13 +413,13 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
               </div>
 
               {validationError ? (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="mt-3">
                   <AlertDescription>{validationError}</AlertDescription>
                 </Alert>
               ) : null}
 
               {mode === "rgb_invoice" && rgbContractsQuery.isError ? (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="mt-3">
                   <AlertDescription>
                     {errorToText(rgbContractsQuery.error)}
                   </AlertDescription>
@@ -430,7 +427,7 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
               ) : null}
 
               {createMutation.isError ? (
-                <Alert variant="destructive">
+                <Alert variant="destructive" className="mt-3">
                   <AlertDescription>
                     {errorToText(createMutation.error)}
                   </AlertDescription>
@@ -441,17 +438,17 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
                 type="button"
                 size="lg"
                 variant="white"
-                className="w-full mt-4 rounded-full"
+                className="w-full mt-8 rounded-full"
                 disabled={!!validationError || createMutation.isPending}
                 onClick={() => createMutation.mutate(mode ?? undefined)}
               >
                 {createMutation.isPending ? "Creating..." : "Create Invoice"}
               </Button>
-            </>
+            </div>
           ) : null}
 
           {step === "result" && createdValue ? (
-            <>
+            <div>
               {
                 mode === 'rgb_invoice' && selectedRgbContract ? (
                   <ResultReceiveRGB
@@ -569,7 +566,7 @@ export function ReceivePage({ onBackRoot }: { onBackRoot?: () => void }) {
                   Back
                 </Button> */}
               </div>
-            </>
+            </div>
           ) : null}
         </div>
       </Content>

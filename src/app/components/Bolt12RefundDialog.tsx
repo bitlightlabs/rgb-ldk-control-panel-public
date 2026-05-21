@@ -1,7 +1,14 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,8 +52,14 @@ export function Bolt12RefundDialog({
   const [payerNodeId, setPayerNodeId] = useState<string>(defaultPayerNodeId);
   const [payeeNodeId, setPayeeNodeId] = useState<string | null>(null);
 
-  const payer = useMemo(() => contexts.find((c) => c.node_id === payerNodeId) ?? null, [contexts, payerNodeId]);
-  const payee = useMemo(() => contexts.find((c) => c.node_id === payeeNodeId) ?? null, [contexts, payeeNodeId]);
+  const payer = useMemo(
+    () => contexts.find((c) => c.node_id === payerNodeId) ?? null,
+    [contexts, payerNodeId]
+  );
+  const payee = useMemo(
+    () => contexts.find((c) => c.node_id === payeeNodeId) ?? null,
+    [contexts, payeeNodeId]
+  );
 
   const [amountMsat, setAmountMsat] = useState("100000");
   const [expirySecs, setExpirySecs] = useState("3600");
@@ -60,7 +73,9 @@ export function Bolt12RefundDialog({
   useEffect(() => {
     if (!open) return;
     setPayerNodeId(defaultPayerNodeId);
-    setPayeeNodeId(contexts.find((c) => c.node_id !== defaultPayerNodeId)?.node_id ?? null);
+    setPayeeNodeId(
+      contexts.find((c) => c.node_id !== defaultPayerNodeId)?.node_id ?? null
+    );
     setAmountMsat("100000");
     setExpirySecs("3600");
     setPayerNote("");
@@ -72,7 +87,8 @@ export function Bolt12RefundDialog({
 
   const refundDecodeQuery = useQuery({
     queryKey: ["bolt12_refund_decode", payerNodeId, refund],
-    queryFn: async () => nodeBolt12RefundDecode(payerNodeId, { refund: refund! }),
+    queryFn: async () =>
+      nodeBolt12RefundDecode(payerNodeId, { refund: refund! }),
     enabled: !!refund,
     retry: 0,
   });
@@ -107,7 +123,9 @@ export function Bolt12RefundDialog({
   const waitMutation = useMutation({
     mutationFn: async ({ timeoutSecs }: { timeoutSecs: number }) => {
       if (!payerPaymentId) throw new Error("missing payer payment_id");
-      return nodePaymentWait(payerNodeId, payerPaymentId, { timeout_secs: timeoutSecs });
+      return nodePaymentWait(payerNodeId, payerPaymentId, {
+        timeout_secs: timeoutSecs,
+      });
     },
   });
 
@@ -121,7 +139,8 @@ export function Bolt12RefundDialog({
   const validationError = useMemo(() => {
     if (!payer) return "Missing payer node.";
     if (!payee) return "Pick a payee node.";
-    if (payer.node_id === payee.node_id) return "Payer and payee must be different nodes.";
+    if (payer.node_id === payee.node_id)
+      return "Payer and payee must be different nodes.";
     const a = amountMsat.trim();
     if (!a) return "Amount is required.";
     if (!isDigits(a)) return "Amount must be u64 msat (decimal).";
@@ -139,7 +158,8 @@ export function Bolt12RefundDialog({
         <DialogHeader>
           <DialogTitle>BOLT12 Refund</DialogTitle>
           <DialogDescription>
-            Payer initiates a refund and shares it with the payee. Payee requests payment, payer waits for completion.
+            Payer initiates a refund and shares it with the payee. Payee
+            requests payment, payer waits for completion.
           </DialogDescription>
         </DialogHeader>
 
@@ -149,19 +169,32 @@ export function Bolt12RefundDialog({
               <Label>Payer (initiates)</Label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" type="button" className="justify-between">
-                    <span className="truncate">{payer ? payer.display_name : payerNodeId}</span>
-                    <span className="ml-2 shrink-0 font-mono text-xs ui-muted">{payerNodeId.slice(0, 12)}</span>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="justify-between"
+                  >
+                    <span className="truncate">
+                      {payer ? payer.display_name : payerNodeId}
+                    </span>
+                    <span className="ml-2 shrink-0 font-mono text-xs ui-muted">
+                      {payerNodeId.slice(0, 12)}
+                    </span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start" className="w-[520px]">
                   <DropdownMenuLabel>Pick payer</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {contexts.map((c) => (
-                    <DropdownMenuItem key={c.node_id} onClick={() => setPayerNodeId(c.node_id)}>
+                    <DropdownMenuItem
+                      key={c.node_id}
+                      onClick={() => setPayerNodeId(c.node_id)}
+                    >
                       <div className="min-w-0">
                         <div className="truncate text-sm">{c.display_name}</div>
-                        <div className="truncate font-mono text-xs ui-muted">{c.main_api_base_url}</div>
+                        <div className="truncate font-mono text-xs ui-muted">
+                          {c.main_api_base_url}
+                        </div>
                       </div>
                     </DropdownMenuItem>
                   ))}
@@ -173,9 +206,17 @@ export function Bolt12RefundDialog({
               <Label>Payee (requests payment)</Label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" type="button" className="justify-between">
+                  <Button
+                    variant="outline"
+                    type="button"
+                    className="justify-between"
+                  >
                     <span className="truncate">
-                      {payee ? payee.display_name : contexts.length > 1 ? "Pick a node…" : "Need at least 2 nodes"}
+                      {payee
+                        ? payee.display_name
+                        : contexts.length > 1
+                        ? "Pick a node…"
+                        : "Need at least 2 nodes"}
                     </span>
                     <span className="ml-2 shrink-0 font-mono text-xs ui-muted">
                       {payeeNodeId ? payeeNodeId.slice(0, 12) : ""}
@@ -188,10 +229,17 @@ export function Bolt12RefundDialog({
                   {contexts
                     .filter((c) => c.node_id !== payerNodeId)
                     .map((c) => (
-                      <DropdownMenuItem key={c.node_id} onClick={() => setPayeeNodeId(c.node_id)}>
+                      <DropdownMenuItem
+                        key={c.node_id}
+                        onClick={() => setPayeeNodeId(c.node_id)}
+                      >
                         <div className="min-w-0">
-                          <div className="truncate text-sm">{c.display_name}</div>
-                          <div className="truncate font-mono text-xs ui-muted">{c.main_api_base_url}</div>
+                          <div className="truncate text-sm">
+                            {c.display_name}
+                          </div>
+                          <div className="truncate font-mono text-xs ui-muted">
+                            {c.main_api_base_url}
+                          </div>
                         </div>
                       </DropdownMenuItem>
                     ))}
@@ -225,7 +273,11 @@ export function Bolt12RefundDialog({
 
           <div className="grid gap-2">
             <Label htmlFor="refund_payer_note">Payer note (optional)</Label>
-            <Input id="refund_payer_note" value={payerNote} onChange={(e) => setPayerNote(e.currentTarget.value)} />
+            <Input
+              id="refund_payer_note"
+              value={payerNote}
+              onChange={(e) => setPayerNote(e.currentTarget.value)}
+            />
           </div>
 
           {validationError ? (
@@ -236,14 +288,18 @@ export function Bolt12RefundDialog({
 
           {initiateMutation.isError ? (
             <Alert variant="destructive">
-              <AlertDescription>{errorToText(initiateMutation.error)}</AlertDescription>
+              <AlertDescription>
+                {errorToText(initiateMutation.error)}
+              </AlertDescription>
             </Alert>
           ) : null}
 
           {refund ? (
             <div className="rounded-md border ui-border ui-muted-10 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs font-semibold ui-muted">Refund string</div>
+                <div className="text-xs font-semibold ui-muted">
+                  Refund string
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
@@ -256,10 +312,17 @@ export function Bolt12RefundDialog({
                 </Button>
               </div>
               <Separator className="my-2" />
-              <Textarea className="font-mono text-xs" value={refund} readOnly rows={4} />
+              <Textarea
+                className="font-mono text-xs"
+                value={refund}
+                readOnly
+                rows={4}
+              />
               {refundDecodeQuery.isSuccess ? (
                 <div className="mt-2 text-xs ui-muted">
-                  decoded amount_msat={refundDecodeQuery.data.amount_msat.toString()} • paths={refundDecodeQuery.data.paths_count}
+                  decoded amount_msat=
+                  {refundDecodeQuery.data.amount_msat.toString()} • paths=
+                  {refundDecodeQuery.data.paths_count}
                 </div>
               ) : null}
             </div>
@@ -268,16 +331,19 @@ export function Bolt12RefundDialog({
           {payerPaymentId ? (
             <div className="rounded-md border ui-border ui-muted-10 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs font-semibold ui-muted">Payer payment_id</div>
+                <div className="text-xs font-semibold ui-muted">
+                  Payer payment_id
+                </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
                     type="button"
                     disabled={waitMutation.isPending}
+                    loading={waitMutation.isPending}
                     onClick={() => waitMutation.mutate({ timeoutSecs: 60 })}
                   >
-                    {waitMutation.isPending ? "Waiting..." : "Wait 60s"}
+                    Wait 60s
                   </Button>
                   <Button
                     variant="destructive"
@@ -292,7 +358,9 @@ export function Bolt12RefundDialog({
               </div>
               <Separator className="my-2" />
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <code className="max-w-full truncate rounded-md border ui-border ui-surface-40 px-2 py-1 text-xs">{payerPaymentId}</code>
+                <code className="max-w-full truncate rounded-md border ui-border ui-surface-40 px-2 py-1 text-xs">
+                  {payerPaymentId}
+                </code>
                 <Button
                   variant="outline"
                   size="sm"
@@ -306,23 +374,35 @@ export function Bolt12RefundDialog({
               </div>
               {waitMutation.data ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs ui-muted">
-                  <Badge variant={waitMutation.data.payment.status === "Succeeded" ? "default" : "secondary"}>
+                  <Badge
+                    variant={
+                      waitMutation.data.payment.status === "Succeeded"
+                        ? "default"
+                        : "secondary"
+                    }
+                  >
                     {waitMutation.data.payment.status}
                   </Badge>
                   <span>
-                    amount_msat={waitMutation.data.payment.amount_msat?.toString() ?? "—"} fee_msat=
+                    amount_msat=
+                    {waitMutation.data.payment.amount_msat?.toString() ?? "—"}{" "}
+                    fee_msat=
                     {waitMutation.data.payment.fee_paid_msat?.toString() ?? "—"}
                   </span>
                 </div>
               ) : null}
               {waitMutation.isError ? (
                 <Alert className="mt-2" variant="destructive">
-                  <AlertDescription>{errorToText(waitMutation.error)}</AlertDescription>
+                  <AlertDescription>
+                    {errorToText(waitMutation.error)}
+                  </AlertDescription>
                 </Alert>
               ) : null}
               {abandonMutation.isError ? (
                 <Alert className="mt-2" variant="destructive">
-                  <AlertDescription>{errorToText(abandonMutation.error)}</AlertDescription>
+                  <AlertDescription>
+                    {errorToText(abandonMutation.error)}
+                  </AlertDescription>
                 </Alert>
               ) : null}
             </div>
@@ -331,27 +411,36 @@ export function Bolt12RefundDialog({
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border ui-border p-3">
             <div className="space-y-1">
               <div className="text-sm font-semibold">Payee step</div>
-              <div className="text-xs ui-muted">Payee requests the refund payment (sends invoice to payer).</div>
+              <div className="text-xs ui-muted">
+                Payee requests the refund payment (sends invoice to payer).
+              </div>
             </div>
             <Button
               type="button"
-              disabled={!refund || requestPaymentMutation.isPending || !!validationError}
+              disabled={
+                !refund || requestPaymentMutation.isPending || !!validationError
+              }
+              loading={requestPaymentMutation.isPending}
               onClick={() => requestPaymentMutation.mutate()}
             >
-              {requestPaymentMutation.isPending ? "Requesting..." : "Request payment"}
+              Request payment
             </Button>
           </div>
 
           {requestPaymentMutation.isError ? (
             <Alert variant="destructive">
-              <AlertDescription>{errorToText(requestPaymentMutation.error)}</AlertDescription>
+              <AlertDescription>
+                {errorToText(requestPaymentMutation.error)}
+              </AlertDescription>
             </Alert>
           ) : null}
 
           {payeeInvoice ? (
             <div className="rounded-md border ui-border ui-muted-10 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-xs font-semibold ui-muted">Invoice (payee)</div>
+                <div className="text-xs font-semibold ui-muted">
+                  Invoice (payee)
+                </div>
                 <Button
                   variant="outline"
                   size="sm"
@@ -364,10 +453,16 @@ export function Bolt12RefundDialog({
                 </Button>
               </div>
               <Separator className="my-2" />
-              <Textarea className="font-mono text-xs" value={payeeInvoice} readOnly rows={4} />
+              <Textarea
+                className="font-mono text-xs"
+                value={payeeInvoice}
+                readOnly
+                rows={4}
+              />
               {payeePaymentId ? (
                 <div className="mt-2 text-xs ui-muted">
-                  payee payment_id <span className="font-mono">{payeePaymentId}</span>
+                  payee payment_id{" "}
+                  <span className="font-mono">{payeePaymentId}</span>
                 </div>
               ) : null}
             </div>
@@ -375,11 +470,21 @@ export function Bolt12RefundDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" type="button" onClick={() => onOpenChange(false)} disabled={initiateMutation.isPending}>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={() => onOpenChange(false)}
+            disabled={initiateMutation.isPending}
+          >
             Close
           </Button>
-          <Button type="button" disabled={initiateMutation.isPending || !!validationError} onClick={() => initiateMutation.mutate()}>
-            {initiateMutation.isPending ? "Initiating..." : "Initiate refund"}
+          <Button
+            type="button"
+            disabled={initiateMutation.isPending || !!validationError}
+            loading={initiateMutation.isPending}
+            onClick={() => initiateMutation.mutate()}
+          >
+            Initiate refund
           </Button>
         </DialogFooter>
       </DialogContent>

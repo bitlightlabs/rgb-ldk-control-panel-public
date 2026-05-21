@@ -12,8 +12,6 @@ interface IProps {
   disabled: boolean;
 }
 export default function SendLnInvoiceConfirm(props: IProps) {
-  // const balanceMSat = useRef<string>('0');
-  // const activeNodeId = useNodeStore((s) => s.activeNodeId);
   const { amount, invoiceRawDecodeQuery, decodedDescription } = props;
 
   const destination = invoiceRawDecodeQuery?.data?.destination ?? '';

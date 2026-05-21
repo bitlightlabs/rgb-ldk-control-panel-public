@@ -10,7 +10,7 @@ interface IProps {
 export default function InvoiceForm(props: IProps) {
   const { amountValue, setAmountValue, description, setDescription } = props;
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <Field>
         <FieldLabel>
           Amount To Receive
@@ -20,7 +20,7 @@ export default function InvoiceForm(props: IProps) {
           onChange={(e) => setAmountValue(e.currentTarget.value)}
           inputMode="numeric"
           placeholder="5000"
-          className="h-14 rounded-2xl text-[22px] font-bold"
+          className="h-14 rounded-2xl"
           action={<span className="text-base">sat</span>}
         />
       </Field>
@@ -29,7 +29,7 @@ export default function InvoiceForm(props: IProps) {
         <Input
           value={description}
           onChange={(e) => setDescription(e.currentTarget.value)}
-          className="h-13 rounded-2xl text-[22px] font-bold"
+          className="h-13 rounded-2xl"
         />
       </Field>
     </div>
