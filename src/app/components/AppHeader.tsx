@@ -5,45 +5,53 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import mainnetIcon from "@/assets/mainnet.svg";
+import regtestIcon from "@/assets/regtest.svg";
+import testnet4Icon from "@/assets/testnet4.svg";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumb";
-import { Wallet } from "lucide-react";
 import { useContextStore } from "../stores/contextStore";
+import IconWallet from "../icons/wallet";
+
+const NETWORK_ICONS: Record<string, string> = {
+  mainnet: mainnetIcon,
+  regtest: regtestIcon,
+  testnet4: testnet4Icon,
+};
 
 export function AppHeader() {
   const currentContext = useContextStore((s) => s.currentContext);
   const network = currentContext?.network;
+  const networkIcon = network ? NETWORK_ICONS[network] : undefined;
 
   return (
-    <header className="sticky top-0 z-40 flex h-[68px] shrink-0 items-center justify-between gap-2 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 flex h-[68px] shrink-0 items-center justify-between gap-2 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <h2 className="text-xl font-bold">Wallet</h2>
       <div className="h-9 flex items-center gap-2">
-        <div className="h-9 items-center gap-2 rounded-full px-2.5 text-sm inline-flex bg-background-2">
-          <span className="relative inline-flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/60" />
-            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success" />
-          </span>
-          <span className="text-sm">{network?.toUpperCase()}</span>
-        </div>
-
         <NodeSelector />
+        <div className="h-9 items-center gap-2 rounded-full flex px-2.5 text-sm bg-background-2">
+          {networkIcon ? (
+            <img
+              src={networkIcon}
+              alt={`${network} icon`}
+              className="h-5 w-5"
+            />
+          ) : null}
+          <span className="text-[13px]">{network?.toUpperCase()}</span>
+        </div>
       </div>
     </header>
   );
 }
 
 export function AppBreadcrumb() {
-  const breadcrumbs = useBreadcrumbs()
+  const breadcrumbs = useBreadcrumbs();
 
-  const menu = []
-  for(let i=0; i<breadcrumbs.length; i++) {
-    menu.push(
-      <BreadcrumbItem key={i}>{breadcrumbs[i]}</BreadcrumbItem>
-    )
+  const menu = [];
+  for (let i = 0; i < breadcrumbs.length; i++) {
+    menu.push(<BreadcrumbItem key={i}>{breadcrumbs[i]}</BreadcrumbItem>);
     // separator
-    if(i < breadcrumbs.length - 1) {
-      menu.push(
-        <BreadcrumbSeparator key={`${i}-sep`} />
-      )
+    if (i < breadcrumbs.length - 1) {
+      menu.push(<BreadcrumbSeparator key={`${i}-sep`} />);
     }
   }
 
@@ -52,13 +60,11 @@ export function AppBreadcrumb() {
       <div className="h-full flex items-center">
         {
           <Breadcrumb className="flex items-center">
-            <Wallet className="mr-2 h-3 w-3 text-secondary-foreground" />
-            <BreadcrumbList>
-              {menu}
-            </BreadcrumbList>
+            <IconWallet className="mr-2 h-3 w-3 text-secondary-foreground" />
+            <BreadcrumbList>{menu}</BreadcrumbList>
           </Breadcrumb>
         }
       </div>
     </header>
-  )
+  );
 }

@@ -31,7 +31,7 @@ type Stage = {
 
 const STAGES: Stage[] = [
   { label: "Checking docker environment", progress: 10 },
-  { label: "Pulling node image", progress: 25 },
+  { label: "Initializing node image", progress: 25 },
   { label: "Starting docker container", progress: 45 },
   { label: "Waiting for node to be ready", progress: 65 },
   { label: "Unlocking node keystore", progress: 80 },
@@ -158,6 +158,8 @@ export default function Setup() {
 
       setStageIndex(6);
       setProgress(STAGES[6].progress);
+      // Delay a bit to make sure the node is up and running, otherwise the unlock command may fail
+      await new Promise((res) => setTimeout(res, 4000));
       await unlockNodeMutation.mutateAsync({ nodeId: context.node_id });
 
       setStep("done");

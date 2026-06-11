@@ -84,6 +84,7 @@ impl FileLogger {
 			.map_err(|_| CommandError::Io)?;
 
 		let line = serde_json::to_string(&entry).map_err(|_| CommandError::Io)?;
+		mirror_to_dev_terminal(&entry, &line);
 		f.write_all(line.as_bytes()).map_err(|_| CommandError::Io)?;
 		f.write_all(b"\n").map_err(|_| CommandError::Io)?;
 		Ok(())
@@ -124,6 +125,60 @@ impl FileLogger {
 		let lines: Vec<&str> = text.lines().collect();
 		let start = lines.len().saturating_sub(limit);
 		Ok(lines[start..].iter().map(|s| s.to_string()).collect())
+	}
+}
+
+#[cfg(debug_assertions)]
+fn mirror_to_dev_terminal(entry: &LogEntry, line: &str) {
+	if let Some(formatted) = format_dev_terminal_line(entry) {
+		match entry.level {
+			LogLevel::Warn | LogLevel::Error => eprintln!("{}", formatted),
+			_ => println!("{}", formatted),
+		}
+		return;
+	}
+
+	match entry.level {
+		LogLevel::Warn | LogLevel::Error => eprintln!("[control-panel] {}", line),
+		_ => println!("[control-panel] {}", line),
+	}
+}
+
+#[cfg(not(debug_assertions))]
+fn mirror_to_dev_terminal(_entry: &LogEntry, _line: &str) {}
+
+#[cfg(debug_assertions)]
+fn format_dev_terminal_line(entry: &LogEntry) -> Option<String> {
+	let context = entry.context.as_ref()?.as_object()?;
+	let command = context.get("command")?.as_str()?;
+
+	match entry.message.as_str() {
+		"tauri.invoke.start" => Some(format!(
+			"[control-panel] {} {} start",
+			entry.message, command
+		)),
+		"tauri.invoke.finish" => {
+			let duration_seconds = context.get("durationSeconds")?.as_f64()?;
+			let ok = context.get("ok")?.as_bool()?;
+			let status = if ok { "ok" } else { "error" };
+
+			let mut message = format!(
+				"[control-panel] {} {} {:.3}s {}",
+				entry.message, command, duration_seconds, status
+			);
+
+			if !ok {
+				if let Some(error) = context.get("error").and_then(|v| v.as_str()) {
+					if !error.trim().is_empty() {
+						message.push_str(" - ");
+						message.push_str(error);
+					}
+				}
+			}
+
+			Some(message)
+		}
+		_ => None,
 	}
 }
 

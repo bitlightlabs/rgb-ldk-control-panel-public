@@ -21,7 +21,9 @@ export default function CheckButton(props: IProps) {
       onClick={handleClick}
     >
       {
-        checked ? <IconCheckOn /> : <IconCheck />
+        checked
+          ? <IconCheckOn style={{width: '20px', height: '20px'}} />
+          : <IconCheck style={{width: '20px', height: '20px'}} />
       }
     </Button>
   )

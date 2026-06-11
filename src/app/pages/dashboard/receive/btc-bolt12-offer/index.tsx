@@ -39,7 +39,7 @@ export default function BtcBolt12Offer() {
   return (
     <ContentWrapper>
       <ContentHeader
-        title="Create RGB Lightning Invoice"
+        title="Create Lightning Offer"
         onBack={() => nav(-1)}
       />
       <Content className="space-y-8">
@@ -56,7 +56,7 @@ export default function BtcBolt12Offer() {
             inputMode="numeric"
             placeholder="5000000"
             className="h-14 rounded-2xl"
-            action={<span className="text-base">msat</span>}
+            slot={<span className="text-base">msat</span>}
           />
         </Field> */}
         <Field>

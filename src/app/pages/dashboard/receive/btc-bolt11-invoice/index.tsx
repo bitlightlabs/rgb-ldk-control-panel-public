@@ -54,7 +54,7 @@ export function BtcBolt11Invoice() {
             value={amountSat}
             onChange={(e) => setAmountSat(e.target.value)}
             inputMode="numeric"
-            action={<span className="text-base">sats</span>}
+            slot={<span className="text-base">sats</span>}
           />
         </Field>
         <Field>

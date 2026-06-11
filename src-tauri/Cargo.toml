@@ -1,6 +1,6 @@
 [package]
 name = "rgb-ldk-control-panel"
-version = "0.1.0"
+version = "0.0.4"
 description = "Desktop control plane for local rgbldkd nodes"
 authors = ["rgbldk"]
 edition = "2021"

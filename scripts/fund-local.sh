@@ -3,7 +3,7 @@ set -euo pipefail
 
 CONFIG_DIR="$HOME/Library/Application Support/com.bitlight.rln"
 CONTEXTS_PATH="${CONTEXTS_PATH:-$CONFIG_DIR/contexts.json}"
-FUND_AMOUNT_BTC="${FUND_AMOUNT_BTC:-1.0}"
+FUND_AMOUNT_BTC="${FUND_AMOUNT_BTC:-0.5}"
 
 if [[ ! -f "$CONTEXTS_PATH" ]]; then
   echo "contexts.json not found in: $CONTEXTS_PATH" >&2

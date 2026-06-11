@@ -7,7 +7,7 @@ import IconSuccess from "@/app/icons/success";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { Field, FieldError } from "@/components/ui/field";
 import { PasswordInput } from "@/components/ui/input";
 import {
   backupExportCli,
@@ -49,11 +49,17 @@ export default function Backup() {
     retry: false,
   });
 
+  const fetchMnemonic = () => {
+    if(!queryMnemonic.isLoading) {
+      queryMnemonic.refetch();
+    }
+  }
+
   if (step === 1) {
     return (
       <BackupHome
         onNext={() => setStep(2)}
-        onStartMnemonicFetch={() => queryMnemonic.refetch()}
+        onStartMnemonicFetch={fetchMnemonic}
       />
     );
   }
@@ -67,9 +73,21 @@ function BackupHome(props: {
   onNext: () => void;
   onStartMnemonicFetch: () => void;
 }) {
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState(false);
   const currentContext = useContextStore((s) => s.currentContext);
   const [pwd, setPwd] = useState<string>("");
-  const [verifying, setVerifying] = useState(false);
+
+  const changePassword = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPwd(e.target.value);
+    setError(false);
+  };
+
+  const enter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      verify();
+    }
+  };
 
   const verify = async () => {
     if (!currentContext) {
@@ -86,6 +104,7 @@ function BackupHome(props: {
       setVerifying(false);
       if (!ok) {
         toast.error("Incorrect Passwords");
+        setError(true);
         return;
       }
       props.onNext();
@@ -115,15 +134,19 @@ function BackupHome(props: {
           </div>
         </AlertDescription>
       </Alert>
-      <Field className="mt-8">
+      <Field className="mt-8" data-invalid={error}>
         {/* onFocus starts the Docker fetch in the background while the user
             types, so the mnemonic is ready (or near-ready) by submit time. */}
         <PasswordInput
-          onChange={(e) => setPwd(e.target.value)}
+          className="bg-background-4"
+          iconSize="big"
+          onChange={changePassword}
           placeholder="Enter your password"
           value={pwd}
           onFocus={props.onStartMnemonicFetch}
+          onKeyUp={enter}
         />
+        {error ? <FieldError>Incorrect Passwords</FieldError> : null}
       </Field>
       <Field className="mt-8">
         <Button
@@ -151,6 +174,7 @@ function BackupDetail(props: {
   const [step1Done, setStep1Done] = useState(false);
   const [step2Done, setStep2Done] = useState(false);
   const currentContext = useContextStore((s) => s.currentContext);
+  const [progress, setProgress] = useState(0);
 
   const queryMnemonic = props.mnemonicQuery;
   const queryClient = useQueryClient();
@@ -178,10 +202,13 @@ function BackupDetail(props: {
         return;
       }
 
+      setProgress(25);
       // 1. Lock node
       await nodeLock(currentContext.node_id);
+      setProgress(50);
       // 2. Export
       await backupExportCli(currentContext.node_id, path);
+      setProgress(75);
       // 3. Unlock
       await nodeUnlock(currentContext.node_id);
 
@@ -267,7 +294,7 @@ function BackupDetail(props: {
               Recovery Phrase Backed Up
             </h4>
             <div className="mt-8 flex-1 bg-background-4 rounded-3xl p-5">
-              <div className="text-base font-medium">Download Backup File</div>
+              <div className="text-lg font-medium">Download Backup File</div>
               <div className="mt-2 text-base text-secondary-foreground">
                 This encrypted file contains your node data and channel states.
                 Download it and store it securely.
@@ -276,12 +303,13 @@ function BackupDetail(props: {
                 <Button
                   size="lg"
                   variant="white"
-                  className="s-full rounded-full"
+                  className="w-full rounded-full"
                   disabled={downloading}
-                  loading={downloading}
                   onClick={download}
                 >
-                  Download Backup File
+                  {
+                    downloading ? `Downloading... ${progress}%` : "Download Backup File"
+                  }
                 </Button>
               </div>
             </div>

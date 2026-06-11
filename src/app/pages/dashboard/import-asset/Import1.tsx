@@ -7,6 +7,7 @@ import { readText } from '@tauri-apps/plugin-clipboard-manager'
 interface IProps {
   contractIdInput: string
   setContractIdInput: (input: string) => void
+  loading: boolean
   disabled: boolean
   onNext: () => void
 }
@@ -34,7 +35,7 @@ export default function Import1(props: IProps) {
             placeholder="Contract ID"
             inputMode="numeric"
             className="h-13 rounded-2xl pr-20"
-            action={
+            slot={
               <Button
                 variant="destructive"
                 className="w-14 h-7 rounded-full text-sm"
@@ -52,6 +53,7 @@ export default function Import1(props: IProps) {
             size="lg"
             variant="white"
             className="w-full rounded-full"
+            loading={props.loading}
             disabled={props.disabled}
             onClick={props.onNext}
           >Identify Asset</Button>

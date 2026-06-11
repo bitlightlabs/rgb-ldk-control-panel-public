@@ -13,8 +13,8 @@ export default function PaySuccess() {
   }
 
   return (
-    <div className="py-3">
-      <div className="text-[17px] leading-[22px] text-center">Payment Successful</div>
+    <div className="mx-auto mt-4 pt-8 pb-5 px-5 bg-background-3 w-[560px] rounded-3xl">
+      <div className="text-lg font-medium leading-[22px] text-center">Payment Successful</div>
       <div className="mt-6 flex justify-center">
         <IconSuccess />
       </div>

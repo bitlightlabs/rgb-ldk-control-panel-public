@@ -114,7 +114,7 @@ export function AssetExplorer() {
             <div className="text-base py-20 text-center">Loading...</div>
           ) : contracts.length > 0 ? table : (
             <div className="py-[149px] text-center">
-              <h4 className="text-base">No RGB assets found.</h4>
+              <h4 className="text-base">No RGB Assets Found</h4>
               <div className="mt-1 text-xs text-secondary-foreground">Receive an asset or import to get started.</div>
             </div>
           )

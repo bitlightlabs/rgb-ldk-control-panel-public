@@ -68,6 +68,7 @@ import type {
 import { tauriInvoke } from "./tauri";
 import type { RgbContractsExportBundle } from "./domain";
 import { uint8ArrayToBase64 } from "./utils";
+import { RgbUtxoDto, RgbUtxosFundRequest, RgbUtxosFundResponse, RgbUtxosReleaseRequest, RgbUtxosReleaseResponse, RgbUtxosSweepRequest, RgbUtxosSweepResponse, RgbUtxosTopUpRequest, RgbUtxosTopUpResponse, WalletUtxosResponse } from "./sdk/generated-types";
 
 export type UiLogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
@@ -509,11 +510,11 @@ export async function nodeRgbOnchainTransferConsignmentAccept(
   });
 }
 
-export async function node_rgb_utxos_summary(nodeId: string,): Promise<{
-  utxos: { outpoint: string, value_sats: number }[]
-}> {
-  return tauriInvoke("node_rgb_utxos_summary", { nodeId });
-}
+// export async function nodeRgbUtxosSummary(nodeId: string,): Promise<{
+//   utxos: { outpoint: string, value_sats: number }[]
+// }> {
+//   return tauriInvoke("node_rgb_utxos_summary", { nodeId });
+// }
 
 export async function nodeRgbOnchainInvoiceCreate(
   nodeId: string,
@@ -892,4 +893,37 @@ export async function hashPassword(password: string): Promise<string> {
  */
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
   return tauriInvoke("verify_password", { password, storedHash });
+}
+
+/**
+ * @param refresh By default this uses a fast cached view
+ */
+export async function nodeRgbUtxos(nodeId: string, refresh: boolean = true): Promise<{
+  utxos: RgbUtxoDto[]
+}> {
+  return tauriInvoke("node_rgb_utxos", { nodeId, refresh });
+}
+
+export async function walletRecommendedFees(rpc: string): Promise<{
+  fastestFee: number
+  halfHourFee: number
+  hourFee: number
+}> {
+  return tauriInvoke("wallet_recommended_fees", { rpc });
+}
+
+export async function nodeWalletL1Utxos(nodeId: string): Promise<WalletUtxosResponse> {
+  return tauriInvoke("node_wallet_l1_utxos", { nodeId });
+}
+
+export async function nodeRgbUtxoSweep(nodeId: string, request: RgbUtxosSweepRequest): Promise<RgbUtxosSweepResponse> {
+  return tauriInvoke("node_rgb_utxo_sweep", { nodeId, request });
+}
+
+export async function nodeRgbUtxosFund(nodeId: string, request: RgbUtxosFundRequest): Promise<RgbUtxosFundResponse> {
+  return tauriInvoke("node_rgb_utxos_fund", { nodeId, request });
+}
+
+export async function nodeRgbUtxoTopUp(nodeId: string, request: RgbUtxosTopUpRequest): Promise<RgbUtxosTopUpResponse> {
+  return tauriInvoke("node_rgb_utxo_top_up", { nodeId, request });
 }

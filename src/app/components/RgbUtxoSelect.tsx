@@ -1,20 +1,45 @@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { node_rgb_utxos_summary } from "@/lib/commands"
 import { useEffect, useState } from "react"
 import { useContextStore } from "../stores/contextStore";
+import { classifyUtxos } from "@/lib/utils";
+import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 
+/**
+ * One UTXO can only be bind to one RGB asset
+ */
 export default function RgbUtxoSelect(props: {onChangeUtxo: (utxo: string) => void}) {
-  const [utxos, setUtxos] = useState<{outpoint: string, value_sats: number}[]>([])
+  const [loading, setLoading] = useState(true)
+  const [utxos, setUtxos] = useState<{outpoint: string, value_sats: string}[]>([])
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
 
   const loadUtxos = async () => {
-    try {
-      if(!activeNodeId) return
+    if(!activeNodeId) return
 
-      const data = await node_rgb_utxos_summary(activeNodeId)
-      setUtxos(data.utxos)
-    } catch(e) {}
+    try {
+      setLoading(true)
+
+      const data = await classifyUtxos(activeNodeId)
+      console.log('classifyUtxos', data)
+      if(!data) {
+        return
+      }
+
+      const available = data.available
+      const utxos = []
+      for(const k in available) {
+        utxos.push({
+          outpoint: k,
+          value_sats: available[k]
+        })
+      }
+      setUtxos(utxos)
+    } catch(e) {
+      toast.error(errorToText(e))
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -28,7 +53,7 @@ export default function RgbUtxoSelect(props: {onChangeUtxo: (utxo: string) => vo
       </SelectTrigger>
       <SelectContent>
         {
-          utxos.length === 0 ? (
+          loading ? (
             <SelectItem value="null" disabled>loading...</SelectItem>
           ) : utxos.map((c) => {
             return <SelectItem key={c.outpoint} value={c.outpoint}>{c.outpoint}</SelectItem>

@@ -118,6 +118,11 @@ export const routesConfig = [
             lazy: () => import("@/app/pages/dashboard/receive/btc-bolt12-offer/index").then((mod) => ({ Component: mod.default }))
           },
           {
+            path: 'btc-bolt12-offer-result',
+            breadcrumb: ['Wallet', 'Receive', 'Lightning Offer'],
+            lazy: () => import("@/app/pages/dashboard/receive/btc-bolt12-offer/result").then((mod) => ({ Component: mod.default }))
+          },
+          {
             path: 'btc-onchain-address',
             breadcrumb: ['Wallet', 'Receive', 'Bitcoin On-chain'],
             lazy: () => import("@/app/pages/dashboard/receive/btc-onchain/index").then((mod) => ({ Component: mod.default }))
@@ -133,10 +138,6 @@ export const routesConfig = [
             index: true,
             breadcrumb: ['Wallet', 'Send'],
             lazy: () => import("@/app/pages/dashboard/send").then((mod) => ({ Component: mod.default }))
-          },
-          {
-            path: 'send-old',
-            lazy: () => import("@/app/pages/flows/dashboard/SendPage").then((mod) => ({ Component: mod.SendPage }))
           },
           {
             path: 'rgb-invoice',
@@ -176,12 +177,12 @@ export const routesConfig = [
           {
             path: 'import',
             breadcrumb: ['Wallet', 'Import'],
-            lazy: () => import("@/app/pages/rgb/RgbImportPage").then((mod) => ({ Component: mod.RgbImportPage }))
+            lazy: () => import("@/app/pages/dashboard/import-asset/index").then((mod) => ({ Component: mod.default }))
           },
           {
             path: 'export',
             breadcrumb: ['Wallet', 'Export'],
-            lazy: () => import("@/app/pages/rgb/RgbExportPage").then((mod) => ({ Component: mod.RgbExportPage }))
+            lazy: () => import("@/app/pages/dashboard/export-asset/index").then((mod) => ({ Component: mod.default }))
           }
         ]
       },

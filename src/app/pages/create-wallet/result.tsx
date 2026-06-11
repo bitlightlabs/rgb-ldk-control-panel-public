@@ -1,11 +1,11 @@
 import { useNavigate } from "react-router-dom";
 import { useSetupStore } from "@/app/stores/setupStore";
 import Wrapper from "../start/components/Wrapper";
-import IconLock from "@/app/icons/lock";
 import { Field } from "@/components/ui/field";
 import { PasswordSpan } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import CopyButton from "@/app/components/CopyButton";
+import IconFileLock from "@/app/icons/filelock";
 
 export function CreateResult() {
   const nav = useNavigate();
@@ -20,7 +20,7 @@ export function CreateResult() {
   return (
     <Wrapper onBack={() => nav(-1)}>
       <div className="flex items-center justify-center w-[56px] h-[56px] mx-auto bg-background-3 rounded-2xl">
-        <IconLock />
+        <IconFileLock />
       </div>
       <h4 className="mt-5 text-xl text-center font-bold">
         Backup Recovery Phrase

@@ -11,6 +11,7 @@ mod util;
 mod mem_cache;
 mod constant;
 mod ensure_image;
+mod ldk_types;
 
 use context_store::ContextStore;
 use events_manager::EventsManager;
@@ -175,6 +176,13 @@ pub fn run() {
 			commands::hash_password,
 			commands::verify_password,
 			ensure_image::ensure_docker_image,
+			commands::node_rgb_utxos,
+			commands::node_rgb_utxo_release,
+			wallet::wallet_recommended_fees,
+			commands::node_wallet_l1_utxos,
+			commands::node_rgb_utxo_sweep,
+			commands::node_rgb_utxo_top_up,
+			commands::node_rgb_utxos_fund,
 		])
 		.build(tauri::generate_context!())
 		.expect("error while running tauri application");

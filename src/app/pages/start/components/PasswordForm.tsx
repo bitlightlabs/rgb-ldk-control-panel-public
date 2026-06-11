@@ -70,7 +70,7 @@ export function PasswordForm(props: IProps) {
           placeholder="Create password"
           className="bg-background-4"
           onChange={(e) => setPassword(e.target.value)}
-          action={tip}
+          slot={tip}
         />
       </Field>
       <Field className="mt-3">

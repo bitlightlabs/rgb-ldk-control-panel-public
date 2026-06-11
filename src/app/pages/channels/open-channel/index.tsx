@@ -4,6 +4,7 @@ import {
   ContentHeader,
   ContentWrapper,
 } from "@/app/components/ContentWrapper";
+import RgbUtxoBalance from "@/app/components/RgbUtxoBalance";
 import WalletBtcBalance from "@/app/components/WalletBtcBalance";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -35,7 +36,7 @@ import { errorToText } from "@/lib/errorToText";
 import { OpenChannelRequest } from "@/lib/sdk/types";
 import { formatAddress } from "@/lib/utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 const MIN_RGB_CHANNEL_SATS = 2_000n;
@@ -66,7 +67,7 @@ export default function OpenChannel() {
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
 
-  const [channelAmountSats, setChannelAmountSats] = useState("200000"); // 0.002 BTC default
+  const [channelAmountSats, setChannelAmountSats] = useState("100000"); // 0.001 BTC default
   const [peerNodePubkey, setPeerNodePubkey] = useState("");
   const [peerNodeAddress, setPeerNodeAddress] = useState("");
   const [rgbAssetContractId, setRgbAssetContractId] = useState("");
@@ -75,6 +76,7 @@ export default function OpenChannel() {
 
   const [review, setReview] = useState(false);
   // const [nodeType, setNodeType] = useState<string>("local");
+  const rgbBalanceRef = useRef<string>("0");
 
   useEffect(() => {
     if (!rgbAssetContractId) return;
@@ -87,6 +89,13 @@ export default function OpenChannel() {
     mutationFn: async () => {
       if (!activeNodeId) {
         throw new Error("No active node selected");
+      }
+
+      // Check rgb utxo balance
+      if(rgbAssetContractId !== '') {
+        if(BigInt(channelAmountSats) >= BigInt(rgbBalanceRef.current)) {
+          throw new Error("The selected UTXO has insufficient BTC to open this channel. Please top it up and try again.");
+        }
       }
 
       const currentNode = contextsQuery.data?.find(
@@ -171,7 +180,7 @@ export default function OpenChannel() {
 
   return (
     <>
-      <ContentWrapper>
+      <ContentWrapper className="mb-10">
         <ContentHeader title="Open Channel" onBack={() => nav(-1)} />
         <Content>
           <Field>
@@ -182,7 +191,7 @@ export default function OpenChannel() {
               placeholder="e.g. 200000"
               inputMode="numeric"
               className="h-13 rounded-2xl font-bold"
-              action={<span>sats</span>}
+              slot={<span>sats</span>}
             />
           </Field>
 
@@ -293,7 +302,22 @@ export default function OpenChannel() {
               <div className="h-[18px] text-sm text-secondary-foreground flex justify-between">
                 <div>Channel Capacity</div>
                 <div>
-                  Available: <WalletBtcBalance nodeId={activeNodeId ?? ""} />
+                  <span>Available: </span>
+                  {
+                    rgbAssetContractId !== '' ? (
+                      <RgbUtxoBalance
+                        nodeId={activeNodeId ?? ""}
+                        contractId={rgbAssetContractId ?? ""}
+                        onBalance={(sats) => {
+                          rgbBalanceRef.current = sats
+                        }}
+                      />
+                    ) : (
+                      <WalletBtcBalance
+                        nodeId={activeNodeId ?? ""}
+                      />
+                    )
+                  }
                 </div>
               </div>
               <div className="text-[17px] mt-1 font-medium">
@@ -336,7 +360,10 @@ export default function OpenChannel() {
               size="lg"
               type="button"
               className="flex-1 rounded-full"
-              onClick={() => setReview(false)}
+              onClick={() => {
+                setReview(false)
+                openMutation.reset()
+              }}
             >
               Cancel
             </Button>

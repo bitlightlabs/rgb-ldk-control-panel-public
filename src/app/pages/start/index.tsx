@@ -1,5 +1,3 @@
-import DropMenu from "@/app/components/DropMenu";
-import IconDelete from "@/app/icons/delete";
 import { contextsList, contextsRemove } from "@/lib/commands";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -7,17 +5,15 @@ import Welcome from "./components/Welcome";
 import Local from "./components/Local";
 import DeleteNodeDialog from "./components/DeleteNodeDialog";
 import SwitchNodeDialog from "./components/SwitchNodeDialog";
-import { useContextStore } from "@/app/stores/contextStore";
-import NetworkMeta from "./components/NetworkMeta";
 import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
+import JsonData from '@/../package.json'
+import Account from "./components/Account";
 
 export default function Start() {
-  const [showSwitchNode, setShowSwitchNode] = useState(false)
-  const currentContext = useContextStore((s) => s.currentContext);
-  const setCurrentContext = useContextStore((s) => s.setCurrentContext);
-  const [deleteNodeId, setDeleteNodeId] = useState<string>("");
+  const [deleteNodeId, setDeleteNodeId] = useState<string>("")
   const [page, setPage] = useState<"welcome" | "local" | "remote">("welcome")
+  const [showSwitchNode, setShowSwitchNode] = useState('')
 
   const contextsQuery = useQuery({
     queryKey: ["contexts"],
@@ -28,14 +24,6 @@ export default function Start() {
   const deleteNodeMutation = useMutation({
     mutationFn: (nodeId: string) => contextsRemove(nodeId),
   });
-
-  const switchNode = (nodeId: string) => {
-    const context = contextsQuery.data?.find((v) => v.node_id === nodeId);
-    if(!context) return;
-
-    setCurrentContext(context);
-    setShowSwitchNode(true)
-  }
 
   const deleteNode = async (nodeId: string) => {
     try {
@@ -68,7 +56,7 @@ export default function Start() {
         style={{ backgroundImage: `url(./bg-bottom-1.png)` }}
       >
         <div className="h-full relative">
-          <div className="w-[200px] absolute inset-2 bg-background-2 pt-4 px-3 rounded-3xl border border-background-2">
+          <div className="w-[260px] absolute inset-2 bg-background-2 pt-4 px-3 rounded-3xl border border-background-2">
             <div className="text-2xs leading-4 text-secondary-foreground">
               QUICK LAUNCH
             </div>
@@ -77,47 +65,15 @@ export default function Start() {
             </div>
 
             {contexts.length > 0 ? (
-              <div className="mt-3">
+              <div className="mt-3 mb-10">
                 {contexts.map((v) => {
                   return (
-                    <div
+                    <Account
                       key={v.node_id}
-                      className="relative mb-2 p-3 bg-background-3 rounded-2xl cursor-pointer hover:bg-background-2"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => switchNode(v.node_id)}
-                    >
-                      <div className="absolute right-[10px] top-[10px]">
-                        <DropMenu
-                          className="w-6 h-6"
-                          direaction="vertical"
-                          variant="ghost"
-                          list={[
-                            {
-                              label: (
-                                <span className="text-error">Delete Node</span>
-                              ),
-                              icon: (
-                                <IconDelete
-                                  className="text-error"
-                                  style={{ width: "20px", height: "20px" }}
-                                />
-                              ),
-                              data: v.node_id,
-                              onClick: (id: string) => setDeleteNodeId(id),
-                            },
-                          ]}
-                        />
-                      </div>
-                      <h4 className="text-base font-medium truncate pr-8">
-                        {v.display_name}
-                      </h4>
-                      <NetworkMeta
-                        network={v.network}
-                        // todo ====== nodecontext add network type ======
-                        type={"Local"}
-                      />
-                    </div>
+                      context={v}
+                      onSwitchNode={setShowSwitchNode}
+                      onDeleteNode={setDeleteNodeId}
+                    />
                   );
                 })}
               </div>
@@ -131,8 +87,14 @@ export default function Start() {
                 </div>
               </div>
             ) : null}
+
+            <div
+              className="leading-[18px] absolute left-0 bottom-4 right-0 text-xs text-center text-secondary-foreground"
+            >
+              v{JsonData.version}
+            </div>
           </div>
-          <div className="h-full ml-[208px]">
+          <div className="h-full ml-[268px]">
             {renderContent()}
           </div>
         </div>
@@ -150,12 +112,14 @@ export default function Start() {
       ) : null}
 
       {/* Switch Node */}
-      {showSwitchNode && currentContext ? (
+      {showSwitchNode ? (
         <SwitchNodeDialog
-          context={currentContext}
-          onClose={() => setShowSwitchNode(false)}
+          contexts={contexts}
+          nodeId={showSwitchNode}
+          onClose={() => setShowSwitchNode('')}
         />
       ) : null}
     </>
   )
 }
+

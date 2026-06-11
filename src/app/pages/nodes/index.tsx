@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/table";
 import {
   nodeMainChannels,
+  nodeMainNodeId,
   nodeMainPeers,
   nodeMainPeersDisconnect,
 } from "@/lib/commands";
@@ -111,7 +112,9 @@ export default function PeersPage() {
     return (
       <>
         <Header onCreateNode={() => nav("/dashboard/peers/connect")} />
-        <Content className="mt-0 h-[662px] flex justify-center items-center">
+        <NodeInfo />
+
+        <Content className="mt-4 h-[566px] flex justify-center items-center">
           <Empty
             title="No Nodes Connected"
             subTitle="You haven't connected to any peers yet. Connect to a node to start building your network."
@@ -135,8 +138,9 @@ export default function PeersPage() {
   return (
     <>
       <Header onCreateNode={() => nav("/dashboard/peers/connect")} />
+      <NodeInfo />
 
-      <Content className="mt-0 px-3">
+      <Content className="mt-4 px-3">
         <Table className="w-full text-sm">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -245,4 +249,33 @@ export default function PeersPage() {
       </Dialog>
     </>
   );
+}
+
+function NodeInfo() {
+  const currentContext = useContextStore((s) => s.currentContext);
+
+  const nodeIdQuery = useQuery({
+    queryKey: ["node_main_node_id", currentContext?.node_id],
+    queryFn: () => nodeMainNodeId(currentContext?.node_id ?? ''),
+    enabled: !!currentContext,
+  });
+
+  return (
+    <div className="h-20 flex justify-between gap-3">
+      <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-2">
+        <div className="text-xs text-secondary-foreground leading-[18px]">Pubkey</div>
+        <div className="mt-2 text-base h-5 flex gap-2 items-center">
+          <span>{formatAddress(nodeIdQuery.data?.node_id)}</span>
+          <CopyText className="text-secondary-foreground" text={nodeIdQuery.data?.node_id ?? ''} />
+        </div>
+      </div>
+      <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-2">
+        <div className="text-xs text-secondary-foreground leading-[18px]">Address</div>
+        <div className="mt-2 text-base h-5 flex gap-2 items-center">
+          <span>{formatAddress(currentContext?.p2p_listen ?? '')}</span>
+          <CopyText className="text-secondary-foreground" text={currentContext?.p2p_listen ?? ''} />
+        </div>
+      </div>
+    </div>
+  )
 }

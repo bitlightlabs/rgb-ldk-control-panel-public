@@ -15,7 +15,7 @@ import "./style.css";
 initLogging();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
+  // <React.StrictMode>
     <AppProviders>
       <RouterProvider router={routes} />
 
@@ -48,7 +48,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
 
       <Exit />
     </AppProviders>
-  </React.StrictMode>
+  // </React.StrictMode>
 );
 
 

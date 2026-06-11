@@ -39,7 +39,10 @@ body {
   --color-error: var(--error);
   --color-warning: var(--warning);
   --color-warning-2: var(--warning-2);
+  --color-avatar: var(--avatar);
   --color-background: var(--background);
+  --color-background-solid: var(--background-solid);
+  --color-background-solid-2: var(--background-solid-2);
   --color-background-1: var(--background-1);
   --color-background-2: var(--background-2);
   --color-background-3: var(--background-3);
@@ -98,6 +101,7 @@ body {
   --error: rgba(255, 66, 69, 1);
   --warning: rgba(255, 142, 11, 1);
   --warning-2: rgba(255, 214, 0, 1);
+  --avatar: rgba(169, 65, 55, 1);
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -135,13 +139,15 @@ body {
 }
 
 .dark {
-  --muted-foreground: rgba(235, 235, 245, 0.3);
   --background-1: rgba(15, 15, 16, 1);
   --background-2: rgba(118, 118, 128, 0.2);
   --background-3: rgba(118, 118, 128, 0.12);
   --background-4: rgba(118, 118, 128, 0.08);
   --background-muted: rgba(120, 120, 128, 0.4);
   --secondary-foreground: rgba(235, 235, 245, 0.6);
+  --background-solid: rgba(28, 28, 30, 1);
+  --background-solid-2: rgba(35, 35, 38, 1);
+  --muted-foreground: rgba(235, 235, 245, 0.3);
 
   --background: rgba(0, 0, 0, 1);
   --foreground: rgba(255, 255, 255, 1);
@@ -215,5 +221,5 @@ body {
   line-height: 20px;
 }
 div {
-  word-break: break-all;
+  word-break: break-word;
 }

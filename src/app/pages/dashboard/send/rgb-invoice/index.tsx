@@ -50,8 +50,6 @@ export default function SendLnRGBInvoiceConfirm() {
       return nodeRgbLnInvoiceDecode(activeNodeId!, {invoice: payload})
     },
     enabled: !!activeNodeId && payload.trim() !== "",
-    retry: 1,
-    retryDelay: 200,
   });
 
   // current contract
@@ -122,6 +120,7 @@ export default function SendLnRGBInvoiceConfirm() {
             className="flex-1 rounded-full"
             disabled={rgbContractsQuery.isPending
               || rgbInvoiceDecodeQuery.isPending
+              || (rgbInvoiceDecodeQuery.data === undefined)
               || sendMutation.isPending
             }
             onClick={() => sendMutation.mutate()}

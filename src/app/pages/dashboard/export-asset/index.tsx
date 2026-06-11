@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  contextsList,
   downloadTransferConsignmentFromLinkWithoutVerify,
   nodeMainHttp,
   nodeRgbContracts,
@@ -73,7 +72,7 @@ function formatRgbAtomicAmount(amount: string, precision: number): string {
   return fraction ? `${integer}.${fraction}` : integer.toString();
 }
 
-export function RgbExportPage() {
+export default function RgbExportPage() {
   const navigate = useNavigate();
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id ?? '';

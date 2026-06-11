@@ -36,7 +36,7 @@ export default function PeerConnect() {
     },
     onSuccess: async () => {
       toast.success(`Peer connected`);
-      nav("/peers");
+      nav('/dashboard/peers')
     },
     onError: (err) => {
       toast.error(`${err instanceof Error ? err.message : String(err)}`);

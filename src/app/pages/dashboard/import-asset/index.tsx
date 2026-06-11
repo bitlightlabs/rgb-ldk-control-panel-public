@@ -32,7 +32,7 @@ function isDigits(s: string): boolean {
   return /^\d+$/.test(s.trim());
 }
 
-export function RgbImportPage() {
+export default function RgbImportPage() {
   const navigate = useNavigate();
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id ?? '';
@@ -209,6 +209,7 @@ export function RgbImportPage() {
           <Import1
             contractIdInput={contractIdInput}
             setContractIdInput={setContractIdInput}
+            loading={importMutation.isPending}
             disabled={
               importMutation.isPending || !contractIdInput.trim()
             }
@@ -250,6 +251,7 @@ export function RgbImportPage() {
               consignmentLink={consignmentLink}
               setConsignmentLink={setConsignmentLink}
               selectedContract={selectedContract}
+              loading={acceptPaymentMutation.isPending}
               disabled={!consignmentLink || acceptPaymentMutation.isPending}
               onNext={() => acceptPaymentMutation.mutate()}
             />

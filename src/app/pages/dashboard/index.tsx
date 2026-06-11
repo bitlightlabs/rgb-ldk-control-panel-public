@@ -135,25 +135,13 @@ export function DashboardPage() {
           </span>
           <span>Send</span>
         </Button>
-        {/* <Button
-          variant="destructive"
-          size="lg"
-          className="rounded-full"
-          onClick={() => navigate("/dashboard/send/send-old")}
-        >
-          <span className="h-5 w-5">
-            <IconSend style={{ height: "20px", width: "20px" }} />
-          </span>
-          <span>Sendold</span>
-        </Button> */}
         <Button
           variant="destructive"
           size="lg"
           className="rounded-full disabled:bg-background-2"
-          disabled
           onClick={() => navigate("/dashboard/utxo")}
         >
-          <span className="h-5 w-5 opacity-30">
+          <span className="h-5 w-5">
             <IconUtxo style={{ height: "20px", width: "20px" }} />
           </span>
           <span>UTXO</span>

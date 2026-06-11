@@ -1,4 +1,4 @@
-use crate::{context_store::NodeContext, error::CommandError};
+use crate::{context_store::NodeContext, error::CommandError, ldk_types};
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -2487,4 +2487,250 @@ pub async fn bolt11_rgb_ln_invoice_decode(
 	resp.json::<Value>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+pub async fn rgb_utxos(
+    client: &reqwest::Client,
+    ctx: &NodeContext,
+		refresh: bool,
+) -> Result<Value, CommandError> {
+    let base = parse_base_url(&ctx.main_api_base_url)?;
+		let mut api = "api/v1/rgb/utxos";
+		if refresh {
+			api = "api/v1/rgb/utxos?refresh=true";
+		}
+    let url = base
+        .join(api)
+        .map_err(|_| CommandError::InvalidBaseUrl {
+            url: ctx.main_api_base_url.clone(),
+        })?;
+
+    let mut req = client.get(url);
+    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+        let token = read_token_file(Path::new(path))?;
+        req = req.bearer_auth(token);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
+
+    resp.json::<Value>()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+pub async fn rgb_utxo_release(
+    client: &reqwest::Client,
+    ctx: &NodeContext,
+		request: ldk_types::RgbUtxosReleaseRequest,
+) -> Result<Value, CommandError> {
+    let base = parse_base_url(&ctx.main_api_base_url)?;
+    let url = base
+        .join("api/v1/rgb/utxos/release")
+        .map_err(|_| CommandError::InvalidBaseUrl {
+            url: ctx.main_api_base_url.clone(),
+        })?;
+
+    let mut req = client.post(url).json(&request);
+    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+        let token = read_token_file(Path::new(path))?;
+        req = req.bearer_auth(token);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
+
+    resp.json::<Value>()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+pub async fn wallet_l1_utxos(
+    client: &reqwest::Client,
+    ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+    let base = parse_base_url(&ctx.main_api_base_url)?;
+    let url = base
+        .join("api/v1/wallet/utxos")
+        .map_err(|_| CommandError::InvalidBaseUrl {
+            url: ctx.main_api_base_url.clone(),
+        })?;
+
+    let mut req = client.get(url);
+    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+        let token = read_token_file(Path::new(path))?;
+        req = req.bearer_auth(token);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
+
+    resp.json::<Value>()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UtxoSweepRequestBody {
+		pub input: UtxoSweepRequestInput,
+		pub destination_address: String,
+		pub fee_rate_sats_per_vb: f32
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct UtxoSweepRequestInput {
+    pub outpoint: String,
+}
+pub async fn rgb_utxo_sweep(
+    client: &reqwest::Client,
+    ctx: &NodeContext,
+		req: &UtxoSweepRequestBody
+) -> Result<Value, CommandError> {
+    let base = parse_base_url(&ctx.main_api_base_url)?;
+    let url = base
+        .join("api/v1/rgb/utxos/sweep")
+        .map_err(|_| CommandError::InvalidBaseUrl {
+            url: ctx.main_api_base_url.clone(),
+        })?;
+
+    let mut req = client.post(url).json(&req);
+    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+        let token = read_token_file(Path::new(path))?;
+        req = req.bearer_auth(token);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
+
+    resp.json::<Value>()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UtxoTopUpRequestBody {
+		pub rgb_input: UtxoTopUpInput,
+		pub l1_inputs: Vec<UtxoTopUpL1Input>,
+		pub rgb_output: UtxoTopUpRgbOutput,
+		pub change_address: String,
+		pub fee_rate_sats_per_vb: f32,
+}
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UtxoTopUpInput {
+		pub outpoint: String,
+}
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UtxoTopUpL1Input {
+		pub outpoint: String,
+}
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UtxoTopUpRgbOutput {
+		pub address: String,
+		pub target_value_sats: String,
+}
+
+pub async fn rgb_utxo_top_up(
+    client: &reqwest::Client,
+    ctx: &NodeContext,
+		req: &UtxoTopUpRequestBody
+) -> Result<Value, CommandError> {
+    let base = parse_base_url(&ctx.main_api_base_url)?;
+    let url = base
+        .join("api/v1/rgb/utxos/top_up")
+        .map_err(|_| CommandError::InvalidBaseUrl {
+            url: ctx.main_api_base_url.clone(),
+        })?;
+
+    let mut req = client.post(url).json(&req);
+    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+        let token = read_token_file(Path::new(path))?;
+        req = req.bearer_auth(token);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
+
+    resp.json::<Value>()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct RgbUtxosFundRequestBody {
+  inputs: Vec<RgbUtxosFundInputDto>,
+  outputs: Vec<RgbUtxosFundOutputDto>,
+  change_address: String,
+  fee_rate_sats_per_vb: f32,
+}
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RgbUtxosFundInputDto {
+  outpoint: String,
+}
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct RgbUtxosFundOutputDto {
+  address: String,
+  value_sats: String,
+}
+pub async fn rgb_utxos_fund(
+    client: &reqwest::Client,
+    ctx: &NodeContext,
+		req: &RgbUtxosFundRequestBody
+) -> Result<Value, CommandError> {
+    let base = parse_base_url(&ctx.main_api_base_url)?;
+    let url = base
+        .join("api/v1/rgb/utxos/fund")
+        .map_err(|_| CommandError::InvalidBaseUrl {
+            url: ctx.main_api_base_url.clone(),
+        })?;
+
+    let mut req = client.post(url).json(&req);
+    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+        let token = read_token_file(Path::new(path))?;
+        req = req.bearer_auth(token);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
+
+    resp.json::<Value>()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)
 }

@@ -22,7 +22,7 @@ export default function OfferForm(props: IProps) {
           inputMode="numeric"
           placeholder="5000000"
           className="h-14 rounded-2xl"
-          action={<span className="text-base">msat</span>}
+          slot={<span className="text-base">msat</span>}
         />
       </Field> */}
       <Field>

@@ -8,6 +8,7 @@ export type AppNetworkOption = NetworkOption & {
     coreUrl: string;
     enabled?: boolean;
     explorerUrl?: string;
+    fee: string
 };
 
 export const NETWORK_OPTIONS: AppNetworkOption[] = [
@@ -22,6 +23,7 @@ export const NETWORK_OPTIONS: AppNetworkOption[] = [
             import.meta.env.VITE_BITCOIN_CORE_API ??
             '',
         iconSrc: mainnetIcon,
+        fee: import.meta.env.VITE_FEE_BITCOIN_API ?? ''
     },
 
     {
@@ -35,6 +37,7 @@ export const NETWORK_OPTIONS: AppNetworkOption[] = [
             import.meta.env.VITE_TESTNET4_CORE_API ??
             '',
         iconSrc: testnet4Icon,
+        fee: import.meta.env.VITE_FEE_TESTNET4_API ?? ''
     },
     {
         value: "regtest",
@@ -47,7 +50,8 @@ export const NETWORK_OPTIONS: AppNetworkOption[] = [
             import.meta.env.VITE_REGTEST_CORE_API ??
             'https://core-regtest-prod-rgb012rc3a.bitlightdev.info',
         iconSrc: regtestIcon,
-        explorerUrl: import.meta.env.VITE_REGTEST_WEB_EXPLORER
+        explorerUrl: import.meta.env.VITE_REGTEST_WEB_EXPLORER,
+        fee: import.meta.env.VITE_FEE_REGTEST_API ?? ''
     },
 ];
 

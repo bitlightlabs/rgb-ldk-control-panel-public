@@ -25,7 +25,7 @@ export function ReceivePage() {
             <Button
               type="button"
               variant="secondary"
-              className="h-[66px] w-full rounded-2xl justify-between p-5"
+              className="h-[66px] w-full rounded-2xl justify-between p-5 hover:[&_svg]:text-foreground"
               onClick={() => {
                 navigate('/dashboard/receive/rgb-invoice');
               }}
@@ -42,7 +42,7 @@ export function ReceivePage() {
             <Button
               type="button"
               variant="secondary"
-              className="h-[66px] w-full rounded-2xl justify-between p-5"
+              className="h-[66px] w-full rounded-2xl justify-between p-5 hover:[&_svg]:text-foreground"
               onClick={() => {
                 navigate('/dashboard/receive/btc-bolt11-invoice');
               }}
@@ -59,7 +59,7 @@ export function ReceivePage() {
             <Button
               type="button"
               variant="secondary"
-              className="h-[66px] w-full rounded-2xl justify-between p-5"
+              className="h-[66px] w-full rounded-2xl justify-between p-5 hover:[&_svg]:text-foreground"
               onClick={() => {
                 navigate('/dashboard/receive/btc-bolt12-offer');
               }}
@@ -82,7 +82,7 @@ export function ReceivePage() {
             <Button
               type="button"
               variant="secondary"
-              className="h-[66px] w-full rounded-2xl justify-between p-5"
+              className="h-[66px] w-full rounded-2xl justify-between p-5 hover:[&_svg]:text-foreground"
               onClick={() => {
                 // setMode("btc_onchain_address");
                 // setDescription("Receive BTC OnChain");

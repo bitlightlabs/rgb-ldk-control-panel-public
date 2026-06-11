@@ -13,6 +13,7 @@ import { useMutation } from "@tanstack/react-query";
 import {
   backupImportCli,
   backupInspectArchiveCli,
+  eventsStart,
   nodeRunCli,
   nodeUnlock,
   prepareNodeResources,
@@ -30,6 +31,7 @@ import { useContextStore } from "@/app/stores/contextStore";
 export default function ImportWallet() {
   const nav = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [filePath, setFilePath] = useState<string>("");
   const [words, setWords] = useState<string>("");
   const passwordHash = useSetupStore((s) => s.passwordHash);
@@ -106,12 +108,15 @@ export default function ImportWallet() {
     try {
       setLoading(true);
 
+      setProgress(0);
+
       // Check dockeer
       await ensureDockerImage(LDK_IMAGE);
 
       // 1. Inspect file
       const inspectData = await backupInspectArchiveCli(LDK_IMAGE, filePath)
       const network = inspectData.manifest.network as BitcoinNetwork
+      setProgress(20);
 
       const option = getNetworkOption(network);
       if (!option) {
@@ -127,12 +132,14 @@ export default function ImportWallet() {
         esploraUrl: option.esploraUrl,
       });
       setCurrentContext(context)
+      setProgress(40);
 
       // 3. Init Node
       await initNodeMutation.mutateAsync({
         nodeId: context.node_id,
         mnemonic: words,
       });
+      setProgress(60);
 
       // 4. Import
       await importMutation.mutateAsync({
@@ -140,14 +147,17 @@ export default function ImportWallet() {
         archivePath: filePath,
         autoStop: false,
       });
+      setProgress(80);
 
       // 5. Run node
       await nodeRunMutation.mutateAsync({ nodeId: context.node_id });
+      setProgress(90);
 
       // 6. Unlock node
       // Delay a bit to make sure the node is up and running, otherwise the unlock command may fail
       await new Promise((res) => setTimeout(res, 5000));
       await unlockNodeMutation.mutateAsync({ nodeId: context.node_id });
+      await eventsStart(context.node_id);
 
       // Nav to start page
       nav("/dashboard", { replace: true });
@@ -179,7 +189,7 @@ export default function ImportWallet() {
           onChange={(e) => setWords(e.target.value)}
           placeholder="Enter 12 or 24-word recovery phrase"
           className="rounded-2xl min-h-[120px] pr-20 bg-background-4"
-          action={
+          slot={
             <Button
               variant="destructive"
               className="w-14 h-7 rounded-full text-sm"
@@ -214,6 +224,7 @@ export default function ImportWallet() {
         <Input
           placeholder="Enter Node Name"
           className="bg-background-4"
+          maxLength={12}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -223,12 +234,13 @@ export default function ImportWallet() {
         <Button
           size="lg"
           variant="white"
-          disabled={loading || filePath === "" || words === ""}
-          loading={loading}
           className="w-full rounded-full"
+          disabled={loading || filePath === "" || words === ""}
           onClick={restore}
         >
-          Restore Wallet
+          {
+            loading ? `Importing... ${progress}%` : "Restore Wallet"
+          }
         </Button>
       </div>
     </Wrapper>

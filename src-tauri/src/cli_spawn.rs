@@ -190,7 +190,12 @@ fn hint_for_exit_code(code: i32) -> Option<String> {
 pub fn resolve_docker() -> PathBuf {
 	// On macOS, when launched from Finder, $PATH may not include /usr/local/bin.
 	// Prefer absolute paths to common docker install locations.
-	for candidate in ["/usr/local/bin/docker", "/opt/homebrew/bin/docker", "/usr/bin/docker"] {
+	for candidate in [
+		"/usr/local/bin/docker",
+		"/opt/homebrew/bin/docker",
+		"/usr/bin/docker",
+		"/Applications/Docker.app/Contents/Resources/bin/docker"
+	] {
 		let p = Path::new(candidate);
 		if p.exists() {
 			return p.to_path_buf();

@@ -91,7 +91,7 @@ export default function SendBolt12OfferConfirm() {
               onChange={(e) => setOfferAmountSats(e.target.value)}
               placeholder="20"
               inputMode="numeric"
-              action={<span className="text-base">sats</span>}
+              slot={<span className="text-base">sats</span>}
               // bottom={
               //   <span className="text-sm font-normal">Available: 10 BTC</span>
               // }

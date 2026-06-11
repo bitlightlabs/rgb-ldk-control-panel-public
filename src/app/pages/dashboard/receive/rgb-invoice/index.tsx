@@ -15,8 +15,8 @@ export function RGBInvoice() {
   const nav = useNavigate()
   const currentContext = useContextStore((s) => s.currentContext);
   const [selectedContract, setSelectedContract] = useState<RgbContractDto | null>(null);
-  const [amount, setAmount] = useState("21");
-  const [btcCarrierSat, setBtcCarrierSat] = useState("5000");
+  const [amount, setAmount] = useState("20");
+  const [btcCarrierSat, setBtcCarrierSat] = useState("8000");
   const [description, setDescription] = useState("");
   const activeNodeId = currentContext?.node_id;
 
@@ -73,11 +73,7 @@ export function RGBInvoice() {
             }
             inputMode="numeric"
             placeholder="21"
-            action={
-              <>
-                <span className="text-base">{selectedContract?.name}</span>
-              </>
-            }
+            slot={<span className="text-base">{selectedContract?.name}</span>}
           />
         </Field>
         <Field>
@@ -91,11 +87,7 @@ export function RGBInvoice() {
             }
             inputMode="numeric"
             placeholder="5000"
-            action={
-              <>
-                <span className="text-base">sat</span>
-              </>
-            }
+            slot={<span className="text-base">sat</span>}
           />
         </Field>
         <Field>

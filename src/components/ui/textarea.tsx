@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 
 const Textarea = React.forwardRef<
   HTMLTextAreaElement,
-  React.ComponentProps<"textarea"> & {action?: any}
+  React.ComponentProps<"textarea"> & {slot?: any}
 >(({ className, ...props }, ref) => {
   return (
     <div className="relative">
@@ -16,7 +16,7 @@ const Textarea = React.forwardRef<
         ref={ref}
         {...props}
       />
-      <div className="absolute z-50 top-0 bottom-0 right-4 flex items-center">{props.action}</div>
+      <div className="absolute z-50 top-0 bottom-0 right-4 flex items-center">{props.slot}</div>
     </div>
   )
 })

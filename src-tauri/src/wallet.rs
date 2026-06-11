@@ -1,4 +1,7 @@
-use crate::{error::CommandError, rgbldkd_http};
+use serde_json::Value;
+use tauri::State;
+
+use crate::{AppState, error::CommandError, rgbldkd_http};
 // use base64::{engine::general_purpose, Engine as _};
 // use std::time::{SystemTime, UNIX_EPOCH};
 // use std::{fs::File, io::Write, path::Path};
@@ -272,6 +275,27 @@ pub async fn plugin_wallet_transfer_consignment_accept(
 	}
 
 	resp.text()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+
+/// Get recommend fees for a network
+#[tauri::command]
+pub async fn wallet_recommended_fees(
+    _state: State<'_, AppState>,
+    rpc: &str,
+) -> Result<Value, CommandError> {
+    let client = reqwest::Client::new();
+
+	let req = client.get(rpc);
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(rgbldkd_http::classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }

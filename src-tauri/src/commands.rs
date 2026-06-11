@@ -1,5 +1,5 @@
 use crate::{
-    AppState, app_dirs, constant, context_store::{ContextStore, NodeContext}, error::CommandError, events_manager::{EventsStatus, StoredEvent}, logger::{LogEntry, LogLevel, now_ms}, rgbldkd_http::{self, ControlStatusDto, MainStatusResponse, OkResponse}, util::{encode_uri_component, get_current_timestamp, sort_http_params, str_to_hex}, wallet
+    AppState, app_dirs, constant, context_store::{ContextStore, NodeContext}, error::CommandError, events_manager::{EventsStatus, StoredEvent}, ldk_types, logger::{LogEntry, LogLevel, now_ms}, rgbldkd_http::{self, ControlStatusDto, MainStatusResponse, OkResponse}, util::{encode_uri_component, get_current_timestamp, sort_http_params, str_to_hex}, wallet
 };
 use base64::{engine::general_purpose, Engine as _};
 use hex;
@@ -4837,4 +4837,113 @@ async fn backup_inspect_archive_cli_inner(
         })?;
 
     Ok(BackupInspectResponse { manifest })
+}
+
+
+
+/// Returns the RGB wallet outpoints known to the node.
+#[tauri::command]
+pub async fn node_rgb_utxos(
+    state: State<'_, AppState>,
+    node_id: String,
+    refresh: bool // By default this uses a fast cached view
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxos",
+        None,
+        rgbldkd_http::rgb_utxos(&state.http, &ctx, refresh),
+    )
+    .await
+}
+
+/// Release RGB UTXO reservation
+#[tauri::command]
+pub async fn node_rgb_utxo_release(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: ldk_types::RgbUtxosReleaseRequest,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxo.release",
+        None,
+        rgbldkd_http::rgb_utxo_release(&state.http, &ctx, request),
+    )
+    .await
+}
+
+/// Unspent L1 UTXOs known to the node
+#[tauri::command]
+pub async fn node_wallet_l1_utxos(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxo.release",
+        None,
+        rgbldkd_http::wallet_l1_utxos(&state.http, &ctx),
+    )
+    .await
+}
+
+
+#[tauri::command]
+pub async fn node_rgb_utxo_sweep(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: rgbldkd_http::UtxoSweepRequestBody
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxo.sweep",
+        None,
+        rgbldkd_http::rgb_utxo_sweep(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+/// Create a new RGB UTXO
+#[tauri::command]
+pub async fn node_rgb_utxos_fund(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: rgbldkd_http::RgbUtxosFundRequestBody
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxo.fund",
+        None,
+        rgbldkd_http::rgb_utxos_fund(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+/// Top up RGB UTXO reservation by sweeping more L1 UTXOs into the reserved ones
+#[tauri::command]
+pub async fn node_rgb_utxo_top_up(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: rgbldkd_http::UtxoTopUpRequestBody
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxo.top_up",
+        None,
+        rgbldkd_http::rgb_utxo_top_up(&state.http, &ctx, &request),
+    )
+    .await
 }

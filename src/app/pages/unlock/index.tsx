@@ -14,11 +14,12 @@ import {
 import { Field, FieldError } from "@/components/ui/field";
 import { Input, PasswordInput } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { nodeMainStatus, nodeUnlock, verifyPassword } from "@/lib/commands";
+import { contextsList, nodeMainStatus, nodeUnlock, verifyPassword } from "@/lib/commands";
 import { ArrowLeft, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 export function UnlockPage() {
   const nav = useNavigate();
@@ -29,8 +30,16 @@ export function UnlockPage() {
   const currentContext = useContextStore((s) => s.currentContext);
   const [search] = useSearchParams();
   const [resetText, setResetText] = useState("");
+  const setCurrentContext = useContextStore((s) => s.setCurrentContext);
 
+  const nodeId = search.get("node_id") || "";
   const showBack = search.get("show_back") === "1";
+
+  const contextsQuery = useQuery({
+    queryKey: ["contexts"],
+    queryFn: contextsList,
+    refetchInterval: false,
+  });
 
   const changePassword = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value);
@@ -50,6 +59,12 @@ export function UnlockPage() {
       return;
     }
 
+    const targetContext = contextsQuery.data?.find((v) => v.node_id === nodeId);
+    if(!targetContext) {
+      toast.error("Invalid node");
+      return;
+    }
+
     try {
       setLoading(true);
       const ok = await verifyPassword(password, currentContext.password_hash);
@@ -64,6 +79,9 @@ export function UnlockPage() {
         await nodeUnlock(currentContext.node_id);
       }
 
+      // Save context
+      setCurrentContext(targetContext);
+
       nav("/dashboard");
     } catch (e) {
       toast.error("Failed to unlock");
@@ -73,11 +91,26 @@ export function UnlockPage() {
   };
 
   const reset = () => {
-    if (resetText !== "RESET") {
+    if (resetText === "RESET") {
       nav("/");
-      return;
     }
   };
+
+  const preventBack = () => {
+    document.onkeydown = (e: KeyboardEvent) => {
+      if (e.key === 'Backspace') {
+        console.log('Backspace pressed');
+        const tag = (e.target as HTMLElement).tagName
+        if (!['INPUT', 'TEXTAREA'].includes(tag)) {
+          e.preventDefault()
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    preventBack()
+  }, [])
 
   return (
     <>

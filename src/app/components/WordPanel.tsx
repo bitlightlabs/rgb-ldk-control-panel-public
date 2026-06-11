@@ -1,5 +1,5 @@
 import { Field } from "@/components/ui/field"
-import { PasswordInput } from "@/components/ui/input"
+import { PasswordInput, PasswordSpan } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 
 interface IProps {
@@ -24,9 +24,9 @@ export default function WordPanel(props: IProps) {
         split.map((v, i) => {
           return (
             <Field key={i}>
-              <PasswordInput
-                defaultValue={v}
-                className="h-10 bg-background-3 disabled:opacity-100"
+              <PasswordSpan
+                value={v}
+                className="h-10 bg-background-4 disabled:opacity-100"
                 prefix={i + 1}
                 disabled
               />

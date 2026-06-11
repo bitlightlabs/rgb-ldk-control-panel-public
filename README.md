@@ -58,6 +58,10 @@ Run end-to-end tests:
 
 - `pnpm test:e2e`
 
+> From pnpm v10.1 onwards, build scripts for third-party dependencies are intercepted by default and require explicit approval. If you encounter build script errors during installation, run:
+> `pnpm approve-builds`
+>
+
 ## Environment variables
 
 The frontend reads build-time configuration from Vite `VITE_*` environment variables. Supported variables are documented in [`.env.example`](./.env.example).

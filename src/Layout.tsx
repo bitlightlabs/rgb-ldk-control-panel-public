@@ -1,17 +1,8 @@
-import {
-  BoxIcon,
-  LockKeyhole,
-  LogOutIcon,
-  SettingsIcon,
-  WalletIcon,
-} from "lucide-react";
 import { Collapsible } from "./components/ui/collapse";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -20,259 +11,35 @@ import {
   SidebarProvider,
   useSidebar,
 } from "./components/ui/sidebar";
-import { Button } from "./components/ui/button";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import IconCollapseRight from "./app/icons/collapseright";
 import IconCollapseLeft from "./app/icons/collapseleft";
 import IconLight from "./app/icons/light";
 import { AppBreadcrumb, AppHeader } from "./app/components/AppHeader";
-import { nodeLock, nodeMainStatus } from "./lib/commands";
-import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "./components/ui/dialog";
+import { contextsList, nodeLock } from "./lib/commands";
+import { useState } from "react";
 import { useContextStore } from "./app/stores/contextStore";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Spinner } from "./components/ui/spinner";
-
-function AppSideBar(props: {onExit: (loading: boolean) => void}) {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const { toggleSidebar, state } = useSidebar();
-  const { pathname } = useLocation();
-  const nav = useNavigate();
-  const currentContext = useContextStore((s) => s.currentContext);
-
-  const lockMutation = useMutation({
-    mutationFn: async (nodeId: string) => {
-      await nodeLock(nodeId);
-    },
-  });
-
-  const cancelConfirm = () => {
-    setShowConfirm(false);
-  };
-
-  const logout = async () => {
-    if (!currentContext) return;
-    try {
-      props.onExit(true);
-      await lockMutation.mutateAsync(currentContext.node_id);
-      nav("/", { replace: true });
-    } catch (e) {} finally {
-      props.onExit(false);
-    }
-  };
-
-  const lock = async () => {
-    if (!currentContext) return;
-    try {
-      props.onExit(true);
-      await lockMutation.mutateAsync(currentContext.node_id);
-      nav("/unlock", { replace: true });
-    } catch (e) {} finally {
-      props.onExit(false);
-    }
-  };
-
-  return (
-    <>
-      <Sidebar variant="floating" collapsible="icon">
-        <SidebarHeader>
-          <div className="flex items-center space-x-2 px-3 py-1">
-            {state === "collapsed" ? (
-              <img
-                src="./icon.svg"
-                alt="Bitlight Labs"
-                style={{ width: "26px", height: "40px" }}
-              />
-            ) : (
-              <img
-                src="./logo.svg"
-                alt="Bitlight Labs"
-                style={{ width: "168px", height: "40px" }}
-              />
-            )}
-          </div>
-        </SidebarHeader>
-
-        <SidebarContent className="pb-4">
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <Collapsible asChild>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      className="h-11 px-3 py-3 text-base font-medium rounded-2xl gap-4"
-                      isActive={pathname === "/dashboard"}
-                      onClick={() => nav("/dashboard")}
-                    >
-                      <WalletIcon />
-                      <span>Wallet</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </Collapsible>
-                <Collapsible asChild>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      className="h-11 px-3 py-3 text-base font-medium rounded-2xl gap-4"
-                      isActive={pathname === "/dashboard/peers"}
-                      onClick={() => nav("/dashboard/peers")}
-                    >
-                      <BoxIcon />
-                      <span>Nodes</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </Collapsible>
-                <Collapsible asChild>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      className="h-11 px-3 py-3 text-base font-medium rounded-2xl gap-4"
-                      isActive={pathname === "/dashboard/channels"}
-                      onClick={() => nav("/dashboard/channels")}
-                    >
-                      <IconLight />
-                      <span>Channels</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </Collapsible>
-                <Collapsible asChild>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      className="h-11 px-3 py-3 text-base font-medium rounded-2xl gap-4"
-                      isActive={pathname === "/dashboard/settings"}
-                      onClick={() => nav("/dashboard/settings")}
-                    >
-                      <SettingsIcon />
-                      <span>Settings</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                </Collapsible>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter>
-          <div className="flex flex-col gap-2 mb-2">
-            <SidebarMenu>
-              <Collapsible asChild>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    className="h-11 px-3 py-3 text-base font-medium rounded-2xl gap-4"
-                    disabled={lockMutation.isPending}
-                    onClick={lock}
-                  >
-                    <LockKeyhole />
-                    <span>Lock Now</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </Collapsible>
-              <Collapsible asChild>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    className="h-11 px-3 py-3 text-base font-medium rounded-2xl gap-4"
-                    onClick={() => setShowConfirm(true)}
-                  >
-                    <LogOutIcon />
-                    <span>Log Out</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </Collapsible>
-            </SidebarMenu>
-
-            <Button
-              variant="ghost"
-              className="text-base font-medium w-11 h-11 rounded-2xl ml-1"
-              onClick={toggleSidebar}
-            >
-              {state === "collapsed" ? (
-                <IconCollapseRight style={{ width: "20px", height: "20px" }} />
-              ) : (
-                <IconCollapseLeft style={{ width: "20px", height: "20px" }} />
-              )}
-            </Button>
-          </div>
-        </SidebarFooter>
-      </Sidebar>
-
-      {/* Logout Dialog */}
-      <Dialog open={showConfirm} onOpenChange={cancelConfirm}>
-        <DialogContent className="w-[400px]">
-          <DialogHeader>
-            <DialogTitle>Log Out?</DialogTitle>
-          </DialogHeader>
-          <div className="text-base">
-            <div>
-              Logging out will disconnect your current session from the RGB
-              Lightning Node.
-            </div>
-            <div className="mt-3">
-              Please ensure all operations are completed and data is saved.
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="destructive"
-              size="lg"
-              className="rounded-full flex-1"
-              onClick={cancelConfirm}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              variant="error"
-              size="lg"
-              className="rounded-full flex-1"
-              disabled={lockMutation.isPending}
-              loading={lockMutation.isPending}
-              onClick={logout}
-            >
-              Confirm Logout
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
+import LogoSmall from '@/assets/icon.svg'
+import LogoLarge from '@/assets/logo.svg'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
+import IconPlus from "./app/icons/IconPlus";
+import NodeIcon from "./app/components/NodeIcon";
+import SwitchNodeDialog from "./app/pages/start/components/SwitchNodeDialog";
+import LogOutTip from "./app/components/LogOutTip";
+import CreateNodeTip from "./app/components/CreateNodeTip";
+import IconLogout from "./app/icons/logout";
+import IconLock from "./app/icons/lock";
+import IconWallet from "./app/icons/wallet";
+import IconBox from "./app/icons/box";
+import IconSettings from "./app/icons/settings";
+import { safeSubstring } from "./lib/utils";
 
 export default function Layout() {
   const [showMask, setShowMask] = useState(false);
-  const [checking, setChecking] = useState(true);
-  const nav = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
-  const currentContext = useContextStore((s) => s.currentContext);
-
-  const checkLock = async () => {
-    if (!currentContext) {
-      nav("/", { replace: true });
-      return;
-    }
-
-    try {
-      const status = await nodeMainStatus(currentContext.node_id);
-      if (status.locked) {
-        nav("/unlock", { replace: true });
-        return;
-      }
-
-      setChecking(false);
-    } catch (e) {}
-  };
-
-  useEffect(() => {
-    checkLock();
-  }, []);
-
-  if (checking) {
-    return null;
-  }
 
   return (
     <SidebarProvider className="h-svh overflow-hidden">
@@ -292,6 +59,301 @@ export default function Layout() {
         </main>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+function AppSideBar(props: {onExit: (loading: boolean) => void}) {
+  const [showLogOutTip, setShowLogOutTip] = useState(false);
+  const { toggleSidebar, state } = useSidebar();
+  const { pathname } = useLocation();
+  const nav = useNavigate();
+  const currentContext = useContextStore((s) => s.currentContext);
+  const [showSwitchNode, setShowSwitchNode] = useState('');
+  const [showCreateNodeTip, setShowCreateNodeTip] = useState(false);
+
+  const contextsQuery = useQuery({
+    queryKey: ["contexts"],
+    queryFn: contextsList,
+    refetchInterval: false,
+  });
+
+  const lockMutation = useMutation({
+    mutationFn: async (nodeId: string) => {
+      await nodeLock(nodeId);
+    },
+  });
+
+  const logout = async () => {
+    if (!currentContext) return;
+    try {
+      props.onExit(true);
+      await lockMutation.mutateAsync(currentContext.node_id);
+      nav("/", { replace: true });
+    } catch (e) {} finally {
+      props.onExit(false);
+    }
+  };
+
+  const lock = async () => {
+    if (!currentContext) return;
+    try {
+      props.onExit(true);
+      await lockMutation.mutateAsync(currentContext.node_id);
+      nav("/unlock?node_id=" + currentContext.node_id, { replace: true });
+    } catch (e) {} finally {
+      props.onExit(false);
+    }
+  };
+
+  const contexts = contextsQuery.data ?? []
+  const othersNode = contexts.filter((v) => v?.node_id !== currentContext?.node_id)
+
+  return (
+    <>
+      <Sidebar variant="floating" collapsible="icon">
+        <SidebarHeader>
+          <div
+            className="hidden group-hover:block absolute z-1000"
+            style={{
+              top: state === "collapsed" ? "24px" : "12px",
+              left: state === "collapsed" ? "20px" : "auto",
+              right: state === "collapsed" ? "auto" : "-6px",
+              width: state === "collapsed" ? "44px" : "36px",
+              height: state === "collapsed" ? "44px" : "36px",
+            }}
+          >
+            <button
+              type="button"
+              className="flex items-center justify-center w-full h-full rounded-2xl bg-background-solid-2 cursor-pointer"
+              onClick={toggleSidebar}
+            >
+              {state === "collapsed" ? (
+                <IconCollapseRight style={{ width: "20px", height: "20px" }} />
+              ) : (
+                <IconCollapseLeft style={{ width: "20px", height: "20px" }} />
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-center space-x-2 px-2 py-1">
+            {state === "collapsed" ? (
+              <img
+                src={LogoSmall}
+                alt="Bitlight Labs"
+                style={{ width: "26px", height: "40px" }}
+              />
+            ) : (
+              <img
+                src={LogoLarge}
+                alt="Bitlight Labs"
+                style={{ width: "146px", height: "40px" }}
+              />
+            )}
+          </div>
+        </SidebarHeader>
+
+        <SidebarContent className="pt-0 pb-4 ">
+          <SidebarMenu>
+            <Collapsible asChild>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === "/dashboard"}
+                  onClick={() => nav("/dashboard")}
+                >
+                  <IconWallet />
+                  <span>Wallet</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </Collapsible>
+            <Collapsible asChild>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === "/dashboard/peers"}
+                  onClick={() => nav("/dashboard/peers")}
+                >
+                  <IconBox />
+                  <span>Nodes</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </Collapsible>
+            <Collapsible asChild>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === "/dashboard/channels"}
+                  onClick={() => nav("/dashboard/channels")}
+                >
+                  <IconLight />
+                  <span>Channels</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </Collapsible>
+            <Collapsible asChild>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === "/dashboard/settings"}
+                  onClick={() => nav("/dashboard/settings")}
+                >
+                  <IconSettings />
+                  <span>Settings</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </Collapsible>
+          </SidebarMenu>
+        </SidebarContent>
+
+        <SidebarFooter>
+          <SidebarMenu>
+            <Collapsible asChild>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      className="data-[state=open]:bg-background-3 mb-1 group-data-[collapsible=icon]:!h-13"
+                      size="xl"
+                      style={{
+                        paddingLeft: state === 'collapsed' ? '8px' : '12px',
+                        paddingRight: state === 'collapsed' ? '0' : '12px',
+                      }}
+                    >
+                      <NodeIcon
+                        nodeId={currentContext?.node_id}
+                        name={currentContext?.display_name ?? ''}
+                      />
+                      <span className="flex-1 flex flex-col">
+                        <span className="font-medium">
+                          {safeSubstring(currentContext?.display_name, 9)}
+                        </span>
+                        <span className="text-2xs text-secondary-foreground">
+                          <span>{currentContext?.network.toUpperCase()}</span>
+                          <span> · </span>
+                          <span>Local</span>
+                        </span>
+                      </span>
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-[260px] rounded-2xl shadow-md shadow-background/60"
+                    side="top"
+                    align="start"
+                    sideOffset={4}
+                  >
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem className="h-13 px-3 gap-3">
+                        <NodeIcon
+                          nodeId={currentContext?.node_id}
+                          name={currentContext?.display_name ?? ''}
+                        />
+                        <div
+                          className="flex-1 flex flex-col"
+                        >
+                          <div className="font-medium">
+                            {safeSubstring(currentContext?.display_name, 9)}
+                          </div>
+                          <div className="text-2xs text-secondary-foreground">
+                            <span>{currentContext?.network.toUpperCase()}</span>
+                            <span> · </span>
+                            <span>Local</span>
+                          </div>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator className="mx-3 my-2" />
+
+                    <DropdownMenuGroup className="space-y-2">
+                      {othersNode.length > 0 ? (
+                        <DropdownMenuLabel>Switch Other Nodes</DropdownMenuLabel>
+                      ) : null}
+
+                      {othersNode.map((v) => {
+                        return (
+                          <DropdownMenuItem
+                            className="h-13 px-3 gap-3"
+                            onClick={() => setShowSwitchNode(v.node_id)}
+                          >
+                            <NodeIcon
+                              nodeId={v.node_id}
+                              name={v?.display_name ?? ''}
+                            />
+                            <div
+                              className="flex-1 flex flex-col"
+                            >
+                              <div className="font-medium">
+                                {safeSubstring(v?.display_name, 9)}
+                              </div>
+                              <div className="text-2xs text-secondary-foreground">
+                                <span>{v?.network.toUpperCase()}</span>
+                                <span> · </span>
+                                <span>Local</span>
+                              </div>
+                            </div>
+                          </DropdownMenuItem>
+                        )
+                      })}
+
+                      <DropdownMenuItem
+                        className="h-11 px-3 gap-3"
+                        onClick={() => setShowCreateNodeTip(true)}
+                      >
+                        <IconPlus />
+                        <span>Create New Node</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    {
+                      othersNode.length > 0 ? (
+                        <DropdownMenuSeparator className="mx-3 my-2" />
+                      ) : null
+                    }
+
+                    <DropdownMenuGroup className="space-y-2">
+                      <DropdownMenuItem
+                        className="h-11 px-3 gap-3"
+                        onClick={lock}
+                      >
+                        <IconLock />
+                        <span>Lock Now</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="h-11 px-3 gap-3"
+                        onClick={() => setShowLogOutTip(true)}
+                      >
+                        <IconLogout />
+                        <span>Log Out</span>
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </Collapsible>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+
+      {/* Logout */}
+      {showLogOutTip ? (
+        <LogOutTip
+          loading={lockMutation.isPending}
+          onOk={logout}
+          onClose={() => setShowLogOutTip(false)}
+        />
+      ) : null}
+
+      {/* Switch Node */}
+      {showSwitchNode ? (
+        <SwitchNodeDialog
+          contexts={contexts}
+          nodeId={showSwitchNode}
+          onClose={() => setShowSwitchNode('')}
+        />
+      ) : null}
+
+      {/* Create Node Tip */}
+      {showCreateNodeTip ? (
+        <CreateNodeTip
+          onOk={() => nav('/')}
+          onClose={() => setShowCreateNodeTip(false)}
+        />
+      ) : null}
+    </>
   );
 }
 

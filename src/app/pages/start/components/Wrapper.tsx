@@ -6,9 +6,12 @@ interface IProps {
   children?: React.ReactNode;
 }
 
+/**
+ * Wrapper With padding `top` and `bottom`
+ */
 export default function Wrapper(props: IProps) {
   return (
-    <div className="h-svh bg-background grid grid-cols-1 items-center justify-center overflow-y-auto">
+    <div className="h-svh bg-background grid grid-cols-1 items-center justify-center overflow-y-auto pt-10 pb-10">
       <ContentWrapper className="bg-background-3 rounded-3xl px-6 pt-12 pb-6 border border-background-2">
         <BackButton
           onClick={props.onBack}

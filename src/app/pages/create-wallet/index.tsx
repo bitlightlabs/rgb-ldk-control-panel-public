@@ -30,6 +30,10 @@ export function CreateWallet() {
     }
   }
 
+  const changeName = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setAccountName(e.target.value)
+  }
+
   const next = async () => {
     try {
       setChecking(true)
@@ -60,8 +64,9 @@ export function CreateWallet() {
         <Input
           value={accountName}
           placeholder="Account Name"
+          maxLength={12}
           className="bg-background-4"
-          onChange={(e) => setAccountName(e.target.value)}
+          onChange={changeName}
         />
       </Field>
       <Field className="mt-8">

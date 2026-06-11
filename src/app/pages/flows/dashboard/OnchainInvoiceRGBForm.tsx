@@ -51,11 +51,7 @@ export default function OnchainInvoiceRGBForm(props: IProps) {
           inputMode="numeric"
           placeholder="21"
           className="h-14 rounded-2xl"
-          action={
-            <>
-              <span className="text-base">{selectedRgbContract?.name}</span>
-            </>
-          }
+          slot={<span className="text-base">{selectedRgbContract?.name}</span>}
         />
       </Field>
       <Field>

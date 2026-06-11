@@ -12,11 +12,12 @@ interface IProps {
   consignmentLink: string,
   setConsignmentLink: (link: string) => void
   selectedContract: RgbContractDto | null
+  loading: boolean
   disabled: boolean
   onNext: () => void
 }
 export default function Import3Consignment(props: IProps) {
-  const { consignmentLink, selectedContract, disabled } = props;
+  const { consignmentLink, selectedContract, loading, disabled } = props;
 
   const pasteText = async () => {
     try {
@@ -59,8 +60,8 @@ export default function Import3Consignment(props: IProps) {
             value={consignmentLink}
             onChange={(e) => props.setConsignmentLink(e.currentTarget.value)}
             placeholder="Paste the consignment link here..."
-            className="rounded-2xl min-h-[90px]"
-            action={
+            className="rounded-2xl min-h-[90px] pr-18"
+            slot={
               <Button
                 variant="destructive"
                 className="w-14 h-7 rounded-full text-sm"
@@ -76,6 +77,7 @@ export default function Import3Consignment(props: IProps) {
           size="lg"
           variant="white"
           className="w-full rounded-full"
+          loading={loading}
           disabled={disabled}
           onClick={props.onNext}
         >Confirm & Finalize Import</Button>

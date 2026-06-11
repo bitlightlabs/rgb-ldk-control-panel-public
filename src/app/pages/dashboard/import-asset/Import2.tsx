@@ -49,7 +49,7 @@ export default function Import2(props: IProps) {
               onChange={(e) => setAmount(e.currentTarget.value)}
               inputMode="numeric"
               className="h-13 rounded-2xl"
-              action={<span className="text-base">{selectedContract?.name}</span>}
+              slot={<span className="text-base">{selectedContract?.name}</span>}
             />
         </Field>
         <Field className="mt-10">

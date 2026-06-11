@@ -39,6 +39,8 @@ const DialogContent = React.forwardRef<
         "fixed left-[50%] top-[50%] z-50 max-h-[100vh] overflow-y-auto grid w-full translate-x-[-50%] translate-y-[-50%] gap-8 border border-background-2 bg-background-1 p-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-3xl",
         className
       )}
+      onPointerDownOutside={(e) => e.preventDefault()}
+      onEscapeKeyDown={(e) => e.preventDefault()}
       {...props}
     >
       {children}

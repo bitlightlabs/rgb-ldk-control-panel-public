@@ -36,7 +36,7 @@ export default function Export1(props: IProps) {
           onChange={(e) => props.onChangeInvoice(e.currentTarget.value)}
           placeholder="Paste the consignment link here..."
           className="rounded-2xl min-h-[90px] pr-20"
-          action={
+          slot={
             <Button
               variant="destructive"
               className="w-14 h-7 rounded-full text-sm"

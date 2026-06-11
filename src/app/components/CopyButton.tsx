@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-export default function CopyButton({ className, value }: { className?: string; value: string }) {
+export default function CopyButton({ className, value, size = 'lg' }: { className?: string; value: string; size?: "default" | "lg" }) {
   const [copying, setCopying] = useState(false)
   const id = useRef(0)
 
@@ -27,7 +27,7 @@ export default function CopyButton({ className, value }: { className?: string; v
   return (
     <Button
       variant="destructive"
-      size="lg"
+      size={size}
       className={cn(`text-base rounded-full`, className)}
       onClick={copy}
     >

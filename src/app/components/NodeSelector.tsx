@@ -1,5 +1,4 @@
 import CopyText from "@/app/components/CopyText";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -11,31 +10,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  eventsStatus,
   nodeMainHealthz,
   nodeMainNodeId,
   nodeMainReadyz,
 } from "@/lib/commands";
 import { cn, formatAddress } from "@/lib/utils";
 import {
-  Activity,
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
   CircleMinus,
   Loader2,
-  Plus,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { useContextStore } from "../stores/contextStore";
 
 export function NodeSelector() {
-  const nav = useNavigate();
   const currentContext = useContextStore((s) => s.currentContext);
 
-  const activeNodeId = currentContext?.node_id ?? '';
+  const activeNodeId = currentContext?.node_id ?? "";
 
   const healthzQuery = useQuery({
     queryKey: ["node_selector_healthz", activeNodeId],
@@ -51,14 +45,6 @@ export function NodeSelector() {
     refetchInterval: 10_000,
     retry: 0,
   });
-  const eventsStatusQuery = useQuery({
-    queryKey: ["node_selector_events_status", activeNodeId],
-    queryFn: () => eventsStatus(activeNodeId!),
-    enabled: !!activeNodeId,
-    refetchInterval: 10_000,
-    retry: 0,
-  });
-
   const nodeIdQuery = useQuery({
     queryKey: ["node_main_node_id", activeNodeId],
     queryFn: () => nodeMainNodeId(activeNodeId),
@@ -96,82 +82,80 @@ export function NodeSelector() {
     ? { label: "ERR", variant: "destructive", Icon: XCircle }
     : { label: "…", variant: "secondary", Icon: Loader2, spin: true };
 
-  const evtBadge: StatusBadge = !activeNodeId
-    ? { label: "EVT OFF", variant: "secondary", Icon: CircleMinus }
-    : eventsStatusQuery.data?.running
-    ? { label: "EVT", variant: "success", Icon: Activity }
-    : { label: "EVT OFF", variant: "warning", Icon: AlertTriangle };
+  const networkStatus = !activeNodeId
+    ? "NO NODE"
+    : upBadge.label === "DOWN"
+    ? "OFFLINE"
+    : upBadge.label === "UP" && readyBadge.label === "READY"
+    ? "ONLINE / READY"
+    : upBadge.label === "UP" && readyBadge.label === "NOT READY"
+    ? "ONLINE / NOT READY"
+    : "CHECKING...";
+
+  const isOnline = upBadge.label === "UP";
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="destructive"
-          className="h-9 justify-between gap-2 rounded-full"
+          variant="secondary"
+          className="h-9 justify-between text-white gap-3 rounded-full"
         >
-          <span className="max-w-[220px] truncate font-mono text-xs">
+          <span
+            className={cn(
+              "shrink-0",
+              isOnline
+                ? "inline-flex"
+                : "h-2.5 w-2.5 rounded-full bg-muted-foreground/40"
+            )}
+          >
+            {isOnline ? (
+              <span className="relative inline-flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success/60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+              </span>
+            ) : null}
+          </span>
+
+          <span className="max-w-40 truncate text-[13px]">
             {currentContext ? currentContext.display_name : "No active node"}
           </span>
-          <Badge variant={upBadge.variant} className="gap-1">
-            <upBadge.Icon
-              className={cn("h-3 w-3", upBadge.spin ? "animate-spin" : "")}
-            />
-            <span className="text-[10px] font-normal"> {upBadge.label}</span>
-          </Badge>
-          <Badge variant={readyBadge.variant} className="gap-1">
-            <readyBadge.Icon
-              className={cn("h-3 w-3", readyBadge.spin ? "animate-spin" : "")}
-            />
-            <span className="text-[10px] font-normal"> {readyBadge.label}</span>
-          </Badge>
-          <Badge variant={evtBadge.variant} className="gap-1">
-            <evtBadge.Icon className="h-3 w-3" />
-            <span className="text-[10px] font-normal"> {evtBadge.label}</span>
-          </Badge>
+          <span className="text-[10px]">{networkStatus}</span>
           <ChevronDown className="h-4 w-4 opacity-70" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[360px]">
+      <DropdownMenuContent align="end" className="w-90">
         <DropdownMenuLabel>
           <div className="flex items-center justify-between">
-            <div className="text-sm">Active Node</div>
-            <button
-              type="button"
-              className="text-xs text-accent-foreground hover:text-foreground transition-colors"
-              // onClick={() => openInitialSetup()}
-              onClick={() => nav('/')}
-            >
-              <Plus className="mr-1 inline h-3 w-3" />
-              <span>create new node</span>
-            </button>
+            <div className="text-sm">Node Info</div>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         {currentContext === null ? (
           <DropdownMenuItem disabled>No contexts yet</DropdownMenuItem>
         ) : (
-          <DropdownMenuItem>
+          <DropdownMenuItem className="px-3">
             <div className="flex w-full min-w-0 flex-col gap-1.5">
-              <div className="truncate text-sm">{currentContext.display_name}</div>
+              <div className="truncate text-sm">
+                {currentContext.display_name}
+              </div>
               <div className="flex min-w-0 items-center gap-2">
                 <span className="shrink-0 text-xs opacity-70">Pubkey:</span>
                 <span className="truncate font-mono text-xs opacity-60">
                   {formatAddress(nodeIdQuery.data?.node_id)}
                 </span>
                 <CopyText
-                  text={nodeIdQuery.data?.node_id ?? ''}
+                  text={nodeIdQuery.data?.node_id ?? ""}
                   className="shrink-0 text-secondary-foreground"
                 />
               </div>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="shrink-0 text-xs opacity-70">
-                  Address:
-                </span>
+                <span className="shrink-0 text-xs opacity-70">Address:</span>
                 <span className="truncate font-mono text-xs opacity-60">
-                  {formatAddress(currentContext.p2p_listen ?? '')}
+                  {formatAddress(currentContext.p2p_listen ?? "")}
                 </span>
                 <CopyText
-                  text={currentContext.p2p_listen ?? ''}
+                  text={currentContext.p2p_listen ?? ""}
                   className="shrink-0 text-secondary-foreground"
                 />
               </div>

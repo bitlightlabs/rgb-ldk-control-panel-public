@@ -12,7 +12,7 @@ const Pages: Record<string, LazyExoticComponent<() => JSX.Element>> = {
 function Trigger(props: { page: string }) {
   return (
     <TabsTrigger
-      className="px-3 py-3 w-full rounded-2xl text-base justify-start data-[state=active]:bg-background-3"
+      className="px-3 py-3 leading-5 w-full rounded-2xl text-base justify-start data-[state=active]:bg-background-3 hover:bg-background-3"
       value={props.page}
     >
       {props.page}

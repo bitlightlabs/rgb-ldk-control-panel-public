@@ -198,6 +198,7 @@ export default function ChannelsPage() {
         precision
       ),
       ticker,
+      contractId: selectedChannelRgbBalance.contractId,
     };
   }, [rgbContractsQuery.data?.contracts, selectedChannelRgbBalance]);
 
@@ -274,7 +275,7 @@ export default function ChannelsPage() {
             </Button>
           }
         />
-        <Content className="mt-0 h-[662px] flex justify-center items-center">
+        <Content className="mt-0 h-[664px] flex justify-center items-center">
           <Empty
             title="No Channels Found"
             subTitle="You don't have any open channels yet. Create a channel to start using Lightning Network."
@@ -492,7 +493,7 @@ export default function ChannelsPage() {
                       <TableCell>{v.channel_value_sats} sats</TableCell>
                       <TableCell>
                         {v.rgb_balance
-                          ? <Badge variant="secondary">BTC?RGB</Badge>
+                          ? <Badge variant="secondary">BTC/RGB</Badge>
                           : <Badge variant="secondary">BTC</Badge>
                         }
                       </TableCell>
@@ -565,7 +566,7 @@ export default function ChannelsPage() {
                         )
                       } sats
                     </div>
-                    <div className="mt-1 text-sm text-secondary-foreground">
+                    <div className="mt-1 text-xs text-secondary-foreground">
                       Receiving capacity will decrease by {
                         selectedChannel?.local_balance_msat ? (
                           (BigInt(selectedChannel.local_balance_msat) / 1000n).toString()
@@ -584,10 +585,22 @@ export default function ChannelsPage() {
                         <AssetAvatar className="w-[22px] h-[22px]" name={selectedChannelRgbDisplay.ticker} />
                         <div>
                           <div className="text-lg font-medium">
-                            {selectedChannelRgbDisplay.localAmount}
+                            <span>{selectedChannelRgbDisplay.localAmount}</span>
+                            <span> {selectedChannelRgbDisplay.ticker}</span>
                           </div>
-                          <div className="mt-1 text-sm text-secondary-foreground">
-                            Receiving capacity will decrease by 492,389 sats
+                          <div className="mt-1 text-xs text-secondary-foreground h-[18px] flex items-center">
+                            <span>Local: {selectedChannelRgbDisplay.localAmount} {selectedChannelRgbDisplay.ticker}</span>
+                            <Separator orientation="vertical" className="mx-3 h-[12px] bg-secondary-foreground" />
+                            <span>Remote: {selectedChannelRgbDisplay.remoteAmount} {selectedChannelRgbDisplay.ticker}</span>
+                          </div>
+                          <div className="mt-3 flex">
+                            <div className="text-xs text-secondary-foreground h-6 py-1 px-3 rounded-full bg-background-2 flex items-center gap-2">
+                              <span>{formatAddress(selectedChannelRgbDisplay.contractId)}</span>
+                              <CopyText
+                                text={selectedChannelRgbDisplay.contractId}
+                                className="text-secondary-foreground"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -675,6 +688,7 @@ export default function ChannelsPage() {
                   counterpartyNodeId: selectedChannel.counterparty_node_id,
                   force: confirmAction === "force",
                 });
+                setShowDetail(false);
                 setConfirmAction(null);
               }}
             >
