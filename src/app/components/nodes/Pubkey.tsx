@@ -1,14 +1,9 @@
-import { nodeMainNodeId } from "@/lib/commands";
+import { useNodeMainNodeIdQuery } from "@/app/queries";
 import { formatAddress } from "@/lib/utils";
-import { useQuery } from "@tanstack/react-query";
 import CopyText from "../CopyText";
 
 export default function Pubkey(props: {activeNodeId: string | null}) {
-  const nodeIdQuery = useQuery({
-    queryKey: ["node_main_node_id", props.activeNodeId],
-    queryFn: () => nodeMainNodeId(props.activeNodeId!),
-    enabled: !!props.activeNodeId,
-  });
+  const nodeIdQuery = useNodeMainNodeIdQuery(props.activeNodeId);
 
   const data = nodeIdQuery.data;
 

@@ -3,8 +3,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import NetworkMeta from "./NetworkMeta";
 import type { NodeContext } from "@/lib/domain";
 import { useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
-import { nodeMainStatus } from "@/lib/commands";
+import { useNodeMainStatusQuery } from "@/app/queries";
 
 interface IProps {
   nodeId: string
@@ -13,27 +12,15 @@ interface IProps {
 }
 
 export default function SwitchNodeDialog(props: IProps) {
-  const [online, setOnline] = useState(false)
   const nav = useNavigate()
-
-  const status = async () => {
-    if(!props.nodeId) return
-    try {
-      await nodeMainStatus(props.nodeId)
-      setOnline(true)
-    } catch(e) {
-      setOnline(false)
-    }
-  }
+  const statusQuery = useNodeMainStatusQuery(props.nodeId, {
+    retry: false,
+  });
 
   const gotoNode = () => {
     nav(`/unlock?node_id=${props.nodeId}&show_back=1`)
     props.onClose();
   }
-
-  useEffect(() => {
-    status()
-  }, [props.nodeId])
 
   const context = props.contexts.find((v) => v.node_id === props.nodeId)
 
@@ -71,7 +58,7 @@ export default function SwitchNodeDialog(props: IProps) {
             type="button"
             size="lg"
             className="rounded-full flex-1"
-            disabled={!online}
+            disabled={!statusQuery.isSuccess}
             onClick={gotoNode}
           >
             Switch to This Node

@@ -1,6 +1,6 @@
-import { nodeRgbUtxos } from "@/lib/commands";
+import { useNodeRgbUtxosQuery } from "@/app/queries";
 import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface IProps {
   nodeId: string;
@@ -12,51 +12,43 @@ interface IProps {
  * NOTE: Only return the largest UTXO balance
  */
 export default function RgbUtxoBalance(props: IProps) {
-  const [loading, setLoading] = useState(true);
   const [balance, setBalance] = useState('');
+  const onBalanceRef = useRef(props.onBalance);
+  const utxosQuery = useNodeRgbUtxosQuery(props.nodeId);
 
-  const findUtxo = async () => {
-    if(!props.nodeId || !props.contractId) return
+  useEffect(() => {
+    onBalanceRef.current = props.onBalance;
+  }, [props.onBalance]);
 
-    try {
-      setLoading(true)
+  useEffect(() => {
+    if (!props.contractId || !utxosQuery.data) return;
 
-      // 1. Fetch all RGB UTXOs
-      const all = await nodeRgbUtxos(props.nodeId);
-
-      // 2. Find the UTXOs that matches the contract ID
-      let utxos: RgbUtxoDto[] = []
-      const list = all.utxos
-      for(let i=0; i<list.length; i++) {
-        const assets = list[i].rgb.allocations
-        if(assets && assets.length > 0) {
-          for(let j=0; j<assets.length; j++) {
-            if(assets[j].contract_id === props.contractId) {
-              utxos.push(list[i])
-            }
+    const utxos: RgbUtxoDto[] = [];
+    const list = utxosQuery.data.utxos;
+    for (let i = 0; i < list.length; i++) {
+      const assets = list[i].rgb.allocations;
+      if (assets && assets.length > 0) {
+        for (let j = 0; j < assets.length; j++) {
+          if (assets[j].contract_id === props.contractId) {
+            utxos.push(list[i]);
           }
         }
       }
-
-      // 3. Find the largest UTXO
-      if(utxos.length > 0) {
-        utxos.sort((a, b) => BigInt(b.value_sats) - BigInt(a.value_sats) >= 0n ? 1 : -1)
-
-        setBalance(utxos[0].value_sats)
-        if(props.onBalance) {
-          props.onBalance(utxos[0].value_sats)
-        }
-      }
-    } catch(e) {} finally {
-      setLoading(false)
     }
-  }
 
-  useEffect(() => {
-    findUtxo()
-  }, [props.nodeId, props.contractId])
+    if (utxos.length === 0) {
+      setBalance("");
+      return;
+    }
+
+    utxos.sort((a, b) =>
+      BigInt(b.value_sats) - BigInt(a.value_sats) >= 0n ? 1 : -1,
+    );
+    setBalance(utxos[0].value_sats);
+    onBalanceRef.current?.(utxos[0].value_sats);
+  }, [props.contractId, utxosQuery.data]);
 
   return (
-    <span>{loading ? 'loading...' : (balance + ' sats')}</span>
+    <span>{utxosQuery.isLoading || !balance ? '--' : (balance + ' sats')}</span>
   )
 }

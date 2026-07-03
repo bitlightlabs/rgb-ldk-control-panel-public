@@ -15,19 +15,17 @@ import Row from "./Row";
 import WalletBtcBalance from "./WalletBtcBalance";
 import { useContextStore } from "../stores/contextStore";
 import {
-  nodeRgbNewAddress,
-  nodeRgbSync,
-  nodeRgbUtxosFund,
-  nodeWalletL1Utxos,
-  nodeWalletNewAddress,
-} from "@/lib/commands";
+  useNodeWalletL1UtxosMutation,
+  useNodeRgbNewAddressMutation,
+  useNodeWalletNewAddressMutation,
+  useRgbUtxosFundMutation,
+} from "@/app/mutations";
 import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
 import { formatAddress, selectUtxos } from "@/lib/utils";
 
 interface IProps {
   onClose: () => void;
-  onRefreshUtxoList: () => void;
 }
 export default function CreateUtxoDialog(props: IProps) {
   const [loading, setLoading] = useState(false);
@@ -39,6 +37,10 @@ export default function CreateUtxoDialog(props: IProps) {
   const [changeAddress, setChangeAddress] = useState("");
   const currentContext = useContextStore((state) => state.currentContext);
   const balance = useRef("0");
+  const rgbNewAddressMutation = useNodeRgbNewAddressMutation();
+  const walletNewAddressMutation = useNodeWalletNewAddressMutation();
+  const walletL1UtxosMutation = useNodeWalletL1UtxosMutation();
+  const rgbUtxosFundMutation = useRgbUtxosFundMutation();
 
   const next = async () => {
     if (!currentContext) {
@@ -55,8 +57,8 @@ export default function CreateUtxoDialog(props: IProps) {
       const nodeId = currentContext.node_id ?? "";
 
       // prepare to & change address
-      const rgbAddress = await nodeRgbNewAddress(nodeId);
-      const changeAddress = await nodeWalletNewAddress(nodeId);
+      const rgbAddress = await rgbNewAddressMutation.mutateAsync(nodeId);
+      const changeAddress = await walletNewAddressMutation.mutateAsync(nodeId);
 
       setTo(rgbAddress.address);
       setChangeAddress(changeAddress.address);
@@ -79,7 +81,7 @@ export default function CreateUtxoDialog(props: IProps) {
       const nodeId = currentContext.node_id;
 
       // 1. Query unspent UTXOs
-      const utxos = await nodeWalletL1Utxos(nodeId);
+      const utxos = await walletL1UtxosMutation.mutateAsync(nodeId);
       const selected = selectUtxos(utxos.utxos, amount);
 
       // 2. Create UTXO
@@ -89,19 +91,18 @@ export default function CreateUtxoDialog(props: IProps) {
         };
       });
       const outputs = [{ address: to, value_sats: amount }];
-      await nodeRgbUtxosFund(nodeId, {
-        inputs: inputs,
-        outputs: outputs,
-        change_address: changeAddress,
-        fee_rate_sats_per_vb: Number(feeRate),
+      await rgbUtxosFundMutation.mutateAsync({
+        nodeId,
+        request: {
+          inputs: inputs,
+          outputs: outputs,
+          change_address: changeAddress,
+          fee_rate_sats_per_vb: Number(feeRate),
+        },
       });
-
-      // 3. Sync wallet
-      //await nodeRgbSync(nodeId);
 
       toast.success("UTXO created successfully");
       props.onClose();
-      props.onRefreshUtxoList();
     } catch (e) {
       toast.error(errorToText(e));
     } finally {

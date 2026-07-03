@@ -1,11 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useContextStore } from "../stores/contextStore";
 import { getNetworkOption } from "../config/networkOptions";
 import { BitcoinNetwork } from "@/lib/domain";
-import { walletRecommendedFees } from "@/lib/commands";
+import { useWalletRecommendedFeesQuery } from "@/app/queries";
 
 interface IProps {
   onFeeChange: (v: string) => void
@@ -17,75 +17,63 @@ interface FeeItem {
 }
 
 export default function Fee(props: IProps) {
-  const [loading, setLoading] = useState(false);
   const [feeTitle, setFeeTitle] = useState<string>('Avg');
   const [feeList, setFeeList] = useState<FeeItem[] | null>(null);
-  const [currentFee, setCurrentFee] = useState<string>('');
   const currentContext = useContextStore((state) => state.currentContext);
+  const onFeeChangeRef = useRef(props.onFeeChange);
+  const config = currentContext
+    ? getNetworkOption(currentContext.network as BitcoinNetwork)
+    : null;
+  const feesQuery = useWalletRecommendedFeesQuery(config?.fee);
 
   const selectFee = (item: FeeItem) => {
     setFeeTitle(item.title);
-    props.onFeeChange(String(item.feeRate));
+    onFeeChangeRef.current(String(item.feeRate));
   }
 
   const selectCustomFee = () => {
     setFeeTitle('Custom');
-    props.onFeeChange('');
+    onFeeChangeRef.current('');
   }
 
   const inputFee = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    if(props.onFeeChange) {
-      props.onFeeChange(value);
-    }
+    onFeeChangeRef.current(value);
   }
 
-  const init = async () => {
-    if(!currentContext) return;
-
-    const config = getNetworkOption(currentContext.network as BitcoinNetwork);
-    if(!config) return;
-
-    try {
-      setLoading(true);
-      const fees = await walletRecommendedFees(config.fee)
-
-      setFeeList([
-        {
-          title: 'Slow',
-          desc: '≈ 1 hours',
-          feeRate: fees.hourFee,
-        },
-        {
-          title: 'Avg',
-          desc: '≈ 30 mins',
-          feeRate: fees.halfHourFee
-        },
-        {
-          title: 'Fast',
-          desc: '≈ 10 mins',
-          feeRate: fees.fastestFee
-        }
-      ])
-
-      props.onFeeChange(String(fees.halfHourFee));
-
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    onFeeChangeRef.current = props.onFeeChange;
+  }, [props.onFeeChange]);
 
   useEffect(() => {
-    init();
-  }, []);
+    if (!feesQuery.data) return;
+
+    setFeeList([
+      {
+        title: 'Slow',
+        desc: '≈ 1 hours',
+        feeRate: feesQuery.data.hourFee,
+      },
+      {
+        title: 'Avg',
+        desc: '≈ 30 mins',
+        feeRate: feesQuery.data.halfHourFee
+      },
+      {
+        title: 'Fast',
+        desc: '≈ 10 mins',
+        feeRate: feesQuery.data.fastestFee
+      }
+    ])
+
+    onFeeChangeRef.current(String(feesQuery.data.halfHourFee));
+  }, [feesQuery.data]);
 
   return (
     <div className="relative flex flex-col">
       <div className="h-[90px] flex gap-2">
         {
-          loading ? (
+          feesQuery.isLoading ? (
             [0, 0, 0, 0].map((v, i) => {
               return (
                 <div key={i} className="flex-1 flex rounded-xl h-full bg-background-3 justify-center items-center">

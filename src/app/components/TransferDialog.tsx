@@ -14,11 +14,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import type { NodeContext } from "@/lib/domain";
-import { nodeBolt11Receive, nodeBolt11Send, nodePaymentWait } from "@/lib/commands";
+import { useBolt11TransferMutation, usePaymentWaitMutation } from "@/app/mutations";
 import { errorToText } from "@/lib/errorToText";
-import { useMutation } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { u64 } from "@/lib/sdk";
 
 function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s.trim());
@@ -78,29 +76,14 @@ export function TransferDialog({
     return null;
   }, [amountMsat, description, expirySecs, payee, payer, waitTimeoutSecs]);
 
-  const transferMutation = useMutation({
-    mutationFn: async () => {
-      const invoiceResp = await nodeBolt11Receive(payeeNodeId!, {
-        amount_msat: BigInt(amountMsat.trim()).toString(),
-        description: description.trim(),
-        expiry_secs: Number(expirySecs.trim()),
-      });
-      const sendResp = await nodeBolt11Send(payerNodeId, { invoice: invoiceResp.invoice });
-      return { invoice: invoiceResp.invoice, payment_id: sendResp.payment_id };
-    },
+  const transferMutation = useBolt11TransferMutation({
     onSuccess: (resp) => {
       setLastInvoice(resp.invoice);
       setLastPaymentId(resp.payment_id);
     },
   });
 
-  const waitMutation = useMutation({
-    mutationFn: async () => {
-      if (!lastPaymentId) throw new Error("missing payment_id");
-      const timeoutSecs = Number(waitTimeoutSecs.trim());
-      return nodePaymentWait(payerNodeId, lastPaymentId, { timeout_secs: timeoutSecs });
-    },
-  });
+  const waitMutation = usePaymentWaitMutation();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -222,7 +205,14 @@ export function TransferDialog({
                 size="sm"
                 type="button"
                 disabled={!lastPaymentId || waitMutation.isPending}
-                onClick={() => waitMutation.mutate()}
+                onClick={() => {
+                  if (!lastPaymentId) return;
+                  waitMutation.mutate({
+                    nodeId: payerNodeId,
+                    paymentId: lastPaymentId,
+                    request: { timeout_secs: Number(waitTimeoutSecs.trim()) },
+                  });
+                }}
                 title="POST /payment/:id/wait (payer)"
               >
                 {waitMutation.isPending ? "Waiting..." : "Wait"}
@@ -315,7 +305,18 @@ export function TransferDialog({
           <Button
             type="button"
             disabled={transferMutation.isPending || !!validationError}
-            onClick={() => transferMutation.mutate()}
+            onClick={() => {
+              if (!payeeNodeId) return;
+              transferMutation.mutate({
+                payeeNodeId,
+                payerNodeId,
+                request: {
+                  amount_msat: BigInt(amountMsat.trim()).toString(),
+                  description: description.trim(),
+                  expiry_secs: Number(expirySecs.trim()),
+                },
+              });
+            }}
           >
             {transferMutation.isPending ? "Transferring..." : "Create invoice + send"}
           </Button>

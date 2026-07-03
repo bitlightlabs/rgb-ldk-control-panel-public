@@ -1,5 +1,4 @@
 import { AssetExplorer } from "@/app/components/AssetExplorer";
-import CopyText from "@/app/components/CopyText";
 import DropMenu from "@/app/components/DropMenu";
 import IconActivities from "@/app/icons/activities";
 import IconExport from "@/app/icons/export";
@@ -11,52 +10,27 @@ import { IconUtxo } from "@/app/icons/utxo";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import {
-  nodeMainBalances,
-  nodeRgbSync,
-  nodeWalletNewAddress,
-  nodeWalletSync,
-} from "@/lib/commands";
+import { useWalletSyncMutation } from "@/app/mutations";
+import { useNodeMainBalancesQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
-import { cn, formatAddress } from "@/lib/utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
-
+import CachedBtcAddress from "@/app/components/CachedBtcAddress";
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
 
-  const balancesQuery = useQuery({
-    queryKey: ["node_main_balances", activeNodeId],
-    queryFn: async () => {
-      return nodeMainBalances(activeNodeId!);
-    },
-    enabled: !!activeNodeId,
+  const balancesQuery = useNodeMainBalancesQuery(activeNodeId, {
     refetchInterval: 20_000,
   });
 
-  const walletNewAddressQuery = useQuery({
-    queryKey: ["wallet_new_address", activeNodeId],
-    queryFn: async () => {
-      return nodeWalletNewAddress(activeNodeId!);
-    },
-    enabled: !!activeNodeId,
-  });
-
-  const walletSyncMutation = useMutation({
-    mutationFn: async () => {
-      // await nodeUnlock(activeNodeId!);
-      await nodeWalletSync(activeNodeId!);
-      await nodeRgbSync(activeNodeId!);
-    },
-    onSuccess: () => {
+  const walletSyncMutation = useWalletSyncMutation({
+    onSuccess: async () => {
       balancesQuery.refetch();
     },
   });
-
-  const address = walletNewAddressQuery.data?.address ?? '';
 
   return (
     <div>
@@ -65,9 +39,10 @@ export function DashboardPage() {
           <div className="flex h-6 items-center justify-between">
             <div className="h-6 flex gap-2 items-center">
               <span className="text-lg font-medium">🔗 On-chain</span>
-              <div className="h-6 flex items-center gap-2 bg-background-3 px-2 rounded-full text-base text-secondary-foreground">
-                <span>{formatAddress(address, 12)}</span>
-                <CopyText text={address} />
+              <div
+                className="h-6 flex items-center gap-2 bg-background-3 px-2 rounded-full text-base text-secondary-foreground hover:bg-background-4"
+              >
+                <CachedBtcAddress />
               </div>
             </div>
             <Button
@@ -76,7 +51,7 @@ export function DashboardPage() {
                 walletSyncMutation.isPending ? "animate-spin" : ""
               )}
               variant="ghost"
-              onClick={() => walletSyncMutation.mutate()}
+              onClick={() => activeNodeId && walletSyncMutation.mutate(activeNodeId)}
             >
               <IconRefresh width={16} height={16} />
             </Button>
@@ -181,19 +156,13 @@ export function DashboardPage() {
         <AssetExplorer />
       </div>
 
-      {(balancesQuery.isError ||
-        walletSyncMutation.isError ||
-        walletNewAddressQuery.isError) && (
+      {(balancesQuery.isError || walletSyncMutation.isError) && (
         <Alert variant="destructive" className="mt-8">
           <AlertDescription>
             {balancesQuery.isError ? errorToText(balancesQuery.error) : null}
 
             {walletSyncMutation.isError
               ? errorToText(walletSyncMutation.error)
-              : null}
-
-            {walletNewAddressQuery.isError
-              ? errorToText(walletNewAddressQuery.error)
               : null}
           </AlertDescription>
         </Alert>

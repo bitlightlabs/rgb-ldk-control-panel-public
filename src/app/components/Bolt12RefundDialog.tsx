@@ -23,14 +23,13 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import type { NodeContext } from "@/lib/domain";
 import {
-  nodeBolt12RefundDecode,
-  nodeBolt12RefundInitiate,
-  nodeBolt12RefundRequestPayment,
-  nodePaymentAbandon,
-  nodePaymentWait,
-} from "@/lib/commands";
+  useBolt12RefundInitiateMutation,
+  useBolt12RefundRequestPaymentMutation,
+  usePaymentAbandonMutation,
+  usePaymentWaitMutation,
+} from "@/app/mutations";
+import { useBolt12RefundDecodeQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { u64 } from "@/lib/sdk";
 
@@ -85,23 +84,11 @@ export function Bolt12RefundDialog({
     setPayeePaymentId(null);
   }, [contexts, defaultPayerNodeId, open]);
 
-  const refundDecodeQuery = useQuery({
-    queryKey: ["bolt12_refund_decode", payerNodeId, refund],
-    queryFn: async () =>
-      nodeBolt12RefundDecode(payerNodeId, { refund: refund! }),
-    enabled: !!refund,
+  const refundDecodeQuery = useBolt12RefundDecodeQuery(payerNodeId, refund ?? "", {
     retry: 0,
   });
 
-  const initiateMutation = useMutation({
-    mutationFn: async () => {
-      return nodeBolt12RefundInitiate(payerNodeId, {
-        amount_msat: u64(amountMsat.trim()),
-        expiry_secs: Number(expirySecs.trim()),
-        quantity: null,
-        payer_note: payerNote.trim() ? payerNote.trim() : null,
-      });
-    },
+  const initiateMutation = useBolt12RefundInitiateMutation({
     onSuccess: (resp) => {
       setRefund(resp.refund);
       setPayerPaymentId(resp.payment_id);
@@ -110,31 +97,16 @@ export function Bolt12RefundDialog({
     },
   });
 
-  const requestPaymentMutation = useMutation({
-    mutationFn: async () => {
-      return nodeBolt12RefundRequestPayment(payeeNodeId!, { refund: refund! });
-    },
+  const requestPaymentMutation = useBolt12RefundRequestPaymentMutation({
     onSuccess: (resp) => {
       setPayeeInvoice(resp.invoice);
       setPayeePaymentId(resp.payment_id);
     },
   });
 
-  const waitMutation = useMutation({
-    mutationFn: async ({ timeoutSecs }: { timeoutSecs: number }) => {
-      if (!payerPaymentId) throw new Error("missing payer payment_id");
-      return nodePaymentWait(payerNodeId, payerPaymentId, {
-        timeout_secs: timeoutSecs,
-      });
-    },
-  });
+  const waitMutation = usePaymentWaitMutation();
 
-  const abandonMutation = useMutation({
-    mutationFn: async () => {
-      if (!payerPaymentId) throw new Error("missing payer payment_id");
-      return nodePaymentAbandon(payerNodeId, payerPaymentId);
-    },
-  });
+  const abandonMutation = usePaymentAbandonMutation();
 
   const validationError = useMemo(() => {
     if (!payer) return "Missing payer node.";
@@ -341,7 +313,14 @@ export function Bolt12RefundDialog({
                     type="button"
                     disabled={waitMutation.isPending}
                     loading={waitMutation.isPending}
-                    onClick={() => waitMutation.mutate({ timeoutSecs: 60 })}
+                    onClick={() => {
+                      if (!payerPaymentId) return;
+                      waitMutation.mutate({
+                        nodeId: payerNodeId,
+                        paymentId: payerPaymentId,
+                        request: { timeout_secs: 60 },
+                      });
+                    }}
                   >
                     Wait 60s
                   </Button>
@@ -350,7 +329,13 @@ export function Bolt12RefundDialog({
                     size="sm"
                     type="button"
                     disabled={abandonMutation.isPending}
-                    onClick={() => abandonMutation.mutate()}
+                    onClick={() => {
+                      if (!payerPaymentId) return;
+                      abandonMutation.mutate({
+                        nodeId: payerNodeId,
+                        paymentId: payerPaymentId,
+                      });
+                    }}
                   >
                     Abandon
                   </Button>
@@ -421,7 +406,13 @@ export function Bolt12RefundDialog({
                 !refund || requestPaymentMutation.isPending || !!validationError
               }
               loading={requestPaymentMutation.isPending}
-              onClick={() => requestPaymentMutation.mutate()}
+              onClick={() => {
+                if (!payeeNodeId || !refund) return;
+                requestPaymentMutation.mutate({
+                  nodeId: payeeNodeId,
+                  request: { refund },
+                });
+              }}
             >
               Request payment
             </Button>
@@ -482,7 +473,17 @@ export function Bolt12RefundDialog({
             type="button"
             disabled={initiateMutation.isPending || !!validationError}
             loading={initiateMutation.isPending}
-            onClick={() => initiateMutation.mutate()}
+            onClick={() => {
+              initiateMutation.mutate({
+                nodeId: payerNodeId,
+                request: {
+                  amount_msat: u64(amountMsat.trim()),
+                  expiry_secs: Number(expirySecs.trim()),
+                  quantity: null,
+                  payer_note: payerNote.trim() ? payerNote.trim() : null,
+                },
+              });
+            }}
           >
             Initiate refund
           </Button>

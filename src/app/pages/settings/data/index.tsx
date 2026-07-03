@@ -1,20 +1,13 @@
-import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { openPath } from "@tauri-apps/plugin-opener";
-import { contextsPath, logsPath } from "@/lib/commands";
+import { useContextsPathQuery, useLogsPathQuery } from "@/app/queries";
 import { getDirname } from "@/lib/utils";
 import { FolderOpen } from "lucide-react";
 import CopyButton from "@/app/components/CopyButton";
 
 export default function SettingsPage() {
-  const logsPathQuery = useQuery({
-    queryKey: ["logs_path"],
-    queryFn: logsPath,
-  });
-  const contextsPathQuery = useQuery({
-    queryKey: ["contexts_path"],
-    queryFn: contextsPath,
-  });
+  const logsPathQuery = useLogsPathQuery();
+  const contextsPathQuery = useContextsPathQuery();
 
   return (
     <div className="w-full">

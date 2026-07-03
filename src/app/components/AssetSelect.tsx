@@ -1,8 +1,13 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import AssetAvatar from "./AssetAvatar";
 import type { RgbContractDto } from "@/lib/sdk/types";
-import { nodeRgbContracts } from "@/lib/commands";
-import { useEffect, useState } from "react";
+import { useNodeRgbContractsQuery } from "@/app/queries";
 import { useContextStore } from "../stores/contextStore";
 
 interface IProps {
@@ -10,76 +15,53 @@ interface IProps {
   onChange?: (contract: RgbContractDto) => void;
   setContractId?: (id: string) => void;
   contracts?: RgbContractDto[];
-  selectedContract?: RgbContractDto;
   reset?: () => void;
 }
 
 export default function AssetSelect(props: IProps) {
   const currentContext = useContextStore((s) => s.currentContext);
-  const [contractList, setContractList] = useState<RgbContractDto[] | null>(null);
   const activeNodeId = currentContext?.node_id;
 
-  const loadList = async () => {
-    if(!activeNodeId) return;
+  const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId, {
+    staleTime: 30_000,
+  });
 
-    try {
-      const data = await nodeRgbContracts(activeNodeId);
-      setContractList(data.contracts);
-    } catch(e) {}
-  }
-
-  useEffect(() => {
-    loadList();
-  }, [activeNodeId]);
+  const contracts = rgbContractsQuery.data?.contracts ?? [];
 
   const changeContract = (contractId: string) => {
-    const selected = contractList?.find(c => c.contract_id === contractId);
-    if(!selected) return;
+    const selected = contracts?.find((c) => c.contract_id === contractId);
+    if (!selected) return;
 
     if (contractId === "null") {
-      props.reset && props.reset()
+      props.reset && props.reset();
     } else {
-      props.setContractId && props.setContractId(contractId)
-      props.onChange && props.onChange(selected)
+      props.setContractId && props.setContractId(contractId);
+      props.onChange && props.onChange(selected);
     }
-  }
+  };
 
-  const selected = contractList?.find(c => c.contract_id === props.selectedContractId);
+  const selected = contracts?.find(
+    (c) => c.contract_id === props.selectedContractId
+  );
 
   return (
-    <Select
-      value={props.selectedContractId}
-      onValueChange={changeContract}
-    >
-      <SelectTrigger id="recv_rgb_contract_id" className="h-13 rounded-2xl">
+    <Select value={props.selectedContractId} onValueChange={changeContract}>
+      <SelectTrigger className="bg-background-4">
         <div className="flex gap-3 items-center">
-          {
-            selected ? (
-              <AssetAvatar className="w-8 h-8" name={selected.name ?? ""} />
-            ) : null
-          }
-          <SelectValue placeholder="Pick RGB asset..." />
+          {selected ? (
+            <AssetAvatar className="w-8 h-8" name={selected.name ?? ""} />
+          ) : null}
+          <SelectValue placeholder="Select Asset" />
         </div>
       </SelectTrigger>
       <SelectContent>
-        {
-          !!props.reset ? (
-            <SelectItem value="null">None</SelectItem>
-          ) : null
-        }
-        {contractList?.map(
-          (c) => (
-            <SelectItem
-              key={c.contract_id}
-              value={c.contract_id}
-            >
-              {c.name ??
-                c.ticker ??
-                c.contract_id.slice(0, 10)}
-            </SelectItem>
-          )
-        )}
+        {!!props.reset ? <SelectItem value="null">None</SelectItem> : null}
+        {contracts?.map((c) => (
+          <SelectItem key={c.contract_id} value={c.contract_id}>
+            {c.name ?? c.ticker ?? c.contract_id.slice(0, 10)}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
-  )
+  );
 }

@@ -8,17 +8,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useEffect, useState } from "react";
-import {
-  contextsList,
-  nodeRgbContracts,
-  nodeRgbOnchainPayments,
-} from "@/lib/commands";
 import { RgbOnchainPaymentDto } from "@/lib/sdk";
-import { useQuery } from "@tanstack/react-query";
 import { formatAddress, trimChar } from "@/lib/utils";
 import CopyText from "./CopyText";
 import DownloadTransferConsignmentBtn from "./DownloadTransferConsignmentBtn";
 import { NodeContext } from "@/lib/domain";
+import {
+  useContextsQuery,
+  useNodeRgbContractsQuery,
+  useNodeRgbOnchainPaymentsQuery,
+} from "@/app/queries";
 
 interface IProps {
   activeNodeId: string | null;
@@ -27,33 +26,18 @@ export default function RgbPaymentsList(props: IProps) {
   const { activeNodeId } = props;
   const [list, setList] = useState<RgbOnchainPaymentDto[]>([]);
 
-  const rgbContractsQuery = useQuery({
-    queryKey: ["dashboard_rgb_contracts", activeNodeId],
-    queryFn: async () => {
-      return nodeRgbContracts(activeNodeId!);
-    },
+  const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId, {
     refetchInterval: false,
   });
 
-  const contextsQuery = useQuery({
-    queryKey: ["contexts"],
-    queryFn: contextsList,
+  const contextsQuery = useContextsQuery({
     refetchInterval: false,
   });
-
-  const loadIssuers = async (nodeId: string) => {
-    try {
-      const data = await nodeRgbOnchainPayments(nodeId);
-      console.log("data", data);
-      setList(data.payments);
-    } catch (e) {}
-  };
+  const paymentsQuery = useNodeRgbOnchainPaymentsQuery(activeNodeId);
 
   useEffect(() => {
-    if (activeNodeId) {
-      loadIssuers(activeNodeId);
-    }
-  }, [activeNodeId]);
+    setList(paymentsQuery.data?.payments ?? []);
+  }, [paymentsQuery.data?.payments]);
 
   const calculateAmount = (contractId?: string, amount?: string) => {
     if (!amount || !contractId) return "";

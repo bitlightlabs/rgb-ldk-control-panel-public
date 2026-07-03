@@ -9,16 +9,15 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
-import { useMutation } from "@tanstack/react-query";
 import {
-  backupImportCli,
-  backupInspectArchiveCli,
-  eventsStart,
-  nodeRunCli,
-  nodeUnlock,
-  prepareNodeResources,
-  walletInitCli,
-} from "@/lib/commands";
+  useBackupImportCliMutation,
+  useBackupInspectArchiveCliMutation,
+  useEventsStartMutation,
+  useNodeRunCliMutation,
+  useNodeUnlockMutation,
+  usePrepareNodeResourcesMutation,
+  useWalletInitCliMutation,
+} from "@/app/mutations";
 import { LDK_IMAGE } from "@/app/config/constant";
 import { getNetworkOption } from "@/app/config/networkOptions";
 import type { BitcoinNetwork } from "@/lib/domain";
@@ -38,46 +37,13 @@ export default function ImportWallet() {
   const [name, setName] = useState<string>("");
   const setCurrentContext = useContextStore((s) => s.setCurrentContext)
 
-  const prepareNodeMutation = useMutation({
-    mutationFn: (params: {
-      passwordHash: string;
-      ldkImage: string;
-      nodeName?: string;
-      network: BitcoinNetwork;
-      esploraUrl: string;
-    }) => {
-      return prepareNodeResources(params);
-    },
-  });
-  const initNodeMutation = useMutation({
-    mutationFn: (params: { nodeId: string; mnemonic: string }) => {
-      return walletInitCli(params.nodeId, params.mnemonic);
-    },
-  });
-  const importMutation = useMutation({
-    mutationFn: (params: {
-      nodeId: string;
-      archivePath: string;
-      autoStop: boolean;
-    }) => {
-      return backupImportCli(
-        params.nodeId,
-        params.archivePath,
-        params.autoStop
-      );
-    },
-  });
-  const nodeRunMutation = useMutation({
-    mutationFn: (params: { nodeId: string }) => {
-      return nodeRunCli(params.nodeId);
-    },
-  });
-
-  const unlockNodeMutation = useMutation({
-    mutationFn: (params: { nodeId: string }) => {
-      return nodeUnlock(params.nodeId)
-    }
-  });
+  const prepareNodeMutation = usePrepareNodeResourcesMutation();
+  const initNodeMutation = useWalletInitCliMutation();
+  const importMutation = useBackupImportCliMutation();
+  const inspectMutation = useBackupInspectArchiveCliMutation();
+  const nodeRunMutation = useNodeRunCliMutation();
+  const unlockNodeMutation = useNodeUnlockMutation();
+  const eventsStartMutation = useEventsStartMutation();
 
   const selectFile = async () => {
     const selected = await open({
@@ -114,7 +80,10 @@ export default function ImportWallet() {
       await ensureDockerImage(LDK_IMAGE);
 
       // 1. Inspect file
-      const inspectData = await backupInspectArchiveCli(LDK_IMAGE, filePath)
+      const inspectData = await inspectMutation.mutateAsync({
+        image: LDK_IMAGE,
+        archivePath: filePath,
+      })
       const network = inspectData.manifest.network as BitcoinNetwork
       setProgress(20);
 
@@ -138,6 +107,7 @@ export default function ImportWallet() {
       await initNodeMutation.mutateAsync({
         nodeId: context.node_id,
         mnemonic: words,
+        image: LDK_IMAGE,
       });
       setProgress(60);
 
@@ -156,8 +126,8 @@ export default function ImportWallet() {
       // 6. Unlock node
       // Delay a bit to make sure the node is up and running, otherwise the unlock command may fail
       await new Promise((res) => setTimeout(res, 5000));
-      await unlockNodeMutation.mutateAsync({ nodeId: context.node_id });
-      await eventsStart(context.node_id);
+      await unlockNodeMutation.mutateAsync(context.node_id);
+      await eventsStartMutation.mutateAsync(context.node_id);
 
       // Nav to start page
       nav("/dashboard", { replace: true });

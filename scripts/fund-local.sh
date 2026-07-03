@@ -99,8 +99,8 @@ addrs=()
 rgb_addrs=()
 for line in "${nodes[@]}"; do
   IFS='|' read -r node_id base token_path <<<"$line"
-  addr=$(fetch_address "$base" "$token_path" "/api/v1/wallet/new_address")
-  rgb_addr=$(fetch_address "$base" "$token_path" "/api/v1/rgb/new_address")
+  addr=$(fetch_address "$base" "$token_path" "/api/v1/wallet/address/new")
+  rgb_addr=$(fetch_address "$base" "$token_path" "/api/v1/rgb/address/new")
   echo "${node_id}: wallet=${addr} rgb=${rgb_addr}"
   addrs+=("$addr")
   rgb_addrs+=("$rgb_addr")

@@ -16,14 +16,14 @@ import IconCollapseRight from "./app/icons/collapseright";
 import IconCollapseLeft from "./app/icons/collapseleft";
 import IconLight from "./app/icons/light";
 import { AppBreadcrumb, AppHeader } from "./app/components/AppHeader";
-import { contextsList, nodeLock } from "./lib/commands";
 import { useState } from "react";
 import { useContextStore } from "./app/stores/contextStore";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Spinner } from "./components/ui/spinner";
+import { useNodeLockMutation } from "./app/mutations";
+import { clearSessionCache, useContextsQuery } from "./app/queries";
+import { useQueryClient } from "@tanstack/react-query";
 import LogoSmall from '@/assets/icon.svg'
 import LogoLarge from '@/assets/logo.svg'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
 import IconPlus from "./app/icons/IconPlus";
 import NodeIcon from "./app/components/NodeIcon";
 import SwitchNodeDialog from "./app/pages/start/components/SwitchNodeDialog";
@@ -35,24 +35,36 @@ import IconWallet from "./app/icons/wallet";
 import IconBox from "./app/icons/box";
 import IconSettings from "./app/icons/settings";
 import { safeSubstring } from "./lib/utils";
+import DashboardSwitchNode from "./app/components/DashboardSwitchNode";
+import Mask from "./app/components/Mask";
 
 export default function Layout() {
   const [showMask, setShowMask] = useState(false);
   const location = useLocation();
   const pathname = location.pathname;
 
+  const renderheader = () => {
+    if(pathname === "/dashboard") {
+      return <AppHeader />
+    }
+
+    if(pathname === "/dashboard/peers" ||
+      pathname === "/dashboard/settings" ||
+      pathname === "/dashboard/channels" ||
+      pathname === "/dashboard/swap"
+    ) {
+      return null
+    }
+
+    return <AppBreadcrumb />
+  }
+
   return (
     <SidebarProvider className="h-svh overflow-hidden">
-      {showMask ? <FullMask /> : null}
+      {showMask ? <Mask /> : null}
       <AppSideBar onExit={(b) => setShowMask(b)} />
       <SidebarInset className="h-full overflow-hidden">
-        {pathname === "/dashboard" ? (
-          <AppHeader />
-        ) : pathname === "/dashboard/peers" ||
-          pathname === "/dashboard/settings" ||
-          pathname === "/dashboard/channels" ? null : (
-          <AppBreadcrumb />
-        )}
+        {renderheader()}
 
         <main className="flex flex-col min-h-0 flex-1 overflow-y-auto pl-2 pr-4">
           <Outlet />
@@ -68,26 +80,25 @@ function AppSideBar(props: {onExit: (loading: boolean) => void}) {
   const { pathname } = useLocation();
   const nav = useNavigate();
   const currentContext = useContextStore((s) => s.currentContext);
+  const setCurrentContext = useContextStore((s) => s.setCurrentContext);
+  const queryClient = useQueryClient();
   const [showSwitchNode, setShowSwitchNode] = useState('');
   const [showCreateNodeTip, setShowCreateNodeTip] = useState(false);
 
-  const contextsQuery = useQuery({
-    queryKey: ["contexts"],
-    queryFn: contextsList,
+  const contextsQuery = useContextsQuery({
     refetchInterval: false,
+
   });
 
-  const lockMutation = useMutation({
-    mutationFn: async (nodeId: string) => {
-      await nodeLock(nodeId);
-    },
-  });
+  const lockMutation = useNodeLockMutation();
 
   const logout = async () => {
     if (!currentContext) return;
     try {
       props.onExit(true);
       await lockMutation.mutateAsync(currentContext.node_id);
+      clearSessionCache(queryClient, currentContext.node_id);
+      setCurrentContext(null);
       nav("/", { replace: true });
     } catch (e) {} finally {
       props.onExit(false);
@@ -99,6 +110,8 @@ function AppSideBar(props: {onExit: (loading: boolean) => void}) {
     try {
       props.onExit(true);
       await lockMutation.mutateAsync(currentContext.node_id);
+      clearSessionCache(queryClient, currentContext.node_id);
+      setCurrentContext(null);
       nav("/unlock?node_id=" + currentContext.node_id, { replace: true });
     } catch (e) {} finally {
       props.onExit(false);
@@ -260,35 +273,10 @@ function AppSideBar(props: {onExit: (loading: boolean) => void}) {
                     <DropdownMenuSeparator className="mx-3 my-2" />
 
                     <DropdownMenuGroup className="space-y-2">
-                      {othersNode.length > 0 ? (
-                        <DropdownMenuLabel>Switch Other Nodes</DropdownMenuLabel>
-                      ) : null}
-
-                      {othersNode.map((v) => {
-                        return (
-                          <DropdownMenuItem
-                            className="h-13 px-3 gap-3"
-                            onClick={() => setShowSwitchNode(v.node_id)}
-                          >
-                            <NodeIcon
-                              nodeId={v.node_id}
-                              name={v?.display_name ?? ''}
-                            />
-                            <div
-                              className="flex-1 flex flex-col"
-                            >
-                              <div className="font-medium">
-                                {safeSubstring(v?.display_name, 9)}
-                              </div>
-                              <div className="text-2xs text-secondary-foreground">
-                                <span>{v?.network.toUpperCase()}</span>
-                                <span> · </span>
-                                <span>Local</span>
-                              </div>
-                            </div>
-                          </DropdownMenuItem>
-                        )
-                      })}
+                      <DashboardSwitchNode
+                        contexts={othersNode}
+                        onSwitch={setShowSwitchNode}
+                      />
 
                       <DropdownMenuItem
                         className="h-11 px-3 gap-3"
@@ -298,11 +286,7 @@ function AppSideBar(props: {onExit: (loading: boolean) => void}) {
                         <span>Create New Node</span>
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
-                    {
-                      othersNode.length > 0 ? (
-                        <DropdownMenuSeparator className="mx-3 my-2" />
-                      ) : null
-                    }
+                    <DropdownMenuSeparator className="mx-3 my-2" />
 
                     <DropdownMenuGroup className="space-y-2">
                       <DropdownMenuItem
@@ -357,10 +341,3 @@ function AppSideBar(props: {onExit: (loading: boolean) => void}) {
   );
 }
 
-function FullMask() {
-  return (
-    <div className="absolute inset-0 z-1000 bg-background/70 flex justify-center items-center">
-      <Spinner style={{width: '28px', height: '28px'}} />
-    </div>
-  )
-}

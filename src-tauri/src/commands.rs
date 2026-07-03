@@ -1594,41 +1594,75 @@ pub async fn prepare_node_resources(
     Ok(context)
 }
 
+/// Restart an existing node with the same configuration
 #[tauri::command]
-pub async fn bootstrap_local_node(
+pub async fn re_start_local_node(
     state: State<'_, AppState>,
-    password_hash: String,
-    ldk_image: String,
-    node_name: Option<String>,
-    network: String,
-    esplora_url: String,
-    main_api_port: Option<u16>,
-    control_api_port: Option<u16>,
-    p2p_port: Option<u16>,
+    node_id: String
 ) -> Result<NodeContext, CommandError> {
-    let context = prepare_node_resources_inner(
-        &state,
-        password_hash,
-        ldk_image,
-        node_name,
-        network,
-        esplora_url,
-        main_api_port,
-        control_api_port,
-        p2p_port,
-    )
-    .await?;
+    let context = get_ctx(&state.store, &node_id).await?;
 
-    // Claim the allocated ports / container name in the store IMMEDIATELY,
-    // before any docker work, so a concurrent prepare_node_resources or
-    // bootstrap_local_node call cannot pick the same next-free port (the
-    // free-port search in the inner function reads state.store.list()).
-    state.store.upsert(context.clone()).await?;
+    // Check optional fields
+    if context.esplora_url.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing esplora_url in node context".to_string()),
+            hint: None,
+        });
+    }
+    if context.image.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing image in node context".to_string()),
+            hint: None,
+        });
+    }
+    if context.rgb_consignment_base_url.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing rgb_consignment_base_url in node context".to_string()),
+            hint: None,
+        });
+    }
+    if context.p2p_listen.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing p2p_listen in node context".to_string()),
+            hint: None,
+        });
+    }
+    if context.data_dir.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing data_dir in node context".to_string()),
+            hint: None,
+        });
+    }
+    if context.control_api_token_file_path.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing control_api_token_file_path in node context".to_string()),
+            hint: None,
+        });
+    }
+    if context.control_api_base_url.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing control_api_base_url in node context".to_string()),
+            hint: None,
+        });
+    }
+    if context.main_api_token_file_path.is_none() {
+        return Err(CommandError::BadRequest {
+            service: "control-panel",
+            message: Some("missing main_api_token_file_path in node context".to_string()),
+            hint: None,
+        });
+    }
 
-    // From here, any failure should ROLL BACK the store entry so the UI
-    // node list doesn't accumulate half-bootstrapped nodes that never
-    // started a daemon. Drop guards can't run async cleanup, so we wrap
-    // the rest of bootstrap and remove on error in a single explicit point.
+
+    // The `context` should have all the info declared in NodeContext,
+    // including the fields that marked as "Option"
     match bootstrap_local_node_after_prepare(&state, &context).await {
         Ok(()) => Ok(context),
         Err(e) => {
@@ -1638,6 +1672,18 @@ pub async fn bootstrap_local_node(
             Err(e)
         },
     }
+}
+
+/// Stop a local node
+#[tauri::command]
+pub async fn stop_local_node(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<(), CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    let container_name = ctx.container_name.clone();
+
+    docker_stop_and_wait(&container_name)
 }
 
 async fn bootstrap_local_node_after_prepare(
@@ -2063,7 +2109,7 @@ pub async fn node_main_balances(
 }
 
 #[tauri::command]
-pub async fn node_wallet_new_address(
+pub async fn node_wallet_address_new(
     state: State<'_, AppState>,
     node_id: String,
 ) -> Result<rgbldkd_http::WalletNewAddressResponse, CommandError> {
@@ -2071,9 +2117,9 @@ pub async fn node_wallet_new_address(
     traced_node_call(
         &state,
         &node_id,
-        "wallet.new_address",
+        "wallet.address.new",
         None,
-        rgbldkd_http::wallet_new_address(&state.http, &ctx),
+        rgbldkd_http::wallet_address_new(&state.http, &ctx),
     )
     .await
 }
@@ -2240,7 +2286,7 @@ pub async fn node_rgb_ln_invoice_create(
     state: State<'_, AppState>,
     node_id: String,
     request: rgbldkd_http::RgbLnInvoiceCreateRequest,
-) -> Result<rgbldkd_http::RgbLnInvoiceResponse, CommandError> {
+) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     let request_json = serde_json::to_value(&request).ok();
     traced_node_call(
@@ -2890,7 +2936,7 @@ pub async fn node_rgb_onchain_invoice_create(
 }
 
 #[tauri::command]
-pub async fn node_rgb_new_address(
+pub async fn node_rgb_address_new(
     state: State<'_, AppState>,
     node_id: String,
 ) -> Result<rgbldkd_http::WalletNewAddressResponse, CommandError> {
@@ -2898,9 +2944,9 @@ pub async fn node_rgb_new_address(
     traced_node_call(
         &state,
         &node_id,
-        "rgb.new_address",
+        "rgb.address.new",
         None,
-        rgbldkd_http::rgb_new_address(&state.http, &ctx),
+        rgbldkd_http::rgb_address_new(&state.http, &ctx),
     )
     .await
 }
@@ -4646,7 +4692,14 @@ pub async fn hash_password(password: String) -> Result<String, CommandError> {
 ///
 /// CPU-bound work runs on a blocking thread to avoid stalling the Tokio runtime.
 #[tauri::command]
-pub async fn verify_password(password: String, stored_hash: String) -> Result<bool, CommandError> {
+pub async fn verify_password(
+    state: State<'_, AppState>,
+    node_id: String,
+    password: String,
+) -> Result<bool, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    let stored_hash = ctx.password_hash;
+
     tokio::task::spawn_blocking(move || {
         let parts: Vec<&str> = stored_hash.splitn(4, ':').collect();
         match parts.as_slice() {
@@ -4944,6 +4997,55 @@ pub async fn node_rgb_utxo_top_up(
         "rgb.utxo.top_up",
         None,
         rgbldkd_http::rgb_utxo_top_up(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+
+#[tauri::command]
+pub async fn node_wallet_address_current(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "wallet.address.current",
+        None,
+        rgbldkd_http::wallet_address_current(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_rgb_address_current(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<rgbldkd_http::WalletNewAddressResponse, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.address.current",
+        None,
+        rgbldkd_http::rgb_address_current(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_rgb_ln_estimate_carrier(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.ln.estimate_carrier",
+        None,
+        rgbldkd_http::rgb_ln_estimate_carrier(&state.http, &ctx),
     )
     .await
 }

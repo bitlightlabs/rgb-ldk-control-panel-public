@@ -3,8 +3,7 @@ import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { nodeBolt11Receive } from "@/lib/commands";
-import { useMutation } from "@tanstack/react-query";
+import { useBolt11ReceiveMutation } from "@/app/mutations";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -12,21 +11,11 @@ import { toast } from "sonner";
 export function BtcBolt11Invoice() {
   const nav = useNavigate();
   const currentContext = useContextStore((s) => s.currentContext);
-  const [amountSat, setAmountSat] = useState("5000");
+  const [amountSat, setAmountSat] = useState("");
   const [description, setDescription] = useState("");
   const activeNodeId = currentContext?.node_id;
 
-   const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-
-      // bolt11 invoice
-      return nodeBolt11Receive(activeNodeId, {
-        amount_msat: (BigInt(amountSat.trim()) * 1000n).toString(),
-        description: description.trim(),
-        expiry_secs: 3600,
-      });
-    },
+   const createMutation = useBolt11ReceiveMutation({
     onSuccess: (resp) => {
       nav('/dashboard/receive/btc-bolt11-invoice-result?invoice='
         + encodeURIComponent(resp.invoice)
@@ -51,6 +40,7 @@ export function BtcBolt11Invoice() {
             Amount To Receive
           </FieldLabel>
           <Input
+            placeholder="0"
             value={amountSat}
             onChange={(e) => setAmountSat(e.target.value)}
             inputMode="numeric"
@@ -73,7 +63,20 @@ export function BtcBolt11Invoice() {
             variant="white"
             className="w-full rounded-full"
             disabled={amountSat === '' || createMutation.isPending}
-            onClick={() => createMutation.mutate()}
+            onClick={() => {
+              if (!activeNodeId) {
+                toast.error("No active node selected");
+                return;
+              }
+              createMutation.mutate({
+                nodeId: activeNodeId,
+                request: {
+                  amount_msat: (BigInt(amountSat.trim()) * 1000n).toString(),
+                  description: description.trim(),
+                  expiry_secs: 3600,
+                },
+              });
+            }}
           >
             Create Invoice
           </Button>

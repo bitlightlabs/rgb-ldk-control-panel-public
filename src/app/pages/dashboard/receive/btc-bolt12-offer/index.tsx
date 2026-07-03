@@ -3,8 +3,7 @@ import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { nodeBolt12OfferReceiveVar } from "@/lib/commands";
-import { useMutation } from "@tanstack/react-query";
+import { useBolt12OfferReceiveVarMutation } from "@/app/mutations";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -15,16 +14,7 @@ export default function BtcBolt12Offer() {
   const [description, setDescription] = useState("");
   const activeNodeId = currentContext?.node_id;
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-
-      // bolt12 offer with variable amount
-      return nodeBolt12OfferReceiveVar(activeNodeId, {
-        description: description.trim(),
-        expiry_secs: 3600,
-      });
-    },
+  const createMutation = useBolt12OfferReceiveVarMutation({
     onSuccess: (resp) => {
       nav('/dashboard/receive/btc-bolt12-offer-result?offer='
         + encodeURIComponent(resp.offer)
@@ -74,7 +64,19 @@ export default function BtcBolt12Offer() {
             variant="white"
             className="w-full rounded-full"
             disabled={createMutation.isPending}
-            onClick={() => createMutation.mutate()}
+            onClick={() => {
+              if (!activeNodeId) {
+                toast.error("No active node selected");
+                return;
+              }
+              createMutation.mutate({
+                nodeId: activeNodeId,
+                request: {
+                  description: description.trim(),
+                  expiry_secs: 3600,
+                },
+              });
+            }}
           >
             Create Invoice
           </Button>

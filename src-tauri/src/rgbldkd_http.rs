@@ -356,7 +356,8 @@ pub struct RgbLnInvoiceCreateRequest {
 	pub asset_amount: String,
 	pub description: String,
 	pub expiry_secs: u32,
-	pub btc_carrier_amount_msat: String,
+	#[serde(skip_serializing_if = "Option::is_none")]
+	pub btc_carrier_amount_msat: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1052,13 +1053,13 @@ pub async fn main_balances(client: &reqwest::Client, ctx: &NodeContext) -> Resul
 		.map_err(|_| CommandError::HttpRequestFailed)
 }
 
-pub async fn wallet_new_address(
+pub async fn wallet_address_new(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<WalletNewAddressResponse, CommandError> {
 	let base = parse_base_url(&ctx.main_api_base_url)?;
 	let url = base
-		.join("api/v1/wallet/new_address")
+		.join("api/v1/wallet/address/new")
 		.map_err(|_| CommandError::InvalidBaseUrl {
 			url: ctx.main_api_base_url.clone(),
 		})?;
@@ -1302,7 +1303,7 @@ pub async fn rgb_ln_invoice_create(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 	req_body: RgbLnInvoiceCreateRequest,
-) -> Result<RgbLnInvoiceResponse, CommandError> {
+) -> Result<Value, CommandError> {
 	let base = parse_base_url(&ctx.main_api_base_url)?;
 	let url = base.join("api/v1/rgb/ln/invoice/create").map_err(|_| {
 		CommandError::InvalidBaseUrl {
@@ -1321,7 +1322,7 @@ pub async fn rgb_ln_invoice_create(
 		return Err(classify_non_success("main", resp).await?);
 	}
 
-	resp.json::<RgbLnInvoiceResponse>()
+	resp.json::<Value>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }
@@ -2215,13 +2216,13 @@ pub async fn rgb_onchain_invoice_create(
         .map_err(|_| CommandError::HttpRequestFailed)
 }
 
-pub async fn rgb_new_address(
+pub async fn rgb_address_new(
     client: &reqwest::Client,
     ctx: &NodeContext,
 ) -> Result<WalletNewAddressResponse, CommandError> {
     let base = parse_base_url(&ctx.main_api_base_url)?;
     let url = base
-        .join("api/v1/rgb/new_address")
+        .join("api/v1/rgb/address/new")
         .map_err(|_| CommandError::InvalidBaseUrl {
             url: ctx.main_api_base_url.clone(),
         })?;
@@ -2733,4 +2734,93 @@ pub async fn rgb_utxos_fund(
     resp.json::<Value>()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+
+pub async fn rgb_address_current(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<WalletNewAddressResponse, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base
+		.join("api/v1/rgb/address/current")
+		.map_err(|_| CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		})?;
+
+	let mut req = client.get(url).json(&serde_json::json!({}));
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<WalletNewAddressResponse>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+
+pub async fn wallet_address_current(
+    client: &reqwest::Client,
+    ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+    let base = parse_base_url(&ctx.main_api_base_url)?;
+    let url = base
+        .join("api/v1/wallet/address/current")
+        .map_err(|_| CommandError::InvalidBaseUrl {
+            url: ctx.main_api_base_url.clone(),
+        })?;
+
+    let mut req = client.get(url).json(&serde_json::json!({}));
+    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+        let token = read_token_file(Path::new(path))?;
+        req = req.bearer_auth(token);
+    }
+
+    let resp = req
+        .send()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)?;
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
+
+    resp.json::<Value>()
+        .await
+        .map_err(|_| CommandError::HttpRequestFailed)
+}
+
+/// Estimate carrier amount of invoice for RGB assets
+pub async fn rgb_ln_estimate_carrier(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/rgb/ln/invoice/estimate_carrier").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.post(url);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
 }

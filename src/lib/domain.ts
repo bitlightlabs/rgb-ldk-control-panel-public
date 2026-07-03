@@ -23,6 +23,7 @@ export type NodeContext = {
    * before this field was added.
    */
   image?: string | null;
+  esplora_url: string;
 };
 
 export type ControlStatusDto = {

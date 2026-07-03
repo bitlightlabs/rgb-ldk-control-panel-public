@@ -5,10 +5,12 @@ import Fee from "./Fee";
 import { useEffect, useRef, useState } from "react";
 import CopyText from "./CopyText";
 import Row from "./Row";
-import { useMutation } from "@tanstack/react-query";
-import { nodeRgbUtxoSweep, nodeWalletNewAddress } from "@/lib/commands";
+import {
+  useNodeWalletNewAddressMutation,
+  useRgbUtxoSweepMutation,
+} from "@/app/mutations";
 import { useContextStore } from "../stores/contextStore";
-import type { RgbUtxoDto, RgbUtxosSweepRequest } from "@/lib/sdk/generated-types";
+import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
 import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
 import { formatAddress } from "@/lib/utils";
@@ -27,11 +29,8 @@ export default function UnlockUtxoDialog(props: IProps) {
   const currentContext = useContextStore((s) => s.currentContext);
   const [feeRate, setFeeRate] = useState('0')
 
-  const sweepMutation = useMutation({
-    mutationFn: (params: {nodeId: string, request: RgbUtxosSweepRequest}) => {
-      return nodeRgbUtxoSweep(params.nodeId, params.request);
-    },
-  });
+  const sweepMutation = useRgbUtxoSweepMutation();
+  const newAddressMutation = useNodeWalletNewAddressMutation();
 
   const unlock = async () => {
     if (!currentContext) return
@@ -40,7 +39,7 @@ export default function UnlockUtxoDialog(props: IProps) {
       setLoading(true)
 
       const nodeId = currentContext.node_id
-      const btcAddress = await nodeWalletNewAddress(nodeId)
+      const btcAddress = await newAddressMutation.mutateAsync(nodeId)
       await sweepMutation.mutateAsync({
         nodeId: currentContext.node_id,
         request: {
@@ -200,4 +199,3 @@ export default function UnlockUtxoDialog(props: IProps) {
     </Dialog>
   )
 }
-

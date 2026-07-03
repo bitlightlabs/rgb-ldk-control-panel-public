@@ -5,7 +5,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 export default function PaySuccess() {
   const navigate = useNavigate();
   const [search] = useSearchParams()
-  const amount = search.get('payload') ?? "";
+  const amount = search.get('amount') ?? "";
   const symbol = search.get('symbol') ?? "";
 
   const goback = () => {

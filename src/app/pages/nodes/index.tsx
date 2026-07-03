@@ -1,5 +1,5 @@
 import { Content } from "@/app/components/ContentWrapper";
-import CopyText from "@/app/components/CopyText";
+import { CopyTextInline } from "@/app/components/CopyText";
 import DropMenu from "@/app/components/DropMenu";
 import Empty from "@/app/components/Empty";
 import Header from "@/app/components/peers/Header";
@@ -24,14 +24,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  nodeMainChannels,
-  nodeMainNodeId,
-  nodeMainPeers,
-  nodeMainPeersDisconnect,
-} from "@/lib/commands";
+  usePeerDisconnectMutation,
+} from "@/app/mutations";
+import {
+  useNodeMainChannelsQuery,
+  useNodeMainNodeIdQuery,
+  useNodeMainPeersQuery,
+} from "@/app/queries";
 import type { PeerDetailsDto } from "@/lib/sdk/types";
-import { formatAddress } from "@/lib/utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -45,9 +45,7 @@ export default function PeersPage() {
 
   const activeNodeId = currentContext?.node_id ?? "";
 
-  const channelsQuery = useQuery({
-    queryKey: ["node_main_channels", activeNodeId],
-    queryFn: () => nodeMainChannels(activeNodeId!),
+  const channelsQuery = useNodeMainChannelsQuery(activeNodeId, {
     refetchInterval: false,
     enabled: false,
   });
@@ -69,23 +67,25 @@ export default function PeersPage() {
       return;
     }
 
-    disConnectMutation.mutate();
+    if (!activeNodeId) {
+      toast.error("No active node");
+      return;
+    }
+
+    if (!disconnectNode) {
+      toast.error("No node to disconnect");
+      return;
+    }
+
+    disConnectMutation.mutate({
+      nodeId: activeNodeId,
+      request: {
+        node_id: disconnectNode.node_id,
+      },
+    });
   };
 
-  const disConnectMutation = useMutation({
-    mutationFn: () => {
-      if (!activeNodeId) {
-        throw new Error("No active node");
-      }
-
-      if (!disconnectNode) {
-        throw new Error("No node to disconnect");
-      }
-
-      return nodeMainPeersDisconnect(activeNodeId, {
-        node_id: disconnectNode.node_id,
-      });
-    },
+  const disConnectMutation = usePeerDisconnectMutation({
     onSuccess: async () => {
       setDisconnectNode(null);
       toast.success(`Peer disconnected`);
@@ -96,11 +96,8 @@ export default function PeersPage() {
     },
   });
 
-  const peersQuery = useQuery({
-    queryKey: ["peers", activeNodeId],
-    queryFn: () => nodeMainPeers(activeNodeId!),
+  const peersQuery = useNodeMainPeersQuery(activeNodeId, {
     refetchInterval: false,
-    enabled: !!activeNodeId,
   });
   const list = peersQuery.data ?? [];
 
@@ -114,7 +111,7 @@ export default function PeersPage() {
         <Header onCreateNode={() => nav("/dashboard/peers/connect")} />
         <NodeInfo />
 
-        <Content className="mt-4 h-[566px] flex justify-center items-center">
+        <Content className="mt-4 h-[567px] flex justify-center items-center">
           <Empty
             title="No Nodes Connected"
             subTitle="You haven't connected to any peers yet. Connect to a node to start building your network."
@@ -140,11 +137,10 @@ export default function PeersPage() {
       <Header onCreateNode={() => nav("/dashboard/peers/connect")} />
       <NodeInfo />
 
-      <Content className="mt-4 px-3">
+      <Content className="mt-4 px-2 py-3">
         <Table className="w-full text-sm">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              {/* <TableHead>Node</TableHead> */}
               <TableHead>STATUS</TableHead>
               <TableHead>PUBKEY</TableHead>
               <TableHead>ADDRESS</TableHead>
@@ -155,9 +151,6 @@ export default function PeersPage() {
             {list.map((item) => {
               return (
                 <TableRow key={item.node_id} className="h-14">
-                  {/* <TableCell>
-                      <span className="text-base">{formatAddress(item.node_id)}</span>
-                    </TableCell> */}
                   <TableCell>
                     {item.is_connected ? (
                       <Badge variant="success">Connected</Badge>
@@ -166,22 +159,18 @@ export default function PeersPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    <div className="text-sm flex gap-2 items-center">
-                      <span>{formatAddress(item.node_id)}</span>
-                      <CopyText
-                        text={item.node_id}
-                        className="text-secondary-foreground"
-                      />
-                    </div>
+                    <CopyTextInline
+                      text={item.node_id}
+                      className="text-sm"
+                      buttonClassName="text-secondary-foreground"
+                    />
                   </TableCell>
                   <TableCell>
-                    <div className="text-sm flex gap-2 items-center">
-                      <span>{formatAddress(item.address)}</span>
-                      <CopyText
-                        text={item.address}
-                        className="text-secondary-foreground"
-                      />
-                    </div>
+                    <CopyTextInline
+                      text={item.address}
+                      className="text-sm"
+                      buttonClassName="text-secondary-foreground"
+                    />
                   </TableCell>
                   <TableCell>
                     <DropMenu
@@ -254,26 +243,33 @@ export default function PeersPage() {
 function NodeInfo() {
   const currentContext = useContextStore((s) => s.currentContext);
 
-  const nodeIdQuery = useQuery({
-    queryKey: ["node_main_node_id", currentContext?.node_id],
-    queryFn: () => nodeMainNodeId(currentContext?.node_id ?? ''),
-    enabled: !!currentContext,
-  });
+  const nodeIdQuery = useNodeMainNodeIdQuery(currentContext?.node_id);
+
+  const copy = async (v: string) => {
+    try {
+      await navigator.clipboard.writeText(v);
+      toast.success("Copy successful");
+    } catch (e) {}
+  }
 
   return (
     <div className="h-20 flex justify-between gap-3">
       <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-2">
         <div className="text-xs text-secondary-foreground leading-[18px]">Pubkey</div>
-        <div className="mt-2 text-base h-5 flex gap-2 items-center">
-          <span>{formatAddress(nodeIdQuery.data?.node_id)}</span>
-          <CopyText className="text-secondary-foreground" text={nodeIdQuery.data?.node_id ?? ''} />
+        <div className="mt-2">
+          <CopyTextInline
+            text={nodeIdQuery.data?.node_id ?? ''}
+            buttonClassName="text-secondary-foreground"
+          />
         </div>
       </div>
       <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-2">
         <div className="text-xs text-secondary-foreground leading-[18px]">Address</div>
-        <div className="mt-2 text-base h-5 flex gap-2 items-center">
-          <span>{formatAddress(currentContext?.p2p_listen ?? '')}</span>
-          <CopyText className="text-secondary-foreground" text={currentContext?.p2p_listen ?? ''} />
+        <div className="mt-2">
+          <CopyTextInline
+            text={currentContext?.p2p_listen ?? ''}
+            buttonClassName="text-secondary-foreground"
+          />
         </div>
       </div>
     </div>

@@ -12,7 +12,12 @@ import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
 import { formatAddress, selectUtxos } from "@/lib/utils";
 import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
-import { nodeRgbNewAddress, nodeRgbUtxoTopUp, nodeWalletL1Utxos, nodeWalletNewAddress } from "@/lib/commands";
+import {
+  useNodeWalletL1UtxosMutation,
+  useNodeRgbNewAddressMutation,
+  useNodeWalletNewAddressMutation,
+  useRgbUtxoTopUpMutation,
+} from "@/app/mutations";
 
 interface IProps {
   utxo: RgbUtxoDto
@@ -29,6 +34,10 @@ export default function UtxoAddBalanceDialog(props: IProps) {
   const currentContext = useContextStore((state) => state.currentContext);
   const balance = useRef('0')
   const [error, setError] = useState('')
+  const rgbNewAddressMutation = useNodeRgbNewAddressMutation();
+  const walletNewAddressMutation = useNodeWalletNewAddressMutation();
+  const walletL1UtxosMutation = useNodeWalletL1UtxosMutation();
+  const rgbUtxoTopUpMutation = useRgbUtxoTopUpMutation();
 
   const next = async () => {
     if(!currentContext) {
@@ -52,8 +61,8 @@ export default function UtxoAddBalanceDialog(props: IProps) {
       const nodeId = currentContext.node_id ?? ''
 
       // prepare to & change address
-      const rgbAddress = await nodeRgbNewAddress(nodeId)
-      const changeAddress = await nodeWalletNewAddress(nodeId)
+      const rgbAddress = await rgbNewAddressMutation.mutateAsync(nodeId)
+      const changeAddress = await walletNewAddressMutation.mutateAsync(nodeId)
 
       setTo(rgbAddress.address)
       setChangeAddress(changeAddress.address)
@@ -76,7 +85,7 @@ export default function UtxoAddBalanceDialog(props: IProps) {
       const nodeId = currentContext.node_id
 
       // 1. Query unspent UTXOs
-      const utxos = await nodeWalletL1Utxos(nodeId)
+      const utxos = await walletL1UtxosMutation.mutateAsync(nodeId)
       const selected = selectUtxos(utxos.utxos, amount)
 
       // 2. Create payload
@@ -98,7 +107,10 @@ export default function UtxoAddBalanceDialog(props: IProps) {
 
       // 2. Top up
       console.log('payload', payload)
-      await nodeRgbUtxoTopUp(nodeId, payload)
+      await rgbUtxoTopUpMutation.mutateAsync({
+        nodeId,
+        request: payload,
+      })
 
       toast.success('UTXO balance added successfully')
       props.onClose()
@@ -168,6 +180,7 @@ export default function UtxoAddBalanceDialog(props: IProps) {
               type="button"
               size="lg"
               className="rounded-full flex-1"
+              loading={loading}
               disabled={loading}
               onClick={pay}
             >
@@ -254,4 +267,3 @@ export default function UtxoAddBalanceDialog(props: IProps) {
     </Dialog>
   )
 }
-

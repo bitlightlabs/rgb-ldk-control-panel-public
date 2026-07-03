@@ -46,154 +46,237 @@ export const routesConfig = [
 
   {
     path: "/dashboard",
-    lazy: () => import('./Layout').then((mod) => ({ Component: mod.default })),
+    lazy: () => import("@/app/components/DashboardGuard").then((mod) => ({ Component: mod.default })),
     children: [
       {
-        index: true,
-        lazy: () => import('./app/pages/dashboard/index').then((mod) => ({ Component: mod.DashboardPage }))
-      },
-      {
-        path: 'channels',
+        lazy: () => import('./Layout').then((mod) => ({ Component: mod.default })),
         children: [
           {
             index: true,
-            lazy: () => import("@/app/pages/channels/index").then((mod) => ({ Component: mod.default }))
+            lazy: () => import('./app/pages/dashboard/index').then((mod) => ({ Component: mod.DashboardPage }))
           },
           {
-            path: 'open',
-            breadcrumb: ['Wallet', 'Open'],
-            lazy: () => import("@/app/pages/channels/open-channel/index").then((mod) => ({ Component: mod.default }))
+            path: 'receive',
+            breadcrumb: [
+              { title: 'Wallet', link: '/dashboard' },
+              { title: 'Receive', link: '#' }
+            ],
+            children: [
+              {
+                index: true,
+                lazy: () => import("@/app/pages/dashboard/receive").then((mod) => ({ Component: mod.ReceivePage }))
+              },
+              {
+                path: 'rgb-invoice',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Receive', link: '/dashboard/receive' },
+                  { title: 'RGB Lightning', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/receive/rgb-invoice/index").then((mod) => ({ Component: mod.RGBInvoice }))
+              },
+              {
+                path: 'rgb-invoice-result',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Receive', link: '/dashboard/receive' },
+                  { title: 'RGB Lightning', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/receive/rgb-invoice/result").then((mod) => ({ Component: mod.RGBInvoiceResult }))
+              },
+              {
+                path: 'btc-bolt11-invoice',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Receive', link: '/dashboard/receive' },
+                  { title: 'Lightning Invoice', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/receive/btc-bolt11-invoice/index").then((mod) => ({ Component: mod.BtcBolt11Invoice }))
+              },
+              {
+                path: 'btc-bolt11-invoice-result',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Receive', link: '/dashboard/receive' },
+                  { title: 'Lightning Invoice', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/receive/btc-bolt11-invoice/result").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'btc-bolt12-offer',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Receive', link: '/dashboard/receive' },
+                  { title: 'Lightning Offer', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/receive/btc-bolt12-offer/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'btc-bolt12-offer-result',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Receive', link: '/dashboard/receive' },
+                  { title: 'Lightning Offer', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/receive/btc-bolt12-offer/result").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'btc-onchain-address',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Receive', link: '/dashboard/receive' },
+                  { title: 'Bitcoin On-chain', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/receive/btc-onchain/index").then((mod) => ({ Component: mod.default }))
+              }
+            ],
           },
-        ],
-      },
-      {
-        path: 'peers',
-        children: [
           {
-            index: true,
-            lazy: () => import("@/app/pages/nodes/index").then((mod) => ({ Component: mod.default }))
+            path: 'send',
+            breadcrumb: [
+              { title: 'Wallet', link: '/dashboard' },
+              { title: 'Send', link: '#' }
+            ],
+            children: [
+              {
+                index: true,
+                lazy: () => import("@/app/pages/dashboard/send").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'rgb-invoice',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Send', link: '/dashboard/send' },
+                  { title: 'RGB', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/send/rgb-invoice/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'btc-bolt11-invoice',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Send', link: '/dashboard/send' },
+                  { title: 'Lightning Invoice', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/send/btc-bolt11-invoice/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'btc-bolt12-offer',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Send', link: '/dashboard/send' },
+                  { title: 'Lightning Offer', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/send/btc-bolt12-offer/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'success',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Send', link: '/dashboard/send' },
+                  { title: 'Success', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/send/success").then((mod) => ({ Component: mod.default }))
+              }
+            ]
           },
           {
-            path: 'connect',
-            breadcrumb: ['Wallet', 'Connect'],
-            lazy: () => import("@/app/pages/nodes/connect/index").then((mod) => ({ Component: mod.default }))
-          }
-        ]
-      },
-      {
-        path: 'settings',
-        lazy: () => import("@/app/pages/settings/index").then((mod) => ({ Component: mod.default }))
-      },
-      {
-        path: 'receive',
-        breadcrumb: ['Wallet', 'Receive'],
-        children: [
-          {
-            index: true,
-            lazy: () => import("@/app/pages/dashboard/receive").then((mod) => ({ Component: mod.ReceivePage }))
+            path: 'utxo',
+            breadcrumb: [
+              { title: 'Wallet', link: '/dashboard' },
+              { title: 'UTXO', link: '#' }
+            ],
+            lazy: () => import("@/app/pages/dashboard/utxo/index").then((mod) => ({ Component: mod.default }))
           },
           {
-            path: 'rgb-invoice',
-            breadcrumb: ['Wallet', 'Receive', 'RGB Lightning'],
-            lazy: () => import("@/app/pages/dashboard/receive/rgb-invoice/index").then((mod) => ({ Component: mod.RGBInvoice }))
+            path: 'activities',
+            breadcrumb: [
+              { title: 'Wallet', link: '/dashboard' },
+              { title: 'Activities', link: '#' }
+            ],
+            lazy: () => import("@/app/pages/dashboard/activities/index").then((mod) => ({ Component: mod.default }))
           },
           {
-            path: 'rgb-invoice-result',
-            breadcrumb: ['Wallet', 'Receive', 'RGB Lightning'],
-            lazy: () => import("@/app/pages/dashboard/receive/rgb-invoice/result").then((mod) => ({ Component: mod.RGBInvoiceResult }))
+            path: 'rgb',
+            children: [
+              {
+                path: 'import',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Import', link: '/dashboard/rgb/import' },
+                ],
+                lazy: () => import("@/app/pages/dashboard/import-asset/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'export',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Export', link: '/dashboard/rgb/export' },
+                ],
+                lazy: () => import("@/app/pages/dashboard/export-asset/index").then((mod) => ({ Component: mod.default }))
+              }
+            ]
           },
           {
-            path: 'btc-bolt11-invoice',
-            breadcrumb: ['Wallet', 'Receive', 'Lightning Invoice'],
-            lazy: () => import("@/app/pages/dashboard/receive/btc-bolt11-invoice/index").then((mod) => ({ Component: mod.BtcBolt11Invoice }))
+            path: 'asset-detail',
+            breadcrumb: [
+              { title: 'Wallet', link: '/dashboard' },
+              { title: 'Asset Detail', link: '#' },
+            ],
+            lazy: () => import("@/app/pages/dashboard/asset-detail/index").then((mod) => ({ Component: mod.default }))
           },
-          {
-            path: 'btc-bolt11-invoice-result',
-            breadcrumb: ['Wallet', 'Receive', 'Lightning Invoice'],
-            lazy: () => import("@/app/pages/dashboard/receive/btc-bolt11-invoice/result").then((mod) => ({ Component: mod.default }))
-          },
-          {
-            path: 'btc-bolt12-offer',
-            breadcrumb: ['Wallet', 'Receive', 'Lightning Offer'],
-            lazy: () => import("@/app/pages/dashboard/receive/btc-bolt12-offer/index").then((mod) => ({ Component: mod.default }))
-          },
-          {
-            path: 'btc-bolt12-offer-result',
-            breadcrumb: ['Wallet', 'Receive', 'Lightning Offer'],
-            lazy: () => import("@/app/pages/dashboard/receive/btc-bolt12-offer/result").then((mod) => ({ Component: mod.default }))
-          },
-          {
-            path: 'btc-onchain-address',
-            breadcrumb: ['Wallet', 'Receive', 'Bitcoin On-chain'],
-            lazy: () => import("@/app/pages/dashboard/receive/btc-onchain/index").then((mod) => ({ Component: mod.default }))
-          }
-        ]
-      },
 
-      {
-        path: 'send',
-        breadcrumb: ['Wallet', 'Send'],
-        children: [
+          // Side menu
           {
-            index: true,
-            breadcrumb: ['Wallet', 'Send'],
-            lazy: () => import("@/app/pages/dashboard/send").then((mod) => ({ Component: mod.default }))
+            path: 'peers',
+            children: [
+              {
+                index: true,
+                lazy: () => import("@/app/pages/nodes/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'connect',
+                breadcrumb: [
+                  { title: 'Nodes', link: '/dashboard/peers' },
+                  { title: 'Connect', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/nodes/connect/index").then((mod) => ({ Component: mod.default }))
+              }
+            ]
           },
           {
-            path: 'rgb-invoice',
-            breadcrumb: ['Wallet', 'Send', 'RGB'],
-            lazy: () => import("@/app/pages/dashboard/send/rgb-invoice/index").then((mod) => ({ Component: mod.default }))
+            path: 'channels',
+            children: [
+              {
+                index: true,
+                lazy: () => import("@/app/pages/channels/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'open',
+                breadcrumb: [
+                  { title: 'Channels', link: '/dashboard/channels' },
+                  { title: 'Open Channel', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/channels/open-channel/index").then((mod) => ({ Component: mod.default }))
+              },
+            ],
           },
           {
-            path: 'btc-bolt11-invoice',
-            breadcrumb: ['Wallet', 'Send', 'Lightning Invoice'],
-            lazy: () => import("@/app/pages/dashboard/send/btc-bolt11-invoice/index").then((mod) => ({ Component: mod.default }))
+            path: 'settings',
+            lazy: () => import("@/app/pages/settings/index").then((mod) => ({ Component: mod.default }))
           },
           {
-            path: 'btc-bolt12-offer',
-            breadcrumb: ['Wallet', 'Send', 'Lightning Offer'],
-            lazy: () => import("@/app/pages/dashboard/send/btc-bolt12-offer/index").then((mod) => ({ Component: mod.default }))
-          },
-          {
-            path: 'success',
-            breadcrumb: ['Wallet', 'Send', 'RGB'],
-            lazy: () => import("@/app/pages/dashboard/send/success").then((mod) => ({ Component: mod.default }))
+            path: 'swap',
+            lazy: () => import("@/app/pages/swap/index").then((mod) => ({ Component: mod.default }))
           }
-        ]
-      },
-      {
-        path: 'utxo',
-        breadcrumb: ['Wallet', 'UTXO'],
-        lazy: () => import("@/app/pages/dashboard/utxo/index").then((mod) => ({ Component: mod.default }))
-      },
-      {
-        path: 'activities',
-        breadcrumb: ['Wallet', 'Activities'],
-        lazy: () => import("@/app/pages/dashboard/activities/index").then((mod) => ({ Component: mod.default }))
-      },
-      {
-        path: 'rgb',
-        children: [
-          {
-            path: 'import',
-            breadcrumb: ['Wallet', 'Import'],
-            lazy: () => import("@/app/pages/dashboard/import-asset/index").then((mod) => ({ Component: mod.default }))
-          },
-          {
-            path: 'export',
-            breadcrumb: ['Wallet', 'Export'],
-            lazy: () => import("@/app/pages/dashboard/export-asset/index").then((mod) => ({ Component: mod.default }))
-          }
-        ]
-      },
-      {
-        path: 'asset-detail',
-        breadcrumb: ['Wallet', 'Asset Detail'],
-        lazy: () => import("@/app/pages/routes/AssetDetailPage").then((mod) => ({ Component: mod.AssetDetailPage }))
+        ],
       }
     ]
+  },
+  {
+    path: "*",
+    lazy: () => import("@/app/pages/not-found").then((mod) => ({ Component: mod.default })),
   },
 ]
 
 export const routes = createBrowserRouter(routesConfig);
-

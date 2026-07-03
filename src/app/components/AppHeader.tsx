@@ -2,6 +2,7 @@ import { NodeSelector } from "@/app/components/NodeSelector";
 import {
   Breadcrumb,
   BreadcrumbItem,
+  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
@@ -11,6 +12,7 @@ import testnet4Icon from "@/assets/testnet4.svg";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumb";
 import { useContextStore } from "../stores/contextStore";
 import IconWallet from "../icons/wallet";
+import { Link } from "react-router-dom";
 
 const NETWORK_ICONS: Record<string, string> = {
   mainnet: mainnetIcon,
@@ -48,7 +50,13 @@ export function AppBreadcrumb() {
 
   const menu = [];
   for (let i = 0; i < breadcrumbs.length; i++) {
-    menu.push(<BreadcrumbItem key={i}>{breadcrumbs[i]}</BreadcrumbItem>);
+    menu.push(
+      <BreadcrumbItem key={i}>
+        <BreadcrumbLink asChild>
+          <Link to={breadcrumbs[i].link}>{breadcrumbs[i].title}</Link>
+        </BreadcrumbLink>
+      </BreadcrumbItem>
+    );
     // separator
     if (i < breadcrumbs.length - 1) {
       menu.push(<BreadcrumbSeparator key={`${i}-sep`} />);
@@ -56,7 +64,7 @@ export function AppBreadcrumb() {
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-[50px] shrink-0 justify-between gap-2 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-40 flex h-[58px] shrink-0 justify-between gap-2 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="h-full flex items-center">
         {
           <Breadcrumb className="flex items-center">

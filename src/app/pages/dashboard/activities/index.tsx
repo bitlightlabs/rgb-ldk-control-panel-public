@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { nodePaymentsList } from "@/lib/commands";
+import { useNodePaymentsListQuery } from "@/app/queries";
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
 import { useNavigate } from "react-router-dom";
 import Btc from "@/app/components/activities/Btc";
@@ -13,10 +12,7 @@ export default function ActivitiesPage() {
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
 
-  const paymentsQuery = useQuery({
-    queryKey: ["node_payments_list", activeNodeId],
-    queryFn: () => nodePaymentsList(activeNodeId!),
-    enabled: !!activeNodeId,
+  const paymentsQuery = useNodePaymentsListQuery(activeNodeId, {
     refetchInterval: 5_000,
   });
 

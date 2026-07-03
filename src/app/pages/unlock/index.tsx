@@ -1,25 +1,24 @@
-import IconDanger from "@/app/icons/danger";
 import { useContextStore } from "@/app/stores/contextStore";
 import logoDarkAnimation from "@/assets/logo_dark.json";
 import { Button } from "@/components/ui/button";
 import Lottie from "lottie-react";
-
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Field, FieldError } from "@/components/ui/field";
-import { Input, PasswordInput } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
-import { contextsList, nodeMainStatus, nodeUnlock, verifyPassword } from "@/lib/commands";
+import {
+  removeMnemonicCache,
+  removeNodeScopedCache,
+  useContextsQuery,
+  useNodeMainStatusQuery,
+} from "@/app/queries";
+import { useNodeUnlockMutation } from "@/app/mutations";
+import { useQueryClient } from "@tanstack/react-query";
+import { verifyPassword } from "@/lib/commands";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import ForgetDialog from "./components/ForgetDialog";
 
 export function UnlockPage() {
   const nav = useNavigate();
@@ -27,19 +26,23 @@ export function UnlockPage() {
   const [error, setError] = useState(false);
   const [forget, setForget] = useState(false);
   const [password, setPassword] = useState("");
-  const currentContext = useContextStore((s) => s.currentContext);
   const [search] = useSearchParams();
-  const [resetText, setResetText] = useState("");
+  const queryClient = useQueryClient();
+
+  const previousContext = useContextStore((s) => s.currentContext);
   const setCurrentContext = useContextStore((s) => s.setCurrentContext);
 
+  // Unlocking node id
   const nodeId = search.get("node_id") || "";
   const showBack = search.get("show_back") === "1";
 
-  const contextsQuery = useQuery({
-    queryKey: ["contexts"],
-    queryFn: contextsList,
+  const contextsQuery = useContextsQuery({
     refetchInterval: false,
   });
+  const nodeStatusQuery = useNodeMainStatusQuery(nodeId, {
+    enabled: false,
+  });
+  const unlockMutation = useNodeUnlockMutation();
 
   const changePassword = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value);
@@ -52,9 +55,6 @@ export function UnlockPage() {
     }
   };
   const verify = async () => {
-    if (!currentContext) {
-      return;
-    }
     if (loading) {
       return;
     }
@@ -67,17 +67,22 @@ export function UnlockPage() {
 
     try {
       setLoading(true);
-      const ok = await verifyPassword(password, currentContext.password_hash);
+      const ok = await verifyPassword(targetContext.node_id, password);
       if (!ok) {
         setError(true);
         return;
       }
 
       // Check if node locked
-      const status = await nodeMainStatus(currentContext.node_id);
-      if (status.locked) {
-        await nodeUnlock(currentContext.node_id);
+      const status = (await nodeStatusQuery.refetch()).data;
+      if (status?.locked) {
+        await unlockMutation.mutateAsync(targetContext.node_id);
       }
+
+      if (previousContext?.node_id !== targetContext.node_id) {
+        removeNodeScopedCache(queryClient, previousContext?.node_id);
+      }
+      removeMnemonicCache(queryClient, targetContext.node_id);
 
       // Save context
       setCurrentContext(targetContext);
@@ -87,12 +92,6 @@ export function UnlockPage() {
       toast.error("Failed to unlock");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const reset = () => {
-    if (resetText === "RESET") {
-      nav("/");
     }
   };
 
@@ -192,60 +191,13 @@ export function UnlockPage() {
         </div>
       </div>
 
-      <Dialog open={forget} onOpenChange={() => setForget(false)}>
-        <DialogContent
-          className="w-[560px] px-5 pt-8 pb-5"
-          overlayClassName="backdrop-blur-none"
-        >
-          <DialogHeader>
-            <div>
-              <div className="w-16 h-16 rounded-full bg-error/12 flex items-center justify-center">
-                <IconDanger />
-              </div>
-              <DialogTitle className="mt-4 text-xl font-bold">
-                Reset Node?
-              </DialogTitle>
-            </div>
-          </DialogHeader>
-          <div>
-            <div className="text-base">
-              If you have forgotten your password, a manual reset of the RGB
-              Lightning Node is required. This process will wipe all local data
-              stored on this node. Ensure you have a secure backup before
-              proceeding.
-            </div>
-            <div className="mt-4 text-base">
-              Enter "RESET" to initialize the reset process.
-            </div>
-            <div className="mt-8">
-              <Input
-                className="w-full bg-background-4"
-                onChange={(e) => setResetText(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              type="button"
-              size="lg"
-              className="rounded-full flex-1"
-              onClick={() => setForget(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="white"
-              type="button"
-              size="lg"
-              className="rounded-full flex-1"
-              onClick={reset}
-            >
-              Confirm Reset
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {
+        forget ? (
+          <ForgetDialog
+            onClose={() => setForget(false)}
+          />
+        ) : null
+      }
     </>
   );
 }

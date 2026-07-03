@@ -1,10 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useEffect, useState } from "react";
-import { nodeRgbIssuers, nodeRgbIssuersImport } from "@/lib/commands";
+import { useNodeRgbIssuersQuery } from "@/app/queries";
+import { useRgbIssuersImportMutation } from "@/app/mutations";
 import { open } from '@tauri-apps/plugin-dialog';
-import { useMutation } from "@tanstack/react-query";
 import { readFile } from '@tauri-apps/plugin-fs';
 
 interface IProps {
@@ -12,44 +11,41 @@ interface IProps {
 }
 export default function IssuerList(props: IProps) {
   const { activeNodeId } = props;
-  const [list, setList] = useState<string[]>([]);
+  const issuersQuery = useNodeRgbIssuersQuery(activeNodeId, {
+    refetchInterval: false,
+  });
 
-  const loadIssuers = async (nodeId: string) => {
-    try {
-      const data = await nodeRgbIssuers(nodeId)
-      setList(data.issuers);
-    } catch(e) {}
-  }
-
-  useEffect(() => {
-    if (activeNodeId) {
-      loadIssuers(activeNodeId);
+  const issuerImportMutation = useRgbIssuersImportMutation({
+    onSuccess: () => {
+      issuersQuery.refetch();
     }
-  }, [activeNodeId]);
+  })
 
-  const issuerImportMutation = useMutation({
-    mutationFn: async (filePath: string) => {
+  const importIssuer = async (filePath: string) => {
+    try {
       if(!activeNodeId) {
         throw new Error("No active node selected");
       }
 
       const filename = 'demo-issuer';
       const fileContents = await readFile(filePath);
-      await nodeRgbIssuersImport(activeNodeId, filename, fileContents)
-    },
-    onSuccess: () => {
-      loadIssuers(activeNodeId!);
-    }
-  })
+      issuerImportMutation.mutate({
+        nodeId: activeNodeId,
+        name: filename,
+        fileData: fileContents,
+      });
+    } catch(e) {}
+  }
 
   const selectFile = async () => {
     const selected = await open({
       multiple: false
     });
     if (selected) {
-      issuerImportMutation.mutate(selected);
+      importIssuer(selected);
     }
   }
+  const list = issuersQuery.data?.issuers ?? [];
 
   return (
     <>

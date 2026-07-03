@@ -1,5 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,14 +9,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { StoredEvent } from "@/lib/domain";
+import { useChannelCloseMutation } from "@/app/mutations";
 import {
-  eventsList,
-  eventsStatus,
-  nodeChannelClose,
-  nodeChannelForceClose,
-  nodeMainChannels,
-  nodeRgbContracts,
-} from "@/lib/commands";
+  useEventsListQuery,
+  useNodeMainChannelsQuery,
+  useNodeRgbContractsQuery,
+} from "@/app/queries";
 import {
   Table,
   TableBody,
@@ -26,13 +23,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Ellipsis } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { formatAddress } from "@/lib/utils";
-import { u64 } from "@/lib/sdk/u64";
 import IconDelete from "@/app/icons/delete";
-import CopyText from "@/app/components/CopyText";
+import CopyText, { CopyTextInline } from "@/app/components/CopyText";
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
 import IconBtc from "@/app/icons/btc";
 import { Separator } from "@/components/ui/separator";
@@ -43,6 +37,9 @@ import Empty from "@/app/components/Empty";
 import IconPlus from "@/app/icons/IconPlus";
 import PageHeader from "@/app/components/PageHeader";
 import { useContextStore } from "@/app/stores/contextStore";
+import IconRefresh from "@/app/icons/refresh";
+import { formatNumber } from "@/lib/number";
+import DropMenu from "@/app/components/DropMenu";
 
 function truncateMiddle(s: string, head = 10, tail = 10): string {
   if (s.length <= head + tail + 3) return s;
@@ -101,67 +98,33 @@ export default function ChannelsPage() {
   const [confirmAction, setConfirmAction] = useState<"close" | "force" | null>(
     null
   );
-  const [opening, setOpening] = useState<{
-    userChannelId: string;
-    startedAtMs: number;
-    state: "opening" | "ready" | "closed";
-  } | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
 
-  const eventsStatusQuery = useQuery({
-    queryKey: ["events_status", activeNodeId],
-    queryFn: () => eventsStatus(activeNodeId!),
-    enabled: !!activeNodeId,
-    refetchInterval: 2_000,
-    retry: false,
-  });
-  const eventsRunning = !!eventsStatusQuery.data?.running;
+  const refreshList = () => {
+    let t = setTimeout(() => {
+      setLoading(false);
+      clearTimeout(t);
+    }, 2000);
 
-  const channelsQuery = useQuery({
-    queryKey: ["node_main_channels", activeNodeId],
-    queryFn: () => nodeMainChannels(activeNodeId!),
-    enabled: !!activeNodeId,
-    refetchInterval: 10_000,
-  });
+    setLoading(true);
+    channelsQuery.refetch()
+  }
 
-  const rgbContractsQuery = useQuery({
-    queryKey: ["node_rgb_contracts", activeNodeId],
-    queryFn: () => nodeRgbContracts(activeNodeId!),
-    enabled: !!activeNodeId,
-    refetchInterval: false,
-    retry: 1,
-    retryDelay: 500,
-  });
-
-  const eventsQuery = useQuery({
-    queryKey: ["events_list", activeNodeId],
-    queryFn: () => eventsList(activeNodeId!, 200),
-    enabled: !!activeNodeId,
+  const channelsQuery = useNodeMainChannelsQuery(activeNodeId, {
     refetchInterval: false,
   });
 
-  const closeChannelMutation = useMutation({
-    mutationFn: async ({
-      userChannelId,
-      counterpartyNodeId,
-      force,
-    }: {
-      userChannelId: string;
-      counterpartyNodeId: string;
-      force: boolean;
-    }) => {
-      if (force) {
-        return nodeChannelForceClose(activeNodeId!, {
-          user_channel_id: userChannelId,
-          counterparty_node_id: counterpartyNodeId,
-        });
-      }
-      return nodeChannelClose(activeNodeId!, {
-        user_channel_id: userChannelId,
-        counterparty_node_id: counterpartyNodeId,
-      });
-    },
+  const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId, {
+    refetchInterval: false,
+  });
+
+  const eventsQuery = useEventsListQuery(activeNodeId, 200, {
+    refetchInterval: false,
+  });
+
+  const closeChannelMutation = useChannelCloseMutation({
     onSuccess: async () => {
       await channelsQuery.refetch();
     },
@@ -223,36 +186,13 @@ export default function ChannelsPage() {
     return out.slice(0, 10);
   }, [eventsQuery.data, selectedUserChannelId]);
 
-  useEffect(() => {
-    if (!opening || opening.state !== "opening") return;
-    const evs = (eventsQuery.data ?? []) as StoredEvent[];
-    for (const ev of evs) {
-      if (
-        ev.event.type === "ChannelReady" &&
-        ev.event.data.user_channel_id === opening.userChannelId
-      ) {
-        setOpening((prev) => (prev ? { ...prev, state: "ready" } : prev));
-        return;
-      }
-      if (
-        ev.event.type === "ChannelClosed" &&
-        ev.event.data.user_channel_id === opening.userChannelId
-      ) {
-        setOpening((prev) => (prev ? { ...prev, state: "closed" } : prev));
-        return;
-      }
-    }
-  }, [eventsQuery.data, opening]);
+  const formatRgbBalance = (balance: any, contractId: string) => {
+    const list = rgbContractsQuery.data?.contracts ?? [];
+    const contract = list.find((c) => c.contract_id === contractId);
+    if (!contract) return '--';
 
-  useEffect(() => {
-    if (!opening || opening.state !== "opening") return;
-    const ch = (channelsQuery.data ?? []).find(
-      (c) => c.user_channel_id === opening.userChannelId
-    );
-    if (ch?.is_channel_ready) {
-      setOpening((prev) => (prev ? { ...prev, state: "ready" } : prev));
-    }
-  }, [channelsQuery.data, opening]);
+    return formatNumber(balance, contract.precision ?? 0) + ' ' + contract.name;
+  }
 
   if (!activeNodeId || channelsQuery.isPending) {
     return null
@@ -301,14 +241,31 @@ export default function ChannelsPage() {
       <PageHeader
         title="Channels"
         action={
-          <Button
-            variant="white"
-            className="w-[150px] rounded-full"
-            onClick={() => nav('/dashboard/channels/open')}
-          >
-            <IconPlus style={{width: '20px', height: '20px'}} />
-            <span>Open Channel</span>
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="destructive"
+              size="icon"
+              className="rounded-full"
+              disabled={channelsQuery.isPending}
+              onClick={refreshList}
+            >
+              <IconRefresh
+                width={16}
+                height={16}
+                className={
+                  loading || channelsQuery.isPending ? "animate-spin" : ""
+                }
+              />
+            </Button>
+            <Button
+              variant="white"
+              className="w-[150px] rounded-full"
+              onClick={() => nav('/dashboard/channels/open')}
+            >
+              <IconPlus style={{width: '20px', height: '20px'}} />
+              <span>Open Channel</span>
+            </Button>
+          </div>
         }
       />
 
@@ -455,17 +412,15 @@ export default function ChannelsPage() {
           </Content>
         </ContentWrapper>
       ) : (
-        <Content className="mt-0 px-3">
+        <Content className="mt-0 px-2 py-3">
           <Table style={{minWidth: 'max-content'}}>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>NODE</TableHead>
+                <TableHead>NODE / TYPE</TableHead>
                 <TableHead>STATUS</TableHead>
                 <TableHead>CAPACITY</TableHead>
-                <TableHead>TYPE</TableHead>
-                <TableHead>OUTBOUND</TableHead>
-                <TableHead>BALANCE</TableHead>
-                <TableHead>RGB ASSET</TableHead>
+                <TableHead>OUTBOUND / BALANCE</TableHead>
+                <TableHead>RGB LOCAL / RGB REMOTE</TableHead>
                 <TableHead className="text-right"></TableHead>
               </TableRow>
             </TableHeader>
@@ -473,6 +428,7 @@ export default function ChannelsPage() {
               {list.map((v) => {
                   return (
                     <TableRow
+                      key={v.user_channel_id}
                       className="h-14 cursor-pointer"
                       onClick={() => {
                         setSelectedUserChannelId(v.user_channel_id)
@@ -480,9 +436,18 @@ export default function ChannelsPage() {
                       }}
                     >
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                        <span>{formatAddress(v.user_channel_id, 12)}</span>
-                        <CopyText text={v.user_channel_id} className="text-secondary-foreground" />
+                        <div>
+                          <CopyTextInline
+                            length={12}
+                            text={v.user_channel_id}
+                            buttonClassName="text-secondary-foreground"
+                          />
+                          <div className="mt-1">
+                            {v.rgb_balance
+                              ? <Badge variant="secondary">BTC/RGB</Badge>
+                              : <Badge variant="secondary">BTC</Badge>
+                            }
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -492,44 +457,39 @@ export default function ChannelsPage() {
                       </TableCell>
                       <TableCell>{v.channel_value_sats} sats</TableCell>
                       <TableCell>
-                        {v.rgb_balance
-                          ? <Badge variant="secondary">BTC/RGB</Badge>
-                          : <Badge variant="secondary">BTC</Badge>
+                        <div>{formatNumber(v.outbound_capacity_msat, 3)} sats</div>
+                        <div>{formatNumber(v.local_balance_msat ?? 0, 3)} sats</div>
+                      </TableCell>
+                      <TableCell>
+                        {
+                          v.rgb_balance ? (
+                            <div>
+                              <div>{formatRgbBalance(v.rgb_balance.local_amount, v.rgb_balance.contract_id)}</div>
+                              <div>{formatRgbBalance(v.rgb_balance.remote_amount, v.rgb_balance.contract_id)}</div>
+                            </div>
+                          ) : (
+                            <span>--</span>
+                          )
                         }
+                        <div></div>
                       </TableCell>
                       <TableCell>
-                        {u64(v.outbound_capacity_msat).div(1000).toString()} sats
-                      </TableCell>
-                      <TableCell>
-                        {u64(v.local_balance_msat ?? 0).div(1000).toString()} sats
-                      </TableCell>
-                      <TableCell>
-                        {v.rgb_balance ? '' : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="destructive"
-                              type="button"
-                              className="w-8 h-8 px-0 py-0 rounded-full"
-                            >
-                              <Ellipsis />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedUserChannelId(v.user_channel_id)
+                        <DropMenu
+                          direaction="horizontal"
+                          variant="ghost"
+                          list={[
+                            {
+                              label: <span className="text-error">Close Channel</span>,
+                              icon: <IconDelete className="text-error" />,
+                              data: v.user_channel_id,
+                              onClick: (id: string) => {
+                                console.log("close channel", id)
+                                setSelectedUserChannelId(id)
                                 setConfirmAction("close")
-                              }}
-                            >
-                              <IconDelete className="text-error" />
-                              <span className="text-error">Close Channel</span>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                              }
+                            }
+                          ]}
+                        />
                       </TableCell>
                     </TableRow>
                   )
@@ -683,11 +643,15 @@ export default function ChannelsPage() {
               }
               onClick={() => {
                 if (!selectedChannel || !confirmAction) return;
-                closeChannelMutation.mutate({
-                  userChannelId: selectedChannel.user_channel_id,
-                  counterpartyNodeId: selectedChannel.counterparty_node_id,
-                  force: confirmAction === "force",
-                });
+                      closeChannelMutation.mutate({
+                        nodeId: activeNodeId,
+                        request: {
+                          user_channel_id: selectedChannel.user_channel_id,
+                          counterparty_node_id:
+                            selectedChannel.counterparty_node_id,
+                        },
+                        force: confirmAction === "force",
+                      });
                 setShowDetail(false);
                 setConfirmAction(null);
               }}

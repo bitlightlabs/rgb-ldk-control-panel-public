@@ -300,11 +300,11 @@ export interface RgbContractsExportResponse {
 }
 
 export interface RgbContractBalanceDto {
-  mined: U64;
-  tentative: U64;
-  offchain: U64;
-  archived: U64;
-  total: U64;
+  mined: string;
+  tentative: string;
+  offchain: string;
+  archived: string;
+  total: string;
 }
 
 export interface RgbContractBalanceResponse {
@@ -317,11 +317,12 @@ export interface RgbLnInvoiceCreateRequest {
   asset_amount: string;
   description: string;
   expiry_secs: number;
-  btc_carrier_amount_msat: string;
+  btc_carrier_amount_msat?: string;
 }
 
 export interface RgbLnInvoiceResponse {
   invoice: string;
+  btc_carrier_amount_msat: string
 }
 
 export interface RgbLnInvoiceDecodeRequest {

@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import { nodeRgbContractImportBundle } from "@/lib/commands";
+import { useRgbContractImportBundleMutation } from "@/app/mutations";
 import { toast } from "sonner";
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
@@ -18,6 +18,7 @@ export default function ImportLocalContract(props: IProps) {
   const [posting, setPosting] = useState(false);
   const [contractId, setContractId] = useState('');
   const [filePath, setFilePath] = useState<string>('');
+  const importMutation = useRgbContractImportBundleMutation();
 
   const selectFile = async () => {
     const selected = await open({
@@ -39,7 +40,11 @@ export default function ImportLocalContract(props: IProps) {
       const fileContents = await readFile(filePath);
       const base64 = uint8ArrayToBase64(fileContents);
       // Import asset
-      await nodeRgbContractImportBundle(props.activeNodeId, contractId, base64);
+      await importMutation.mutateAsync({
+        nodeId: props.activeNodeId,
+        contractId,
+        archiveBase64: base64,
+      });
 
       props.onClose()
       props.onSuccess()

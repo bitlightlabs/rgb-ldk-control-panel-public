@@ -4,8 +4,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { downloadTransferConsignmentFromLink, nodeRgbOnchainTransferConsignmentAccept } from "@/lib/commands";
-import { useMutation } from "@tanstack/react-query";
+import { useRgbOnchainTransferConsignmentAcceptMutation } from "@/app/mutations";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -19,27 +18,7 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
   const [consignmentLink, setConsignmentLink] = useState("");
   const [invoice, setInvoice] = useState("");
 
-  const acceptPaymentMutation = useMutation({
-    mutationFn: async () => {
-      if(!props.activeNodeId) {
-        throw new Error("No active node selected");
-      }
-      if(!invoice) {
-        throw new Error("Invoice is required");
-      }
-      if(!consignmentLink || !consignmentLink.startsWith("http")) {
-        throw new Error("Consignment link is invalid");
-      }
-
-       // Download consignment
-      let data = await downloadTransferConsignmentFromLink(props.activeNodeId, consignmentLink);
-      if(!data.archive_base64) {
-        throw new Error((data as any).message || "Failed to download consignment");
-      }
-
-      // Accept payment
-      return nodeRgbOnchainTransferConsignmentAccept(props.activeNodeId, invoice, data.archive_base64)
-    },
+  const acceptPaymentMutation = useRgbOnchainTransferConsignmentAcceptMutation({
     onSuccess: () => {
       toast.success(`Payment accepted`);
       setConsignmentLink("");
@@ -50,6 +29,26 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
       toast.error((e as Error).message);
     }
   })
+
+  const acceptPayment = () => {
+    if(!props.activeNodeId) {
+      toast.error("No active node selected");
+      return;
+    }
+    if(!invoice) {
+      toast.error("Invoice is required");
+      return;
+    }
+    if(!consignmentLink || !consignmentLink.startsWith("http")) {
+      toast.error("Consignment link is invalid");
+      return;
+    }
+    acceptPaymentMutation.mutate({
+      nodeId: props.activeNodeId,
+      consignmentLink,
+      invoice,
+    });
+  }
 
   return (
      <Dialog modal={false} open onOpenChange={() => props.onClose()}>
@@ -81,7 +80,7 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
             <Button
               type="button"
               disabled={!consignmentLink || acceptPaymentMutation.isPending}
-              onClick={() => acceptPaymentMutation.mutate()}
+              onClick={acceptPayment}
             >
               {acceptPaymentMutation.isPending ? "Accepting..." : "Accept"}
             </Button>

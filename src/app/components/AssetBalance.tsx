@@ -1,6 +1,6 @@
-
-import { nodeRgbContractBalance } from "@/lib/commands";
-import { useEffect, useState } from "react";
+import { useNodeRgbContractBalanceQuery } from "@/app/queries";
+import { formatNumber } from "@/lib/number";
+import { useEffect, useRef, useState } from "react";
 
 export default function AssetBalance(props: {
   nodeId: string,
@@ -8,28 +8,25 @@ export default function AssetBalance(props: {
   precision: number,
   onBalanceLoad?: (balance: string) => void
 }) {
-  const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState<string>('');
-
-  const loadData = async () => {
-    if(!props.nodeId || !props.contractId) return;
-
-    try {
-      setLoading(true);
-      const data = await nodeRgbContractBalance(props.nodeId, props.contractId);
-      const result = Number(data.balance.total) / (10 ** props.precision);
-      setBalance(result.toString())
-      setLoading(false);
-      if(props.onBalanceLoad) props.onBalanceLoad(result.toString());
-    } catch (e) {}
-  }
+  const onBalanceLoadRef = useRef(props.onBalanceLoad);
+  const balanceQuery = useNodeRgbContractBalanceQuery(
+    props.nodeId,
+    props.contractId,
+  );
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadData()
-  }, [props.nodeId, props.contractId]);
+    onBalanceLoadRef.current = props.onBalanceLoad;
+  }, [props.onBalanceLoad]);
+
+  useEffect(() => {
+    if (!balanceQuery.data) return;
+    const result = formatNumber(balanceQuery.data.balance.total, props.precision);
+    setBalance(result.toString());
+    onBalanceLoadRef.current?.(result.toString());
+  }, [balanceQuery.data, props.precision]);
 
   return (
-    <span>{loading ? 'loading...' : balance}</span>
+    <span>{(balanceQuery.isLoading || !balance) ? '--' : balance}</span>
   )
 }

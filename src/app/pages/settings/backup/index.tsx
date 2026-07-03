@@ -11,55 +11,38 @@ import { Field, FieldError } from "@/components/ui/field";
 import { PasswordInput } from "@/components/ui/input";
 import {
   backupExportCli,
-  nodeLock,
-  nodeUnlock,
   verifyPassword,
-  walletShowMnemonicCli,
-  type WalletShowMnemonicResponse,
 } from "@/lib/commands";
-import { errorToText } from "@/lib/errorToText";
 import {
-  type UseQueryResult,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+  removeWalletShowMnemonicQuery,
+  useWalletShowMnemonicQuery,
+} from "@/app/queries";
+import { useNodeLockMutation, useNodeUnlockMutation } from "@/app/mutations";
+import { errorToText } from "@/lib/errorToText";
 import { save } from "@tauri-apps/plugin-dialog";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export default function Backup() {
   const [step, setStep] = useState<number>(1);
   const currentContext = useContextStore((s) => s.currentContext);
 
-  // Lift the mnemonic query here so it can be started alongside verifyPassword
-  // instead of waiting until BackupDetail mounts (which would be sequential).
-  const queryMnemonic = useQuery({
-    queryKey: ["mnemonic", currentContext?.node_id],
-    queryFn: async () => {
-      console.log("queryMnemonic", Date.now());
-      const mnemonic = await walletShowMnemonicCli(
-        currentContext!.node_id,
-        true
-      );
-      console.log("queryMnemonic result", mnemonic, Date.now());
-      return mnemonic;
-    },
-    enabled: false, // triggered manually on verify click
-    staleTime: Infinity,
-    retry: false,
-  });
+  const queryMnemonic = useWalletShowMnemonicQuery(currentContext?.node_id);
 
-  const fetchMnemonic = () => {
-    if(!queryMnemonic.isLoading) {
-      queryMnemonic.refetch();
-    }
-  }
+  useEffect(() => {
+    return () => removeWalletShowMnemonicQuery(currentContext?.node_id);
+  }, [currentContext?.node_id]);
 
   if (step === 1) {
     return (
       <BackupHome
-        onNext={() => setStep(2)}
-        onStartMnemonicFetch={fetchMnemonic}
+        onNext={async () => {
+          const result = await queryMnemonic.refetch();
+          if (result.error) {
+            throw result.error;
+          }
+          setStep(2);
+        }}
       />
     );
   }
@@ -69,10 +52,7 @@ export default function Backup() {
   );
 }
 
-function BackupHome(props: {
-  onNext: () => void;
-  onStartMnemonicFetch: () => void;
-}) {
+function BackupHome(props: { onNext: () => Promise<void> }) {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState(false);
   const currentContext = useContextStore((s) => s.currentContext);
@@ -95,20 +75,19 @@ function BackupHome(props: {
     }
 
     try {
-      // Start walletShowMnemonicCli (docker run, ~30s) alongside verifyPassword
-      // (~4.5s PBKDF2) so both run in parallel. BackupDetail will read from
-      // the already-in-flight query instead of waiting an extra 30s.
-      props.onStartMnemonicFetch();
       setVerifying(true);
-      const ok = await verifyPassword(pwd, currentContext.password_hash);
-      setVerifying(false);
+      const ok = await verifyPassword(currentContext.node_id, pwd);
       if (!ok) {
         toast.error("Incorrect Passwords");
         setError(true);
         return;
       }
-      props.onNext();
-    } catch (e) {}
+      await props.onNext();
+    } catch (e) {
+      toast.error(errorToText(e));
+    } finally {
+      setVerifying(false);
+    }
   };
 
   return (
@@ -135,15 +114,12 @@ function BackupHome(props: {
         </AlertDescription>
       </Alert>
       <Field className="mt-8" data-invalid={error}>
-        {/* onFocus starts the Docker fetch in the background while the user
-            types, so the mnemonic is ready (or near-ready) by submit time. */}
         <PasswordInput
           className="bg-background-4"
           iconSize="big"
           onChange={changePassword}
           placeholder="Enter your password"
           value={pwd}
-          onFocus={props.onStartMnemonicFetch}
           onKeyUp={enter}
         />
         {error ? <FieldError>Incorrect Passwords</FieldError> : null}
@@ -166,7 +142,7 @@ function BackupHome(props: {
 
 function BackupDetail(props: {
   onBack: () => void;
-  mnemonicQuery: UseQueryResult<WalletShowMnemonicResponse>;
+  mnemonicQuery: ReturnType<typeof useWalletShowMnemonicQuery>;
 }) {
   const [checked, setChecked] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -175,15 +151,16 @@ function BackupDetail(props: {
   const [step2Done, setStep2Done] = useState(false);
   const currentContext = useContextStore((s) => s.currentContext);
   const [progress, setProgress] = useState(0);
+  const lockMutation = useNodeLockMutation();
+  const unlockMutation = useNodeUnlockMutation();
 
   const queryMnemonic = props.mnemonicQuery;
-  const queryClient = useQueryClient();
 
   const next = () => {
     setStep("file");
     setStep1Done(true);
     // Clear mnemonic from cache once the user confirms they've saved it
-    queryClient.removeQueries({ queryKey: ["mnemonic"] });
+    removeWalletShowMnemonicQuery(currentContext?.node_id);
   };
 
   const download = async () => {
@@ -191,6 +168,7 @@ function BackupDetail(props: {
       return;
     }
 
+    let lockedForBackup = false;
     try {
       setDownloading(true);
       // Save path
@@ -203,20 +181,26 @@ function BackupDetail(props: {
       }
 
       setProgress(25);
-      // 1. Lock node
-      await nodeLock(currentContext.node_id);
+      await lockMutation.mutateAsync(currentContext.node_id);
+      lockedForBackup = true;
       setProgress(50);
-      // 2. Export
       await backupExportCli(currentContext.node_id, path);
       setProgress(75);
-      // 3. Unlock
-      await nodeUnlock(currentContext.node_id);
+      await unlockMutation.mutateAsync(currentContext.node_id);
+      lockedForBackup = false;
 
       setStep("done");
       setStep2Done(true);
     } catch (e) {
       toast.error(errorToText(e));
     } finally {
+      if (lockedForBackup) {
+        try {
+          await unlockMutation.mutateAsync(currentContext.node_id);
+        } catch (e) {
+          toast.error(`Backup failed and unlock failed: ${errorToText(e)}`);
+        }
+      }
       setDownloading(false);
     }
   };
@@ -365,17 +349,17 @@ function Indicator(props: { step1Done?: boolean; step2Done?: boolean }) {
     <div className="relative w-5 h-full">
       {step1Done ? <IconSuccess className="w-5 h-5" /> : <IconCircleOn />}
       <span
-        className="absolute left-[10px] h-[calc(100%-30px)] w-[1px] border-l-[1px] border-dashed border-muted-foreground"
+        className="absolute left-[10px] h-[calc(100%-41px)] w-[1px] border-l-[1px] border-dashed border-muted-foreground"
         style={{
           borderColor: step1Done ? "var(--success)" : "var(--muted-foreground)",
         }}
       />
       {!step1Done ? (
-        <IconCircle className="absolute bottom-[3px] left-0 bg-background" />
+        <IconCircle className="absolute bottom-[3px] left-0" />
       ) : step2Done ? (
-        <IconSuccess className="absolute bottom-[3px] left-0 w-5 h-5 bg-background" />
+        <IconSuccess className="absolute bottom-[3px] left-0 w-5 h-5" />
       ) : (
-        <IconCircleOn className="absolute bottom-[3px] left-0 bg-background" />
+        <IconCircleOn className="absolute bottom-[3px] left-0" />
       )}
     </div>
   );

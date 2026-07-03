@@ -1,5 +1,5 @@
-import { contextsList, contextsRemove } from "@/lib/commands";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useContextsRemoveMutation } from "@/app/mutations";
+import { useContextsQuery } from "@/app/queries";
 import { useState } from "react";
 import Welcome from "./components/Welcome";
 import Local from "./components/Local";
@@ -15,15 +15,11 @@ export default function Start() {
   const [page, setPage] = useState<"welcome" | "local" | "remote">("welcome")
   const [showSwitchNode, setShowSwitchNode] = useState('')
 
-  const contextsQuery = useQuery({
-    queryKey: ["contexts"],
-    queryFn: contextsList,
+  const contextsQuery = useContextsQuery({
     refetchInterval: false,
   });
 
-  const deleteNodeMutation = useMutation({
-    mutationFn: (nodeId: string) => contextsRemove(nodeId),
-  });
+  const deleteNodeMutation = useContextsRemoveMutation();
 
   const deleteNode = async (nodeId: string) => {
     try {
@@ -122,4 +118,3 @@ export default function Start() {
     </>
   )
 }
-

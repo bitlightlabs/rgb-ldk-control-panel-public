@@ -3,8 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { nodeRgbContractIssue, nodeRgbIssuers } from "@/lib/commands";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRgbContractIssueMutation } from "@/app/mutations";
+import { useNodeRgbIssuersQuery } from "@/app/queries";
 import { toast } from "sonner";
 
 interface IProps {
@@ -15,18 +15,21 @@ interface IProps {
 export default function IssueAsset(props: IProps) {
   const { activeNodeId } = props;
 
-  const getIssuers = useQuery({
-    queryKey: ["issuers-list", activeNodeId],
-    queryFn: async () => {
-      if(!activeNodeId) return null;
-      const data = await nodeRgbIssuers(activeNodeId)
+  const getIssuers = useNodeRgbIssuersQuery(activeNodeId);
 
-      return data.issuers
+  const issueAsset = useRgbContractIssueMutation({
+    onSuccess: () => {
+      props.onSuccess();
+      props.onClose();
+    },
+    onError: (error) => {
+      console.error('Issue asset error ', error);
+      toast.error((error as Error).message || "Failed to issue asset");
     }
   });
 
-  const issueAsset = useMutation({
-    mutationFn: async () => {
+  const submitIssue = () => {
+    try {
       const form = document.getElementById('issue-asset-form') as HTMLFormElement
       const formData = new FormData(form)
 
@@ -50,20 +53,14 @@ export default function IssueAsset(props: IProps) {
       }
 
       console.log('Issuing asset with data ', data);
-
-      return nodeRgbContractIssue(activeNodeId, data)
-    },
-    onSuccess: () => {
-      props.onSuccess();
-      props.onClose();
-    },
-    onError: (error) => {
+      issueAsset.mutate({ nodeId: activeNodeId, request: data })
+    } catch (error) {
       console.error('Issue asset error ', error);
       toast.error((error as Error).message || "Failed to issue asset");
     }
-  });
+  };
 
-  const issuerList = getIssuers.data ?? [];
+  const issuerList = getIssuers.data?.issuers ?? [];
 
   return (
     <Dialog modal={false} open onOpenChange={() => props.onClose()}>
@@ -78,7 +75,7 @@ export default function IssueAsset(props: IProps) {
               Issuer
             </FieldLabel>
             <Select name="issuer_name">
-              <SelectTrigger id="recv_rgb_contract_id" className="h-10">
+              <SelectTrigger id="recv_rgb_contract_id">
                 <SelectValue placeholder="Select a issuer" />
               </SelectTrigger>
               <SelectContent>
@@ -121,7 +118,7 @@ export default function IssueAsset(props: IProps) {
             disabled={issueAsset.isPending}
             type="button"
             className="w-full"
-            onClick={() => issueAsset.mutate()}
+            onClick={submitIssue}
           >Issue Asset</Button>
         </div>
       </DialogContent>

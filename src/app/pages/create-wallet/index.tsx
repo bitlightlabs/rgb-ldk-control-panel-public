@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { BoxIcon } from "lucide-react";
 import NetworkSwitch from "@/app/components/NetworkSwitch";
 import { useEffect, useState } from "react";
-import { contextsList } from "@/lib/commands";
 import { useSetupStore } from "@/app/stores/setupStore";
 import { LDK_IMAGE } from "@/app/config/constant";
 import { ensureDockerImage } from "@/lib/docker";
 import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
+import { useContextsQuery } from "@/app/queries";
 
 export function CreateWallet() {
   const nav = useNavigate()
@@ -20,15 +20,9 @@ export function CreateWallet() {
   const accountName = useSetupStore((s) => s.accountName)
   const setNetwork = useSetupStore((s) => s.setNetwork)
   const setAccountName = useSetupStore((s) => s.setAccountName)
-
-  const initName = async () => {
-    try {
-      const list = await contextsList()
-      setAccountName(`Node ${list.length + 1}`)
-    } catch(e) {
-      console.error(e)
-    }
-  }
+  const contextsQuery = useContextsQuery({
+    refetchInterval: false,
+  });
 
   const changeName = (e: React.ChangeEvent<HTMLInputElement>) => {
     setAccountName(e.target.value)
@@ -47,8 +41,10 @@ export function CreateWallet() {
   }
 
   useEffect(() => {
-    initName()
-  }, [])
+    console.log("222", accountName)
+    if (!contextsQuery.data) return;
+    setAccountName(`Node ${contextsQuery.data.length + 1}`);
+  }, [accountName, contextsQuery.data, setAccountName])
 
   return (
     <Wrapper onBack={() => nav(-1)}>

@@ -7,12 +7,12 @@ import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { nodeMainPeersConnect } from "@/lib/commands";
+import { usePeerConnectMutation } from "@/app/mutations";
 import type { PeerConnectRequest } from "@/lib/sdk/types";
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 
 export default function PeerConnect() {
   const nav = useNavigate();
@@ -22,24 +22,13 @@ export default function PeerConnect() {
 
   const activeNodeId = currentContext?.node_id ?? "";
 
-  const connectMutation = useMutation({
-    mutationFn: () => {
-      if (!activeNodeId) {
-        throw new Error("No active node");
-      }
-
-      const req: PeerConnectRequest = {
-        node_id: pubKey,
-        address,
-      };
-      return nodeMainPeersConnect(activeNodeId, req);
-    },
+  const connectMutation = usePeerConnectMutation({
     onSuccess: async () => {
       toast.success(`Peer connected`);
       nav('/dashboard/peers')
     },
-    onError: (err) => {
-      toast.error(`${err instanceof Error ? err.message : String(err)}`);
+    onError: (e) => {
+      toast.error(errorToText(e));
     },
   });
 
@@ -75,7 +64,16 @@ export default function PeerConnect() {
             disabled={!pubKey || !address || connectMutation.isPending}
             loading={connectMutation.isPending}
             onClick={() => {
-              connectMutation.mutate();
+              if (!activeNodeId) {
+                toast.error("No active node");
+                return;
+              }
+
+              const req: PeerConnectRequest = {
+                node_id: pubKey,
+                address,
+              };
+              connectMutation.mutate({ nodeId: activeNodeId, request: req });
             }}
           >
             Connect

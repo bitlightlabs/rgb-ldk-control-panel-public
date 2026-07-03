@@ -6,6 +6,14 @@ import type { NodeContext } from "@/lib/domain";
 import { safeSubstring } from "@/lib/utils";
 import { useState } from "react";
 import NetworkMeta from "./NetworkMeta";
+import IconStop from "@/app/icons/stop";
+import { reStartLocalNode, stopLocalNode } from "@/lib/commands";
+import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
+import IconStart from "@/app/icons/start";
+import { useNodeLockMutation } from "@/app/mutations";
+import { removeNodeScopedCache } from "@/app/queries";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface IProps {
   context: NodeContext;
@@ -15,11 +23,80 @@ interface IProps {
 
 export default function Account(props: IProps) {
   const { context } = props;
-
   const [online, setOnline] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [actions, setActions] = useState<any[]>([])
+  const lockMutation = useNodeLockMutation();
+  const queryClient = useQueryClient();
+
+  const deleteAction = {
+    label: (
+      <span className="text-error">Delete Node</span>
+    ),
+    icon: (
+      <IconDelete
+        className="text-error"
+        style={{ width: "20px", height: "20px" }}
+      />
+    ),
+    data: context.node_id,
+    onClick: (id: string) => props.onDeleteNode(id),
+  }
+
+  const startAction = {
+    label: (<span>Start Node</span>),
+    icon: (
+      <IconStart style={{ width: "20px", height: "20px" }} />
+    ),
+    data: context.node_id,
+    onClick: (id: string) => startNode(id),
+  }
+
+  const stopAction = {
+    label: (<span>Stop Node</span>),
+    icon: (
+      <IconStop style={{ width: "20px", height: "20px" }} />
+    ),
+    data: context.node_id,
+    onClick: (id: string) => stopNode(id),
+  }
 
   const onNodeStatusChange = (_: string, online: boolean) => {
+    if(online) {
+      setActions([stopAction, deleteAction])
+    } else {
+      setActions([startAction, deleteAction])
+    }
+
     setOnline(online)
+  }
+
+  const startNode = async (nodeId: string) => {
+    try {
+      setLoading(true)
+      console.log("Starting node:", nodeId);
+      await reStartLocalNode(nodeId);
+      onNodeStatusChange(nodeId, true)
+    } catch(e) {
+      toast.error(errorToText(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const stopNode = async (nodeId: string) => {
+    try {
+      setLoading(true)
+      console.log("Stopping node:", nodeId);
+      await lockMutation.mutateAsync(nodeId);
+      await stopLocalNode(nodeId);
+      removeNodeScopedCache(queryClient, nodeId);
+      onNodeStatusChange(nodeId, false)
+    } catch(e) {
+      toast.error(errorToText(e))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -42,26 +119,14 @@ export default function Account(props: IProps) {
           className="w-6 h-6"
           direaction="vertical"
           variant="ghost"
-          list={[
-            {
-              label: (
-                <span className="text-error">Delete Node</span>
-              ),
-              icon: (
-                <IconDelete
-                  className="text-error"
-                  style={{ width: "20px", height: "20px" }}
-                />
-              ),
-              data: context.node_id,
-              onClick: (id: string) => props.onDeleteNode(id),
-            },
-          ]}
+          disabled={loading}
+          list={actions}
         />
       </div>
       <div className="h-full items-center flex gap-3">
         <NodeIcon
           className="w-8 h-8"
+          forceOnline={online}
           nodeId={context.node_id}
           name={context?.display_name ?? ''}
           onStatusChange={onNodeStatusChange}

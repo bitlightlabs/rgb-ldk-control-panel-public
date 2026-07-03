@@ -1,15 +1,17 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  downloadTransferConsignmentFromLinkWithoutVerify,
-  nodeMainHttp,
-  nodeRgbContracts,
-  nodeRgbOnchainPayments,
-  nodeRgbOnchainSend,
-} from "@/lib/commands";
+  useDownloadConsignmentWithoutVerifyMutation,
+  useRgbOnchainPaymentLookupMutation,
+  useRgbOnchainSendMutation,
+} from "@/app/mutations";
+import {
+  useNodeRgbContractsQuery,
+  useNodeRgbOnchainPaymentsQuery,
+  useRgbOnchainInvoiceDecodeQuery,
+} from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
 import { base64ToUint8Array, trimChar } from "@/lib/utils";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -87,43 +89,16 @@ export default function RgbExportPage() {
   );
   const invoiceTrim = useMemo(() => invoice.trim(), [invoice]);
 
-  const contractsQuery = useQuery({
-    queryKey: ["rgb_export_contracts", activeNodeId],
-    queryFn: async () => nodeRgbContracts(activeNodeId!),
-    enabled: !!activeNodeId,
+  const contractsQuery = useNodeRgbContractsQuery(activeNodeId, {
     refetchInterval: false,
   });
 
-  const paymentsQuery = useQuery({
-    queryKey: ["rgb_onchain_payments", activeNodeId, "rgb_export", txid],
-    queryFn: () => nodeRgbOnchainPayments(activeNodeId!),
+  const paymentsQuery = useNodeRgbOnchainPaymentsQuery(activeNodeId, "rgb_export", {
     enabled: !!activeNodeId && step === 2 && !!txid,
     refetchInterval: step === 2 ? 4_000 : false,
   });
 
-  const onchainInvoiceDecodeQuery = useQuery({
-    queryKey: ["rgb_export_onchain_invoice_decode", activeNodeId, invoiceTrim],
-    queryFn: async (): Promise<RawRgbOnchainInvoiceDecodeResponse | null> => {
-      const resp = await nodeMainHttp(activeNodeId!, {
-        method: "POST",
-        path: "/rgb/onchain/invoice/decode",
-        headers: { "content-type": "application/json" },
-        bodyText: JSON.stringify({ invoice: invoiceTrim }),
-      });
-      if (!resp.ok) {
-        throw new Error(
-          `onchain decode failed: status=${resp.status} body=${resp.body.slice(
-            0,
-            200
-          )}`
-        );
-      }
-      try {
-        return JSON.parse(resp.body) as RawRgbOnchainInvoiceDecodeResponse;
-      } catch {
-        throw new Error("onchain decode returned invalid JSON");
-      }
-    },
+  const onchainInvoiceDecodeQuery = useRgbOnchainInvoiceDecodeQuery(activeNodeId, invoiceTrim, {
     enabled:
       !!activeNodeId &&
       step === 1 &&
@@ -133,8 +108,26 @@ export default function RgbExportPage() {
     retryDelay: 200,
   });
 
+  const decodedInvoice = useMemo((): RawRgbOnchainInvoiceDecodeResponse | null => {
+    const resp = onchainInvoiceDecodeQuery.data;
+    if (!resp) return null;
+    if (!resp.ok) {
+      throw new Error(
+        `onchain decode failed: status=${resp.status} body=${resp.body.slice(
+          0,
+          200
+        )}`
+      );
+    }
+    try {
+      return JSON.parse(resp.body) as RawRgbOnchainInvoiceDecodeResponse;
+    } catch {
+      throw new Error("onchain decode returned invalid JSON");
+    }
+  }, [onchainInvoiceDecodeQuery.data]);
+
   const decodedContract = useMemo(() => {
-    const contractId = onchainInvoiceDecodeQuery.data?.contract_id?.trim();
+    const contractId = decodedInvoice?.contract_id?.trim();
     if (!contractId) return null;
     return (
       (contractsQuery.data?.contracts ?? []).find(
@@ -143,12 +136,12 @@ export default function RgbExportPage() {
     );
   }, [
     contractsQuery.data?.contracts,
-    onchainInvoiceDecodeQuery.data?.contract_id,
+    decodedInvoice?.contract_id,
   ]);
 
   const decodedAmount = useMemo(
-    () => toU64Text(onchainInvoiceDecodeQuery.data?.amount),
-    [onchainInvoiceDecodeQuery.data?.amount]
+    () => toU64Text(decodedInvoice?.amount),
+    [decodedInvoice?.amount]
   );
 
   const decodedAmountDisplay = useMemo(() => {
@@ -176,19 +169,7 @@ export default function RgbExportPage() {
     }
   }, [currentContext, paymentsQuery.data?.payments, step, txid]);
 
-  const payMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) {
-        throw new Error("No active node selected");
-      }
-      if (!invoiceTrim) {
-        throw new Error("RGB Onchain Invoice is required");
-      }
-      return nodeRgbOnchainSend(activeNodeId, {
-        invoice: invoiceTrim,
-        fee_rate_sats_per_vb: 1,
-      });
-    },
+  const payMutation = useRgbOnchainSendMutation({
     onSuccess: (resp) => {
       toast.success("Paid successfully");
       setTxid(resp.txid);
@@ -202,22 +183,7 @@ export default function RgbExportPage() {
   });
 
   // Check if already paid
-  const checkPaidMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) {
-        throw new Error("No active node selected");
-      }
-      if (!invoiceTrim) {
-        throw new Error("RGB Onchain Invoice is required");
-      }
-
-      // payment list
-      const data = await nodeRgbOnchainPayments(activeNodeId);
-      return (
-        data.payments.find((item) => item.invoice?.trim() === invoiceTrim) ??
-        null
-      );
-    },
+  const checkPaidMutation = useRgbOnchainPaymentLookupMutation({
     onSuccess: (matchedPayment) => {
       if (matchedPayment) {
         toast.success("Payment already found");
@@ -248,44 +214,77 @@ export default function RgbExportPage() {
     { id: 2, label: "Consignment Download" },
   ] as const;
 
-  const downloadMutation = useMutation({
-    mutationFn: async () => {
-      if (!consignmentLink) {
-        throw new Error("Consignment download link is required");
-      }
-
-      const data = await downloadTransferConsignmentFromLinkWithoutVerify(
-        buildFormattedLink(consignmentLink, downloadFormat)
-      );
+  const downloadMutation = useDownloadConsignmentWithoutVerifyMutation({
+    onSuccess: async (data) => {
       if (!data.archive_base64) {
-        throw new Error(
-          (data as any).message || "Failed to download consignment"
-        );
+        toast.error((data as any).message || "Failed to download consignment");
+        return;
       }
 
-      const path = await save({
-        defaultPath: `${txid || "consignment"}.${
-          downloadFormat === "raw"
-            ? "raw"
-            : downloadFormat === "gzip"
-            ? "gz"
-            : "zip"
-        }`,
-      });
-      if (!path) {
-        throw new Error("File save cancelled by user");
-      }
+      try {
+        const path = await save({
+          defaultPath: `${txid || "consignment"}.${
+            downloadFormat === "raw"
+              ? "raw"
+              : downloadFormat === "gzip"
+              ? "gz"
+              : "zip"
+          }`,
+        });
+        if (!path) {
+          return;
+        }
 
-      await writeFile(path, base64ToUint8Array(data.archive_base64));
-    },
-    onSuccess: () => {
-      toast.success("Consignment downloaded");
-      setStep(3);
+        await writeFile(path, base64ToUint8Array(data.archive_base64));
+        toast.success("Consignment downloaded");
+        setStep(3);
+      } catch (e) {
+        toast.error((e as Error).message);
+      }
     },
     onError: (e) => {
       toast.error((e as Error).message);
     },
   });
+
+  const downloadConsignment = () => {
+      if (!consignmentLink) {
+        toast.error("Consignment download link is required");
+        return;
+      }
+
+      downloadMutation.mutate(buildFormattedLink(consignmentLink, downloadFormat));
+  };
+
+  const checkPaid = () => {
+    if (!activeNodeId) {
+      toast.error("No active node selected");
+      return;
+    }
+    if (!invoiceTrim) {
+      toast.error("RGB Onchain Invoice is required");
+      return;
+    }
+    checkPaidMutation.mutate({ nodeId: activeNodeId, invoice: invoiceTrim });
+  };
+
+  const pay = () => {
+    if (!activeNodeId) {
+      toast.error("No active node selected");
+      return;
+    }
+    if (!invoiceTrim) {
+      toast.error("RGB Onchain Invoice is required");
+      return;
+    }
+    payMutation.mutate({
+      nodeId: activeNodeId,
+      request: {
+        invoice: invoiceTrim,
+        fee_rate_sats_per_vb: 1,
+      },
+    });
+  };
 
   return (
     <ContentWrapper>
@@ -312,7 +311,7 @@ export default function RgbExportPage() {
                   setInvoice(v);
                   setStepOneMode("form");
                 }}
-                onNext={() => checkPaidMutation.mutate()}
+                onNext={checkPaid}
               />
             ) : (
               <>
@@ -325,7 +324,7 @@ export default function RgbExportPage() {
                     onchainInvoiceDecodeQuery.isFetching ||
                     onchainInvoiceDecodeQuery.isError
                   }
-                  onNext={() => payMutation.mutate()}
+                  onNext={pay}
                 />
 
                 {onchainInvoiceDecodeQuery.isError ? (
@@ -344,7 +343,7 @@ export default function RgbExportPage() {
         {step === 2 ? (
           <Export2
             disabled={!consignmentLink || downloadMutation.isPending}
-            onNext={() => downloadMutation.mutate()}
+            onNext={downloadConsignment}
           />
         ) : null}
 

@@ -100,17 +100,15 @@ export async function dockerEnvironment(): Promise<DockerEnvironmentResponse> {
   return tauriInvoke("docker_environment");
 }
 
-export async function bootstrapLocalNode(request?: BootstrapLocalNodeRequest): Promise<NodeContext> {
-  return tauriInvoke("bootstrap_local_node", {
-    passwordHash: request?.passwordHash ?? "",
-    ldkImage: request?.ldkImage ?? null,
-    nodeName: request?.nodeName ?? null,
-    containerName: request?.containerName ?? null,
-    mainApiPort: request?.mainApiPort ?? null,
-    controlApiPort: request?.controlApiPort ?? null,
-    p2pPort: request?.p2pPort ?? null,
-    network: request?.network ?? null,
-    esploraUrl: request?.esploraUrl ?? null,
+export async function reStartLocalNode(nodeId: string): Promise<NodeContext> {
+  return tauriInvoke("re_start_local_node", {
+    nodeId
+  });
+}
+
+export async function stopLocalNode(nodeId: string): Promise<NodeContext> {
+  return tauriInvoke("stop_local_node", {
+    nodeId
   });
 }
 
@@ -252,7 +250,10 @@ export async function nodeMainBalances(nodeId: string): Promise<BalancesDto> {
 }
 
 export async function nodeWalletNewAddress(nodeId: string): Promise<WalletNewAddressResponse> {
-  return tauriInvoke("node_wallet_new_address", { nodeId: nodeId });
+  return tauriInvoke("node_wallet_address_new", { nodeId: nodeId });
+}
+export async function nodeWalletAddressCurrent(nodeId: string): Promise<WalletNewAddressResponse> {
+  return tauriInvoke("node_wallet_address_current", { nodeId: nodeId });
 }
 
 export async function nodeWalletSync(nodeId: string): Promise<OkResponse> {
@@ -302,6 +303,15 @@ export async function nodeRgbLnInvoiceCreate(
   request: RgbLnInvoiceCreateRequest,
 ): Promise<RgbLnInvoiceResponse> {
   return tauriInvoke("node_rgb_ln_invoice_create", { nodeId: nodeId, request: request });
+}
+
+export async function nodeRgbLnInvoiceEstimateCarrier(
+  nodeId: string,
+): Promise<{
+  minimum_viable_carrier_amount_msat: string
+  receive_available: boolean
+}> {
+  return tauriInvoke("node_rgb_ln_estimate_carrier", { nodeId: nodeId });
 }
 
 export async function nodeRgbLnPay(nodeId: string, request: RgbLnPayRequest): Promise<SendResponse> {
@@ -524,7 +534,10 @@ export async function nodeRgbOnchainInvoiceCreate(
 }
 
 export async function nodeRgbNewAddress(nodeId: string): Promise<WalletNewAddressResponse> {
-  return tauriInvoke("node_rgb_new_address", { nodeId: nodeId });
+  return tauriInvoke("node_rgb_address_new", { nodeId: nodeId });
+}
+export async function nodeRgbAddressCurrent(nodeId: string): Promise<WalletNewAddressResponse> {
+  return tauriInvoke("node_rgb_address_current", { nodeId: nodeId });
 }
 
 export async function nodeRgbIssuersImport(
@@ -891,12 +904,12 @@ export async function hashPassword(password: string): Promise<string> {
  * so existing nodes survive upgrade without re-bootstrapping.
  * Returns `true` on match, `false` on mismatch.
  */
-export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  return tauriInvoke("verify_password", { password, storedHash });
+export async function verifyPassword(nodeId: string, password: string): Promise<boolean> {
+  return tauriInvoke("verify_password", { nodeId, password });
 }
 
 /**
- * @param refresh By default this uses a fast cached view
+ * @param refresh When true, asks the node to refresh its UTXO view before returning.
  */
 export async function nodeRgbUtxos(nodeId: string, refresh: boolean = true): Promise<{
   utxos: RgbUtxoDto[]

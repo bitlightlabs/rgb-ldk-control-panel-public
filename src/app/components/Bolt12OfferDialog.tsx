@@ -23,15 +23,12 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import type { NodeContext } from "@/lib/domain";
 import {
-  nodeBolt12OfferDecode,
-  nodeBolt12OfferReceive,
-  nodeBolt12OfferReceiveVar,
-  nodeBolt12OfferSend,
-  nodePaymentAbandon,
-  nodePaymentWait,
-} from "@/lib/commands";
+  useCreateAndSendBolt12OfferMutation,
+  usePaymentAbandonMutation,
+  usePaymentWaitMutation,
+} from "@/app/mutations";
+import { useBolt12OfferDecodeQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { u64 } from "@/lib/sdk";
 
@@ -96,62 +93,20 @@ export function Bolt12OfferDialog({
     return Math.max(0, Math.floor(n));
   }, [expirySecs]);
 
-  const offerDecodeQuery = useQuery({
-    queryKey: ["bolt12_offer_decode", payerNodeId, createdOffer],
-    queryFn: async () =>
-      nodeBolt12OfferDecode(payerNodeId, { offer: createdOffer! }),
-    enabled: !!createdOffer,
+  const offerDecodeQuery = useBolt12OfferDecodeQuery(payerNodeId, createdOffer ?? "", {
     retry: 0,
   });
 
-  const createAndSendMutation = useMutation({
-    mutationFn: async () => {
-      const ex = expiryValue;
-      const offerResp =
-        mode === "variable"
-          ? await nodeBolt12OfferReceiveVar(payeeNodeId!, {
-              description: description.trim(),
-              expiry_secs: ex,
-            })
-          : await nodeBolt12OfferReceive(payeeNodeId!, {
-              amount_msat: u64(amountMsat.trim()),
-              description: description.trim(),
-              expiry_secs: ex,
-              quantity: null,
-            });
-
-      const sendReq: Parameters<typeof nodeBolt12OfferSend>[1] = {
-        offer: offerResp.offer,
-        payer_note: payerNote.trim() ? payerNote.trim() : null,
-        quantity: null,
-      };
-      if (mode === "variable") {
-        sendReq.amount_msat = u64(sendAmountMsat.trim());
-      }
-      const sendResp = await nodeBolt12OfferSend(payerNodeId, sendReq);
-      return { offer: offerResp.offer, payment_id: sendResp.payment_id };
-    },
+  const createAndSendMutation = useCreateAndSendBolt12OfferMutation({
     onSuccess: (resp) => {
       setCreatedOffer(resp.offer);
       setLastPaymentId(resp.payment_id);
     },
   });
 
-  const waitMutation = useMutation({
-    mutationFn: async ({ timeoutSecs }: { timeoutSecs: number }) => {
-      if (!lastPaymentId) throw new Error("missing payment_id");
-      return nodePaymentWait(payerNodeId, lastPaymentId, {
-        timeout_secs: timeoutSecs,
-      });
-    },
-  });
+  const waitMutation = usePaymentWaitMutation();
 
-  const abandonMutation = useMutation({
-    mutationFn: async () => {
-      if (!lastPaymentId) throw new Error("missing payment_id");
-      return nodePaymentAbandon(payerNodeId, lastPaymentId);
-    },
-  });
+  const abandonMutation = usePaymentAbandonMutation();
 
   const validationError = useMemo(() => {
     if (!payer) return "Missing payer node.";
@@ -418,7 +373,14 @@ export function Bolt12OfferDialog({
                     type="button"
                     disabled={waitMutation.isPending}
                     loading={waitMutation.isPending}
-                    onClick={() => waitMutation.mutate({ timeoutSecs: 60 })}
+                    onClick={() => {
+                      if (!lastPaymentId) return;
+                      waitMutation.mutate({
+                        nodeId: payerNodeId,
+                        paymentId: lastPaymentId,
+                        request: { timeout_secs: 60 },
+                      });
+                    }}
                   >
                     Wait 60s
                   </Button>
@@ -427,7 +389,13 @@ export function Bolt12OfferDialog({
                     size="sm"
                     type="button"
                     disabled={abandonMutation.isPending}
-                    onClick={() => abandonMutation.mutate()}
+                    onClick={() => {
+                      if (!lastPaymentId) return;
+                      abandonMutation.mutate({
+                        nodeId: payerNodeId,
+                        paymentId: lastPaymentId,
+                      });
+                    }}
                   >
                     Abandon
                   </Button>
@@ -502,7 +470,39 @@ export function Bolt12OfferDialog({
             type="button"
             disabled={createAndSendMutation.isPending || !!validationError}
             loading={createAndSendMutation.isPending}
-            onClick={() => createAndSendMutation.mutate()}
+            onClick={() => {
+              if (!payeeNodeId) return;
+              const receive =
+                mode === "variable"
+                  ? {
+                      kind: "var" as const,
+                      request: {
+                        description: description.trim(),
+                        expiry_secs: expiryValue,
+                      },
+                    }
+                  : {
+                      kind: "fixed" as const,
+                      request: {
+                        amount_msat: u64(amountMsat.trim()),
+                        description: description.trim(),
+                        expiry_secs: expiryValue,
+                        quantity: null,
+                      },
+                    };
+              createAndSendMutation.mutate({
+                payeeNodeId,
+                payerNodeId,
+                receive,
+                send: {
+                  offer: "",
+                  payer_note: payerNote.trim() ? payerNote.trim() : null,
+                  quantity: null,
+                  amount_msat:
+                    mode === "variable" ? u64(sendAmountMsat.trim()) : undefined,
+                },
+              });
+            }}
           >
             Create offer + send
           </Button>

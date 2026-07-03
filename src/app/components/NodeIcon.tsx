@@ -2,34 +2,39 @@ import { getGradientStyle } from "@/lib/utils";
 import { cn } from "@/lib/utils"
 import IconBox from "../icons/box";
 import NodeStatus from "./NodeStatus";
-import { nodeMainStatus } from "@/lib/commands";
+import { useNodeMainStatusQuery } from "@/app/queries";
 import { useEffect, useState } from "react";
 
 interface IProps {
+  forceOnline?: boolean;
   name: string;
   className?: string;
   nodeId?: string;
   onStatusChange?: (nodeId: string, online: boolean) => void;
 }
 
-export default function NodeIcon({ name, className = '', nodeId = '', onStatusChange }: IProps) {
+export default function NodeIcon({ forceOnline, name, className = '', nodeId = '', onStatusChange }: IProps) {
   const [online, setOnline] = useState(false)
-
-  const status = async () => {
-    if(!nodeId) return
-    try {
-      await nodeMainStatus(nodeId)
-      setOnline(true)
-      onStatusChange?.(nodeId, true)
-    } catch(e) {
-      setOnline(false)
-      onStatusChange?.(nodeId, false)
-    }
-  }
+  const statusQuery = useNodeMainStatusQuery(nodeId, {
+    retry: false,
+  });
 
   useEffect(() => {
-    status()
-  }, [nodeId])
+    if(forceOnline === undefined) {
+      return
+    }
+    setOnline(forceOnline)
+  }, [forceOnline])
+
+  useEffect(() => {
+    if(statusQuery.isLoading) {
+      return
+    }
+
+    const success = !!statusQuery.data;
+    setOnline(success)
+    onStatusChange?.(nodeId, success);
+  }, [statusQuery.isLoading])
 
   return (
     <div

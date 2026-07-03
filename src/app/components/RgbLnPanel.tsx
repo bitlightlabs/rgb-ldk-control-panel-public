@@ -21,14 +21,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { NodeContext, RgbContractsExportBundle } from "@/lib/domain";
 import {
-  nodeRgbSync,
-  nodeRgbContractIssue,
-  nodeRgbContractExportBundle,
-  nodeRgbContractImportBundle,
-  nodeRgbLnInvoiceCreate,
-  nodeRgbLnPay,
-  nodeRgbContractBalance,
-} from "@/lib/commands";
+  useRgbContractBalanceMutation,
+  useRgbContractExportBundleMutation,
+  useRgbContractImportBundleMutation,
+  useRgbContractIssueMutation,
+  useRgbLnInvoiceCreateMutation,
+  useRgbLnPayMutation,
+  useRgbSyncMutation,
+} from "@/app/mutations";
 import type {
   RgbContractBalanceResponse,
   RgbContractsIssueRequest,
@@ -37,7 +37,6 @@ import type {
 } from "@/lib/sdk/types";
 import { u64 } from "@/lib/sdk";
 import { errorToText } from "@/lib/errorToText";
-import { useMutation } from "@tanstack/react-query";
 
 function NodePicker({
   label,
@@ -176,19 +175,7 @@ export function RgbLnPanel({
     null
   );
 
-  const issueMutation = useMutation({
-    mutationFn: async () => {
-      if (!issuerNodeId) throw new Error("Missing issuer node");
-      const req: RgbContractsIssueRequest = {
-        issuer_name: issuerName.trim(),
-        contract_name: contractName.trim(),
-        ticker: ticker.trim() ? ticker.trim() : null,
-        precision: precision.trim() ? Number(precision.trim()) : null,
-        issued_supply: u64(issuedSupply.trim()).toString(),
-        utxo: null,
-      };
-      return nodeRgbContractIssue(issuerNodeId, req);
-    },
+  const issueMutation = useRgbContractIssueMutation({
     onSuccess: (resp) => {
       setIssuedContractId(resp.contract_id);
       setIssuedAssetContractId(resp.contract_id);
@@ -196,31 +183,13 @@ export function RgbLnPanel({
     },
   });
 
-  const exportMutation = useMutation({
-    mutationFn: async () => {
-      if (!issuerNodeId) throw new Error("Missing issuer node");
-      if (!issuedContractId) throw new Error("Missing contract_id");
-      return nodeRgbContractExportBundle(issuerNodeId, issuedContractId, "raw");
-    },
+  const exportMutation = useRgbContractExportBundleMutation({
     onSuccess: (bundle) => setLastExport(bundle),
   });
 
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      if (!receiverNodeId) throw new Error("Missing receiver node");
-      if (!lastExport) throw new Error("Missing export bundle");
-      return nodeRgbContractImportBundle(
-        receiverNodeId,
-        lastExport.contract_id,
-        lastExport.archive_base64,
-        lastExport.format as any
-      );
-    },
-  });
+  const importMutation = useRgbContractImportBundleMutation();
 
-  const syncMutation = useMutation({
-    mutationFn: async (nodeId: string) => nodeRgbSync(nodeId),
-  });
+  const syncMutation = useRgbSyncMutation();
 
   const [invoiceContractId, setInvoiceContractId] = useState<string | null>(
     issuedAssetContractId
@@ -237,34 +206,12 @@ export function RgbLnPanel({
     }
   }, [invoiceContractId, issuedContractId]);
 
-  const createInvoiceMutation = useMutation({
-    mutationFn: async () => {
-      if (!receiverNodeId) throw new Error("Missing receiver node");
-      if (!invoiceContractId) throw new Error("Missing contract_id");
-      const req: RgbLnInvoiceCreateRequest = {
-        contract_id: invoiceContractId.trim(),
-        asset_amount: u64(invoiceAssetAmount.trim()).toString(),
-        description: invoiceDesc.trim(),
-        expiry_secs: Number(invoiceExpiry.trim() || "600"),
-        btc_carrier_amount_msat: u64(invoiceCarrierMsat.trim()).toString(),
-      };
-      return nodeRgbLnInvoiceCreate(receiverNodeId, req);
-    },
+  const createInvoiceMutation = useRgbLnInvoiceCreateMutation({
     onSuccess: (resp) => setCreatedInvoice(resp.invoice),
   });
 
   const [payInvoice, setPayInvoice] = useState("");
-  const payMutation = useMutation({
-    mutationFn: async () => {
-      if (!payerNodeId) throw new Error("Missing payer node");
-      const req: RgbLnPayRequest = {
-        invoice: payInvoice.trim(),
-        contract_id: undefined,
-        asset_amount: null,
-      };
-      return nodeRgbLnPay(payerNodeId, req);
-    },
-  });
+  const payMutation = useRgbLnPayMutation();
 
   const [balanceContractId, setBalanceContractId] = useState<string | null>(
     null
@@ -278,20 +225,65 @@ export function RgbLnPanel({
     }
   }, [balanceContractId, issuedContractId]);
 
-  const balanceMutation = useMutation({
-    mutationFn: async ({
-      nodeId,
-      contractId,
-    }: {
-      nodeId: string;
-      contractId: string;
-    }) => {
-      return nodeRgbContractBalance(nodeId, contractId);
-    },
+  const balanceMutation = useRgbContractBalanceMutation({
     onSuccess: (resp, vars) => {
       setBalances((prev) => ({ ...prev, [vars.nodeId]: resp }));
     },
   });
+
+  const issueAsset = () => {
+    if (!issuerNodeId) return;
+    const req: RgbContractsIssueRequest = {
+      issuer_name: issuerName.trim(),
+      contract_name: contractName.trim(),
+      ticker: ticker.trim() ? ticker.trim() : null,
+      precision: precision.trim() ? Number(precision.trim()) : null,
+      issued_supply: u64(issuedSupply.trim()).toString(),
+      utxo: null,
+    };
+    issueMutation.mutate({ nodeId: issuerNodeId, request: req });
+  };
+
+  const exportContract = () => {
+    if (!issuerNodeId || !issuedContractId) return;
+    exportMutation.mutate({
+      nodeId: issuerNodeId,
+      contractId: issuedContractId,
+      format: "raw",
+    });
+  };
+
+  const importContract = () => {
+    if (!receiverNodeId || !lastExport) return;
+    importMutation.mutate({
+      nodeId: receiverNodeId,
+      contractId: lastExport.contract_id,
+      archiveBase64: lastExport.archive_base64,
+      format: lastExport.format as "raw" | "gzip" | "zip",
+    });
+  };
+
+  const createInvoice = () => {
+    if (!receiverNodeId || !invoiceContractId) return;
+    const req: RgbLnInvoiceCreateRequest = {
+      contract_id: invoiceContractId.trim(),
+      asset_amount: u64(invoiceAssetAmount.trim()).toString(),
+      description: invoiceDesc.trim(),
+      expiry_secs: Number(invoiceExpiry.trim() || "600"),
+      btc_carrier_amount_msat: u64(invoiceCarrierMsat.trim()).toString(),
+    };
+    createInvoiceMutation.mutate({ nodeId: receiverNodeId, request: req });
+  };
+
+  const payInvoiceSubmit = () => {
+    if (!payerNodeId) return;
+    const req: RgbLnPayRequest = {
+      invoice: payInvoice.trim(),
+      contract_id: undefined,
+      asset_amount: null,
+    };
+    payMutation.mutate({ nodeId: payerNodeId, request: req });
+  };
 
   return (
     <Card>
@@ -361,7 +353,7 @@ export function RgbLnPanel({
           <div className="flex items-end">
             <Button
               type="button"
-              onClick={() => issueMutation.mutate()}
+              onClick={issueAsset}
               disabled={issueMutation.isPending || !issuerNodeId}
               loading={issueMutation.isPending}
             >
@@ -408,7 +400,7 @@ export function RgbLnPanel({
           </Button>
           <Button
             type="button"
-            onClick={() => exportMutation.mutate()}
+            onClick={exportContract}
             disabled={
               exportMutation.isPending || !issuerNodeId || !issuedContractId
             }
@@ -419,7 +411,7 @@ export function RgbLnPanel({
           <Button
             variant="outline"
             type="button"
-            onClick={() => importMutation.mutate()}
+            onClick={importContract}
             disabled={
               importMutation.isPending || !receiverNodeId || !lastExport
             }
@@ -502,7 +494,7 @@ export function RgbLnPanel({
           <div className="flex items-end">
             <Button
               type="button"
-              onClick={() => createInvoiceMutation.mutate()}
+              onClick={createInvoice}
               disabled={createInvoiceMutation.isPending || !receiverNodeId}
               loading={createInvoiceMutation.isPending}
             >
@@ -543,7 +535,7 @@ export function RgbLnPanel({
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              onClick={() => payMutation.mutate()}
+              onClick={payInvoiceSubmit}
               disabled={
                 payMutation.isPending || !payerNodeId || !payInvoice.trim()
               }

@@ -24,20 +24,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import type { NodeContext } from "@/lib/domain";
 import type { OpenChannelRequest, OpenChannelResponse } from "@/lib/sdk/types";
-import {
-  nodeChannelOpen,
-  nodeMainNodeId,
-  nodeMainPeers,
-  nodeMainPeersConnect,
-  nodeRgbSync,
-  nodeRgbContracts,
-} from "@/lib/commands";
+import { useOpenChannelMutation } from "@/app/mutations";
+import { useNodeMainNodeIdQuery, useNodeRgbContractsQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
-import { u64 } from "@/lib/sdk";
 
 function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s.trim());
@@ -97,9 +89,7 @@ export function OpenChannelDialog({
     [candidates, targetContextId]
   );
 
-  const targetNodeIdQuery = useQuery({
-    queryKey: ["open_channel_target_node_id", targetContextId],
-    queryFn: () => nodeMainNodeId(targetContextId!),
+  const targetNodeIdQuery = useNodeMainNodeIdQuery(targetContextId, {
     enabled: targetMode === "context" && !!targetContextId,
   });
 
@@ -113,9 +103,7 @@ export function OpenChannelDialog({
   const [rgbAssetContractId, setRgbAssetContractId] = useState("");
   const [rgbAssetAmount, setRgbAssetAmount] = useState("100");
   const rgbContextData = useMemo(() => defaultRgbContextData(source), [source]);
-  const rgbContractsQuery = useQuery({
-    queryKey: ["open_channel_rgb_contracts", sourceNodeId],
-    queryFn: () => nodeRgbContracts(sourceNodeId),
+  const rgbContractsQuery = useNodeRgbContractsQuery(sourceNodeId, {
     enabled: open && rgbEnabled && !!sourceNodeId,
   });
 
@@ -173,67 +161,48 @@ export function OpenChannelDialog({
   //   [rgbAssetId, rgbContractsQuery.data?.contracts]
   // );
 
-  const openMutation = useMutation({
-    mutationFn: async () => {
-      if (rgbEnabled && targetMode === "context" && targetContextId) {
-        await nodeRgbSync(targetContextId);
-        const targetContracts = await nodeRgbContracts(targetContextId);
-        const targetHasAsset = (targetContracts.contracts ?? []).some(
-          (c) => c.contract_id === rgbAssetContractId.trim()
-        );
-        if (!targetHasAsset) {
-          throw new Error(
-            "Target node is missing this RGB asset. Import/sync the contract on the target node first."
-          );
-        }
-      }
-
-      if (connectFirst) {
-        const peerId = peerNodeId.trim();
-        const addr = address.trim();
-        const peers = await nodeMainPeers(sourceNodeId);
-        const alreadyConnected = peers.some(
-          (p) => p.node_id === peerId && p.is_connected
-        );
-        if (!alreadyConnected) {
-          await nodeMainPeersConnect(sourceNodeId, {
-            node_id: peerId,
-            address: addr,
-            persist: persistPeer,
-          });
-        }
-      }
-
-      const selectAsset =
-        rgbContractsQuery.data?.contracts.find(
-          (c) => c.contract_id === rgbAssetContractId
-        ) ?? null;
-      const precision = selectAsset?.precision ?? 0;
-
-      const req: OpenChannelRequest = {
-        node_id: peerNodeId.trim(),
-        address: address.trim(),
-        channel_amount_sats: channelAmountSats.trim(),
-        announce,
-        push_to_counterparty_msat: null,
-        rgb: rgbEnabled
-          ? {
-              contract_id: rgbAssetContractId.trim(),
-              asset_amount: BigInt(
-                Number(rgbAssetAmount.trim()) * 10 ** precision
-              ).toString(),
-              color_context_data: rgbContextData.trim(),
-            }
-          : null,
-      };
-      console.log("Open channel request:", req);
-      return nodeChannelOpen(sourceNodeId, req);
-    },
+  const openMutation = useOpenChannelMutation({
     onSuccess: async (resp) => {
       await onOpened(resp);
       onOpenChange(false);
     },
   });
+
+  const openChannel = () => {
+    const selectAsset =
+      rgbContractsQuery.data?.contracts.find(
+        (c) => c.contract_id === rgbAssetContractId
+      ) ?? null;
+    const precision = selectAsset?.precision ?? 0;
+
+    const req: OpenChannelRequest = {
+      node_id: peerNodeId.trim(),
+      address: address.trim(),
+      channel_amount_sats: channelAmountSats.trim(),
+      announce,
+      push_to_counterparty_msat: null,
+      rgb: rgbEnabled
+        ? {
+            contract_id: rgbAssetContractId.trim(),
+            asset_amount: BigInt(
+              Number(rgbAssetAmount.trim()) * 10 ** precision
+            ).toString(),
+            color_context_data: rgbContextData.trim(),
+          }
+        : null,
+    };
+    console.log("Open channel request:", req);
+    openMutation.mutate({
+      sourceNodeId,
+      request: req,
+      rgbEnabled,
+      targetContextId,
+      rgbAssetContractId,
+      connectFirst,
+      persistPeer,
+      address,
+    });
+  };
 
   const validationError = useMemo(() => {
     if (!source) return "Missing source node.";
@@ -579,7 +548,7 @@ export function OpenChannelDialog({
             type="button"
             disabled={openMutation.isPending || !!validationError}
             loading={openMutation.isPending}
-            onClick={() => openMutation.mutate()}
+            onClick={openChannel}
           >
             Open channel
           </Button>

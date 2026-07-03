@@ -10,12 +10,16 @@ export function ContentWrapper(props: PropsWithChildren & {className?: string}) 
   )
 }
 
-export function ContentHeader(props: PropsWithChildren & {title: string, onBack: () => void}) {
+export function ContentHeader(props: PropsWithChildren & {title: string, onBack?: () => void}) {
   return (
     <div className="flex h-9 items-center gap-x-[14px]">
-      <BackButton onClick={props.onBack}>
-        <IconBack/>
-      </BackButton>
+      {
+        props.onBack ? (
+          <BackButton onClick={props.onBack}>
+            <IconBack/>
+          </BackButton>
+        ) : null
+      }
       {props.children}
       <h2 className="text-xl font-bold">{props.title}</h2>
     </div>

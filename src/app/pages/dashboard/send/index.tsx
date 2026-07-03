@@ -1,10 +1,9 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
-import { nodeRgbLnInvoiceDecode } from "@/lib/commands";
-import { useQuery } from "@tanstack/react-query";
+import { useRgbLnInvoiceDecodeQuery } from "@/app/queries";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -27,6 +26,7 @@ function normalizeLightningPayload(value: string): string {
 
 export default function Send() {
   const navigate = useNavigate();
+  const [error, setError] = useState<boolean>(false);
   const currentContext = useContextStore((s) => s.currentContext);
   const [payload, setPayload] = useState("");
   const activeNodeId = currentContext?.node_id;
@@ -36,13 +36,15 @@ export default function Send() {
     [payload]
   );
 
-  const tryRgbInvoiceDecodeQuery = useQuery({
-    queryKey: ["rgb_ln_invoice_decode", activeNodeId, payload],
-    queryFn: async () => {
-      return nodeRgbLnInvoiceDecode(activeNodeId!, {invoice: payload})
-    },
-    enabled: !!activeNodeId && payload.trim() !== "",
-  });
+  const tryRgbInvoiceDecodeQuery = useRgbLnInvoiceDecodeQuery(
+    activeNodeId,
+    payload,
+  );
+
+  const changePayload = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setPayload(e.target.value.trim());
+    setError(false);
+  }
 
   const confirmPay = () => {
     if(payloadKind === 'ln-btc-offer') {
@@ -69,6 +71,8 @@ export default function Send() {
       }
       return;
     }
+
+    setError(true);
   }
 
   return (
@@ -78,14 +82,17 @@ export default function Send() {
         onBack={() => navigate(-1)}
       />
       <Content className="space-y-8">
-        <Field>
+        <Field data-invalid={error}>
           <FieldLabel>Recipient</FieldLabel>
           <Textarea
             value={payload}
-            onChange={(e) => setPayload(e.target.value.trim())}
+            onChange={changePayload}
             placeholder="Paste lnbcrt... / lno1... / contract:..."
             className="min-h-[52px] resize-y rounded-3xl"
           />
+          {
+            error ? (<FieldError>Invalid Invoice</FieldError>) : null
+          }
         </Field>
         <div>
           <Button

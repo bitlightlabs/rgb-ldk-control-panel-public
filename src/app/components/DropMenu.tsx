@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Ellipsis, EllipsisVertical } from "lucide-react";
 
 interface IProps {
+  disabled?: boolean
   className?: string
   variant?: "ghost" | "destructive"
   direaction: 'vertical' | 'horizontal'
@@ -34,13 +35,13 @@ export default function DropMenu(props: IProps) {
           }
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
+      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
         {
           props.list.map((item, index) => {
             return (
               <DropdownMenuItem
                 key={index}
-                disabled={item.disabled}
+                disabled={item.disabled || props.disabled}
                 onClick={(e) => {
                   e.stopPropagation();
                   item.onClick(item.data);

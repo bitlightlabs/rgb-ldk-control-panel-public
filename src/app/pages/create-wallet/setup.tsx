@@ -5,17 +5,18 @@ import { useSetupStore } from "@/app/stores/setupStore";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  contextsRemove,
-  dockerEnvironment,
   eventsStart,
-  nodeRunCli,
-  nodeUnlock,
-  prepareNodeResources,
-  walletInitCli,
 } from "@/lib/commands";
+import {
+  useContextsRemoveMutation,
+  useNodeRunCliMutation,
+  useNodeUnlockMutation,
+  usePrepareNodeResourcesMutation,
+  useWalletInitCliMutation,
+} from "@/app/mutations";
+import { useDockerEnvironmentQuery } from "@/app/queries";
 import { DockerEnvironmentResponse, type NodeContext } from "@/lib/domain";
 import { errorToText } from "@/lib/errorToText";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -73,40 +74,12 @@ export default function Setup() {
   const currentContext = useContextStore((s) => s.currentContext);
   const setCurrentContext = useContextStore((s) => s.setCurrentContext);
 
-  const deleteNodeMutation = useMutation({
-    mutationFn: (nodeId: string) => contextsRemove(nodeId),
-  });
-
-  const prepareMutation = useMutation({
-    mutationFn: (params: any) => {
-      return prepareNodeResources(params);
-    },
-  });
-  const initNodeMutation = useMutation({
-    mutationFn: (params: {
-      nodeId: string;
-      mnemonic: string;
-      image: string;
-    }) => {
-      return walletInitCli(params.nodeId, params.mnemonic, params.image);
-    },
-  });
-  const nodeRunMutation = useMutation({
-    mutationFn: (params: { nodeId: string }) => {
-      return nodeRunCli(params.nodeId);
-    },
-  });
-
-  const unlockNodeMutation = useMutation({
-    mutationFn: (params: { nodeId: string }) => {
-      return nodeUnlock(params.nodeId);
-    },
-  });
-
-  const dockerEnvironmentQuery = useQuery({
-    queryKey: ["docker_environment"],
-    queryFn: dockerEnvironment,
-  });
+  const deleteNodeMutation = useContextsRemoveMutation();
+  const prepareMutation = usePrepareNodeResourcesMutation();
+  const initNodeMutation = useWalletInitCliMutation();
+  const nodeRunMutation = useNodeRunCliMutation();
+  const unlockNodeMutation = useNodeUnlockMutation();
+  const dockerEnvironmentQuery = useDockerEnvironmentQuery();
 
   const dockerDetailMessage = useMemo(
     () => getDockerDetailMessage(dockerEnvironmentQuery.data),
@@ -160,7 +133,7 @@ export default function Setup() {
       setProgress(STAGES[6].progress);
       // Delay a bit to make sure the node is up and running, otherwise the unlock command may fail
       await new Promise((res) => setTimeout(res, 4000));
-      await unlockNodeMutation.mutateAsync({ nodeId: context.node_id });
+      await unlockNodeMutation.mutateAsync(context.node_id);
 
       setStep("done");
       eventsStart(context.node_id);

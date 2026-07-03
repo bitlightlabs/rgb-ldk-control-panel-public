@@ -11,9 +11,9 @@ import IconRefresh from "@/app/icons/refresh";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { nodeRgbContracts, nodeRgbSync, nodeRgbUtxos } from "@/lib/commands";
+import { useRgbSyncMutation } from "@/app/mutations";
+import { useNodeRgbContractsQuery, useNodeRgbUtxosQuery } from "@/app/queries";
 import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { type JSX, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -24,36 +24,26 @@ export default function UtxoPage() {
   const [showCreateUtxo, setShowCreateUtxo] = useState(false);
   const [utxoList, setUtxoList] = useState<RgbUtxoDto[] | null>(null);
 
-  const loadUtxos = async (force = false) => {
-    if (!currentContext) return;
+  const activeNodeId = currentContext?.node_id;
 
-    try {
-      setLoading(true);
-      const data = await nodeRgbUtxos(currentContext.node_id, force);
-      setUtxoList(data.utxos);
-    } catch (e) {
-    } finally {
-      setLoading(false);
-    }
+  const rgbUtxosQuery = useNodeRgbUtxosQuery(activeNodeId);
+
+  const loadUtxos = async () => {
+    const data = await rgbUtxosQuery.refetch();
+    setUtxoList(data.data?.utxos ?? []);
   };
 
   useEffect(() => {
-    loadUtxos();
-  }, [currentContext]);
+    setLoading(rgbUtxosQuery.isLoading);
+    setUtxoList(rgbUtxosQuery.data?.utxos ?? null);
+  }, [rgbUtxosQuery.data?.utxos, rgbUtxosQuery.isLoading]);
 
-  const rgbContractsQuery = useQuery({
-    queryKey: ["dashboard_rgb_contracts", currentContext?.node_id],
-    queryFn: async () => {
-      return nodeRgbContracts(currentContext!.node_id);
-    },
-    enabled: !!currentContext?.node_id,
-  });
+  const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId);
 
-  const syncRgbMutation = useMutation({
-    mutationFn: async () => nodeRgbSync(currentContext!.node_id),
+  const syncRgbMutation = useRgbSyncMutation({
     onSuccess: async () => {
       if (!currentContext) return;
-      await Promise.all([rgbContractsQuery.refetch(), loadUtxos(true)]);
+      await Promise.all([rgbContractsQuery.refetch(), loadUtxos()]);
     },
   });
 
@@ -65,7 +55,6 @@ export default function UtxoPage() {
     return (
       <CreateUtxoDialog
         onClose={() => setShowCreateUtxo(false)}
-        onRefreshUtxoList={() => loadUtxos()}
       />
     );
   };
@@ -83,7 +72,7 @@ export default function UtxoPage() {
             key={utxo.outpoint}
             utxo={utxo}
             contracts={contracts}
-            onRefreshUtxoList={() => loadUtxos(true)}
+            onRefreshUtxoList={() => loadUtxos()}
           />
         );
       } else {
@@ -92,7 +81,7 @@ export default function UtxoPage() {
             key={utxo.outpoint}
             utxo={utxo}
             contracts={contracts}
-            onRefreshUtxoList={() => loadUtxos(true)}
+            onRefreshUtxoList={() => loadUtxos()}
           />
         );
       }
@@ -116,7 +105,7 @@ export default function UtxoPage() {
               variant="destructive"
               className="rounded-full"
               disabled={syncRgbMutation.isPending}
-              onClick={() => syncRgbMutation.mutate()}
+              onClick={() => activeNodeId && syncRgbMutation.mutate(activeNodeId)}
             >
               <IconRefresh
                 width={16}
@@ -169,7 +158,7 @@ export default function UtxoPage() {
               variant="destructive"
               className="rounded-full"
               disabled={syncRgbMutation.isPending}
-              onClick={() => syncRgbMutation.mutate()}
+              onClick={() => activeNodeId && syncRgbMutation.mutate(activeNodeId)}
             >
               <IconRefresh
                 width={16}

@@ -94,7 +94,7 @@ pub fn run() {
 			commands::logs_tail,
 			commands::log_ui,
 			commands::docker_environment,
-			commands::bootstrap_local_node,
+			commands::re_start_local_node,
 			commands::prepare_node_resources,
 			commands::bootstrap_local_environment,
 			commands::node_main_http,
@@ -106,7 +106,7 @@ pub fn run() {
 			commands::node_main_peers_connect,
 			commands::node_main_peers_disconnect,
 			commands::node_main_balances,
-			commands::node_wallet_new_address,
+			commands::node_wallet_address_new,
 			commands::node_wallet_sync,
 			commands::node_rgb_sync,
 			commands::node_rgb_contracts,
@@ -145,7 +145,7 @@ pub fn run() {
 			commands::plugin_wallet_asset_export,
 			commands::node_rgb_utxos_summary,
 			commands::node_rgb_onchain_invoice_create,
-			commands::node_rgb_new_address,
+			commands::node_rgb_address_new,
 			commands::plugin_wallet_transfer_consignment_export,
 			commands::node_rgb_onchain_transfer_consignment_accept,
 			commands::node_rgb_contract_issuers_import,
@@ -183,6 +183,10 @@ pub fn run() {
 			commands::node_rgb_utxo_sweep,
 			commands::node_rgb_utxo_top_up,
 			commands::node_rgb_utxos_fund,
+			commands::node_wallet_address_current,
+			commands::node_rgb_address_current,
+			commands::stop_local_node,
+			commands::node_rgb_ln_estimate_carrier,
 		])
 		.build(tauri::generate_context!())
 		.expect("error while running tauri application");

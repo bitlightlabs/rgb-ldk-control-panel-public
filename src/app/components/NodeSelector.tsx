@@ -1,6 +1,5 @@
 import CopyText from "@/app/components/CopyText";
 import { Button } from "@/components/ui/button";
-import { useQuery } from "@tanstack/react-query";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,10 +9,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  nodeMainHealthz,
-  nodeMainNodeId,
-  nodeMainReadyz,
-} from "@/lib/commands";
+  useNodeMainHealthzQuery,
+  useNodeMainNodeIdQuery,
+  useNodeMainReadyzQuery,
+} from "@/app/queries";
 import { cn, formatAddress } from "@/lib/utils";
 import {
   AlertTriangle,
@@ -31,25 +30,15 @@ export function NodeSelector() {
 
   const activeNodeId = currentContext?.node_id ?? "";
 
-  const healthzQuery = useQuery({
-    queryKey: ["node_selector_healthz", activeNodeId],
-    queryFn: () => nodeMainHealthz(activeNodeId!),
-    enabled: !!activeNodeId,
+  const healthzQuery = useNodeMainHealthzQuery(activeNodeId, {
     refetchInterval: 10_000,
     retry: 0,
   });
-  const readyzQuery = useQuery({
-    queryKey: ["node_selector_readyz", activeNodeId],
-    queryFn: () => nodeMainReadyz(activeNodeId!),
-    enabled: !!activeNodeId,
+  const readyzQuery = useNodeMainReadyzQuery(activeNodeId, {
     refetchInterval: 10_000,
     retry: 0,
   });
-  const nodeIdQuery = useQuery({
-    queryKey: ["node_main_node_id", activeNodeId],
-    queryFn: () => nodeMainNodeId(activeNodeId),
-    enabled: !!activeNodeId,
-  });
+  const nodeIdQuery = useNodeMainNodeIdQuery(activeNodeId);
 
   type StatusBadge = {
     label: string;

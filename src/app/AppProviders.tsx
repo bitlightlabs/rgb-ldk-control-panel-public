@@ -4,6 +4,8 @@ import { useEffect, type PropsWithChildren } from "react";
 import { queryClient } from "./queryClient";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
+const showReactQueryDevtools = import.meta.env.DEV;
+
 export function AppProviders({ children }: PropsWithChildren) {
   useEffect(() => {
     document.documentElement.classList.add("dark");
@@ -17,7 +19,9 @@ export function AppProviders({ children }: PropsWithChildren) {
       <TooltipProvider>
         {children}
       </TooltipProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {showReactQueryDevtools ? (
+        <ReactQueryDevtools initialIsOpen={false} />
+      ) : null}
     </QueryClientProvider>
   );
 }

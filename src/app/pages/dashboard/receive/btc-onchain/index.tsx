@@ -1,8 +1,7 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
-import { nodeWalletNewAddress } from "@/lib/commands";
-import { useMutation } from "@tanstack/react-query";
+import { useNodeWalletNewAddressMutation } from "@/app/mutations";
 import { Check, Copy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
@@ -24,13 +23,7 @@ export default function BtcOnchain() {
     } catch(e) {}
   }
 
-  const createMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-
-      // btc onchain address
-      return nodeWalletNewAddress(activeNodeId);
-    },
+  const createMutation = useNodeWalletNewAddressMutation({
     onSuccess: (resp) => {
       setAddress(resp.address);
     },
@@ -51,7 +44,9 @@ export default function BtcOnchain() {
   }
 
   useEffect(() => {
-    createMutation.mutate();
+    if (activeNodeId) {
+      createMutation.mutate(activeNodeId);
+    }
   }, [activeNodeId])
 
   if(!address) {

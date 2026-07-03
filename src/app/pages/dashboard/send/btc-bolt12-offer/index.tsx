@@ -1,12 +1,11 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
-import CopyText from "@/app/components/CopyText";
+import { CopyTextInline } from "@/app/components/CopyText";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { nodeBolt12OfferDecode, nodeBolt12OfferSend } from "@/lib/commands";
-import { formatAddress } from "@/lib/utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useBolt12OfferSendMutation } from "@/app/mutations";
+import { useBolt12OfferDecodeQuery } from "@/app/queries";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -25,18 +24,7 @@ export default function SendBolt12OfferConfirm() {
     setStep('confirm');
   }
 
-  const sendMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-
-      // bolt12 offer
-      return nodeBolt12OfferSend(activeNodeId, {
-        offer: payload,
-        amount_msat: (BigInt(offerAmountSats) * BigInt(1000)).toString(),
-        quantity: null,
-        payer_note: offerDecodeQuery.data?.description ?? null,
-      });
-    },
+  const sendMutation = useBolt12OfferSendMutation({
     onSuccess: (resp) => {
       nav('/dashboard/send/success?payment_id='
         + encodeURIComponent(resp.payment_id)
@@ -46,11 +34,7 @@ export default function SendBolt12OfferConfirm() {
     },
   });
 
-  const offerDecodeQuery = useQuery({
-    queryKey: ["bolt12_offer_decode", activeNodeId, payload],
-    queryFn: async () =>
-      nodeBolt12OfferDecode(activeNodeId!, { offer: payload }),
-    enabled: !!activeNodeId && payload.trim() !== "",
+  const offerDecodeQuery = useBolt12OfferDecodeQuery(activeNodeId, payload, {
     retry: 1,
     retryDelay: 300,
   });
@@ -69,10 +53,10 @@ export default function SendBolt12OfferConfirm() {
           <div className="bg-background-3 rounded-3xl p-4">
             <div className="h-5 flex justify-between">
               <label className="text-base text-secondary-foreground">Offer</label>
-              <div className="text-base flex gap-1.5 items-center">
-                <span>{formatAddress(payload)}</span>
-                <CopyText text={payload} className="text-secondary-foreground" />
-              </div>
+              <CopyTextInline
+                text={payload}
+                buttonClassName="text-secondary-foreground"
+              />
             </div>
             <div className="mt-4 h-5 flex justify-between">
               <label className="text-base text-secondary-foreground">Description</label>
@@ -126,7 +110,7 @@ export default function SendBolt12OfferConfirm() {
       />
       <Content className="space-y-8">
         <div>
-          <div className="text-xl text-center">You Are Sending</div>
+          <div className="text-lg text-center">You Are Sending</div>
           <div className="mt-8 h-10 leading-10 text-center">
             <span className="text-[34px] font-bold">{offerAmountSats}</span>
             <span className="pl-2 text-[22px]">sats</span>
@@ -137,18 +121,18 @@ export default function SendBolt12OfferConfirm() {
         <div className="bg-background-3 rounded-3xl p-4">
           <div className="h-5 flex justify-between">
             <label className="text-base text-secondary-foreground">To</label>
-            <div className="text-base flex gap-1 items-center">
-              <span>{formatAddress(offerDecodeQueryData?.description ?? '')}</span>
-              <CopyText text={""} className="text-secondary-foreground" />
-            </div>
+            <CopyTextInline
+              text={offerDecodeQueryData?.signing_pubkey ?? ''}
+              buttonClassName="text-secondary-foreground"
+            />
           </div>
           <div className="bg-background-3 h-[1px] my-4"></div>
           <div className="h-5 flex justify-between">
             <label className="text-base text-secondary-foreground">Offer</label>
-            <div className="text-base flex gap-1 items-center">
-              <span>{formatAddress(payload)}</span>
-              <CopyText text={payload} className="text-secondary-foreground" />
-            </div>
+            <CopyTextInline
+              text={payload}
+              buttonClassName="text-secondary-foreground"
+            />
           </div>
           <div className="mt-4 h-5 flex justify-between">
             <label className="text-base text-secondary-foreground">Description</label>
@@ -170,7 +154,18 @@ export default function SendBolt12OfferConfirm() {
             variant="white"
             className="flex-1 rounded-full"
             disabled={sendMutation.isPending}
-            onClick={() => sendMutation.mutate()}
+            onClick={() => {
+              if (!activeNodeId) return;
+              sendMutation.mutate({
+                nodeId: activeNodeId,
+                request: {
+                  offer: payload,
+                  amount_msat: (BigInt(offerAmountSats) * 1000n).toString(),
+                  quantity: null,
+                  payer_note: offerDecodeQuery.data?.description ?? null,
+                },
+              });
+            }}
           >Confirm Payment</Button>
         </div>
       </Content>

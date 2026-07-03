@@ -2,10 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
-import { contextsList, nodeRgbContractImportBundle, pluginWalletAssetExport } from "@/lib/commands";
+import { useRgbContractImportFromPluginMutation } from "@/app/mutations";
 import { toast } from "sonner";
-import { getNetworkOption } from "../config/networkOptions";
-import type { BitcoinNetwork } from "@/lib/domain";
 
 interface IProps {
   activeNodeId: string;
@@ -16,6 +14,7 @@ interface IProps {
 export default function ImportOnchainAsset(props: IProps) {
   const [posting, setPosting] = useState(false);
   const [contractId, setContractId] = useState('');
+  const importFromPluginMutation = useRgbContractImportFromPluginMutation();
 
   const upload = async () => {
     if(!contractId || !props.activeNodeId) {
@@ -25,29 +24,10 @@ export default function ImportOnchainAsset(props: IProps) {
     try {
       setPosting(true);
 
-      const list = await contextsList()
-      const node = list.find((c) => c.node_id === props.activeNodeId)
-      if(!node) {
-        throw new Error('Node not found')
-      }
-
-      const config = getNetworkOption(node.network as BitcoinNetwork)
-      if(!config) {
-        throw new Error('Network not supported')
-      }
-
-      const url = config.coreUrl
-      if(!url) {
-        throw new Error('Core URL not configured for this network')
-      }
-      // Download asset consignment
-      const contract = await pluginWalletAssetExport(props.activeNodeId, contractId, url);
-      if(!contract.archive_base64) {
-        throw new Error((contract as any).message || 'Failed')
-      }
-
-      // Import asset
-      await nodeRgbContractImportBundle(props.activeNodeId, contractId, contract.archive_base64);
+      await importFromPluginMutation.mutateAsync({
+        nodeId: props.activeNodeId,
+        contractId,
+      });
 
       props.onClose()
       props.onSuccess()

@@ -1,11 +1,10 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
-import CopyText from "@/app/components/CopyText";
+import { CopyTextInline } from "@/app/components/CopyText";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
-import { nodeBolt11Decode, nodeBolt11Send, nodeRgbContracts } from "@/lib/commands";
+import { useBolt11SendMutation } from "@/app/mutations";
+import { useBolt11DecodeQuery, useNodeRgbContractsQuery } from "@/app/queries";
 import { formatNumber } from "@/lib/number";
-import { formatAddress } from "@/lib/utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
@@ -18,13 +17,7 @@ export default function SendLnInvoiceConfirm() {
   const payload = search.get('payload') ?? "";
   const activeNodeId = currentContext?.node_id;
 
-  const sendMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-
-      // ln btc
-      return nodeBolt11Send(activeNodeId, { invoice: payload });
-    },
+  const sendMutation = useBolt11SendMutation({
     onSuccess: (resp) => {
       nav('/dashboard/send/success?payment_id='
         + encodeURIComponent(resp.payment_id)
@@ -37,18 +30,9 @@ export default function SendLnInvoiceConfirm() {
     }
   });
 
-   const rgbContractsQuery = useQuery({
-    queryKey: ["send_onchain_rgb_contracts", activeNodeId],
-    queryFn: async () => nodeRgbContracts(activeNodeId!),
-    enabled: !!activeNodeId
-  });
+   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId);
 
-  const invoiceDecodeQuery = useQuery({
-    queryKey: ["bolt11_invoice_decode", activeNodeId, payload],
-    queryFn: async () => {
-      return nodeBolt11Decode(activeNodeId!, {invoice: payload})
-    },
-    enabled: !!activeNodeId && payload.trim() !== "",
+  const invoiceDecodeQuery = useBolt11DecodeQuery(activeNodeId, payload, {
     retry: 1,
     retryDelay: 200,
   });
@@ -62,7 +46,7 @@ export default function SendLnInvoiceConfirm() {
         onBack={() => nav(-1)}
       />
       <Content>
-        <div className="text-xl text-center">You Are Sending</div>
+        <div className="text-lg text-center">You Are Sending</div>
         <div className="mt-9 h-10 leading-10 text-center">
           <span className="text-[34px] font-bold">{amount}</span>
           <span className="pl-2 text-[22px]">sats</span>
@@ -77,13 +61,10 @@ export default function SendLnInvoiceConfirm() {
         <div className="mt-10 bg-background-3 rounded-3xl p-4">
           <div className="h-5 flex justify-between">
             <label className="text-base text-secondary-foreground">To</label>
-            <div className="text-base flex gap-1 items-center">
-              <span>{formatAddress(invoiceDecodeQuery.data?.destination)}</span>
-              <CopyText
-                text={invoiceDecodeQuery.data?.destination ?? ""}
-                className="text-secondary-foreground"
-              />
-            </div>
+            <CopyTextInline
+              text={invoiceDecodeQuery.data?.destination ?? ''}
+              buttonClassName="text-secondary-foreground"
+            />
           </div>
           <div className="bg-background-3 h-[1px] my-4"></div>
           <div className="flex justify-between">
@@ -109,7 +90,13 @@ export default function SendLnInvoiceConfirm() {
               || invoiceDecodeQuery.isPending
               || sendMutation.isPending
             }
-            onClick={() => sendMutation.mutate()}
+            onClick={() => {
+              if (!activeNodeId) return;
+              sendMutation.mutate({
+                nodeId: activeNodeId,
+                request: { invoice: payload },
+              });
+            }}
           >Confirm Payment</Button>
         </div>
       </Content>

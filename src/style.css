@@ -43,6 +43,7 @@ body {
   --color-background: var(--background);
   --color-background-solid: var(--background-solid);
   --color-background-solid-2: var(--background-solid-2);
+  --color-background-solid-3: var(--background-solid-3);
   --color-background-1: var(--background-1);
   --color-background-2: var(--background-2);
   --color-background-3: var(--background-3);
@@ -147,6 +148,7 @@ body {
   --secondary-foreground: rgba(235, 235, 245, 0.6);
   --background-solid: rgba(28, 28, 30, 1);
   --background-solid-2: rgba(35, 35, 38, 1);
+  --background-solid-3: rgba(44, 44, 46, 1);
   --muted-foreground: rgba(235, 235, 245, 0.3);
 
   --background: rgba(0, 0, 0, 1);
@@ -163,7 +165,7 @@ body {
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
-  --input: rgba(118, 118, 128, 0.2);
+  --input: rgba(120, 120, 128, 0.2);
   --ring: rgba(255, 255, 255, 0.6);
   --chart-1: oklch(0.837 0.128 66.29);
   --chart-2: oklch(0.6729 0.2192 37.56);

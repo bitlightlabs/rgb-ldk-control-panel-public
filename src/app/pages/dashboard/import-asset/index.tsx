@@ -1,19 +1,13 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { getNetworkOption } from "@/app/config/networkOptions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  contextsList,
-  downloadTransferConsignmentFromLink,
-  nodeRgbContractImportBundle,
-  nodeRgbContracts,
-  nodeRgbOnchainInvoiceCreate,
-  nodeRgbOnchainTransferConsignmentAccept,
-  nodeRgbSync,
-  pluginWalletAssetExport,
-} from "@/lib/commands";
+  useRgbContractImportFromPluginMutation,
+  useRgbOnchainInvoiceCreateMutation,
+  useRgbOnchainTransferConsignmentAcceptMutation,
+} from "@/app/mutations";
+import { useNodeRgbContractsSyncedQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
 import { u64 } from "@/lib/sdk";
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
@@ -23,7 +17,6 @@ import Import2 from "./Import2";
 import Import2Invoice from "./Import2Invoice";
 import Import3Consignment from "./Import3Consignment";
 import ImportDone from "./ImportDone";
-import { BitcoinNetwork } from "@/lib/domain";
 import { useContextStore } from "@/app/stores/contextStore";
 
 type ImportStep = 1 | 2 | 3 | 4;
@@ -38,22 +31,14 @@ export default function RgbImportPage() {
   const activeNodeId = currentContext?.node_id ?? '';
 
   const [step, setStep] = useState<ImportStep>(1);
-  // const [stepOneTab, setStepOneTab] = useState<"select" | "import">("select");
   const [selectedContractId, setSelectedContractId] = useState("");
   const [contractIdInput, setContractIdInput] = useState("");
   const [amount, setAmount] = useState("");
   const [utxo, setUtxo] = useState("");
   const [createdInvoice, setCreatedInvoice] = useState("");
   const [consignmentLink, setConsignmentLink] = useState("");
-  // const [copiedInvoice, setCopiedInvoice] = useState(false);
 
-  const contractsQuery = useQuery({
-    queryKey: ["rgb_import_contracts", activeNodeId],
-    queryFn: async () => {
-      await nodeRgbSync(activeNodeId!);
-      return nodeRgbContracts(activeNodeId!);
-    },
-    enabled: !!activeNodeId,
+  const contractsQuery = useNodeRgbContractsSyncedQuery(activeNodeId, {
     refetchInterval: false,
   });
 
@@ -67,46 +52,7 @@ export default function RgbImportPage() {
     );
   }, [contractsQuery.data?.contracts, selectedContractId]);
 
-  const importMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) {
-        throw new Error("No active node selected");
-      }
-      const contractId = contractIdInput.trim();
-      if (!contractId) {
-        throw new Error("Contract ID is required");
-      }
-
-      const list = await contextsList()
-      const node = list.find((c) => c.node_id === activeNodeId)
-      if(!node) {
-        throw new Error('Node not found')
-      }
-
-      const config = getNetworkOption(node.network as BitcoinNetwork);
-      if(!config) {
-        throw new Error('Network not supported')
-      }
-
-      // Download consignment
-      const contract = await pluginWalletAssetExport(
-        activeNodeId,
-        contractId,
-        config.coreUrl,
-      );
-      if (!contract.archive_base64) {
-        throw new Error(
-          (contract as any).message || "Failed to download contract"
-        );
-      }
-
-      await nodeRgbContractImportBundle(
-        activeNodeId,
-        contractId,
-        contract.archive_base64
-      );
-      return contractId;
-    },
+  const importMutation = useRgbContractImportFromPluginMutation({
     onSuccess: async (contractId) => {
       await contractsQuery.refetch()
 
@@ -116,40 +62,15 @@ export default function RgbImportPage() {
       setConsignmentLink("");
       setAmount("");
       setStep(2);
-
     },
     onError: (e) => {
       toast.error((e as Error).message);
     },
   });
 
-  const createInvoiceMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) {
-        throw new Error("No active node selected");
-      }
-      if (!selectedContract?.contract_id) {
-        throw new Error("Contract not found. Please import asset first.");
-      }
-      if (!utxo.trim()) {
-        throw new Error("Blinding UTXO is required");
-      }
-      if (!isDigits(amount) || amount.trim() === "0") {
-        throw new Error("Amount must be an integer greater than 0");
-      }
-
-      const precision = selectedContract.precision ?? 0;
-      const resp = await nodeRgbOnchainInvoiceCreate(activeNodeId, {
-        contract_id: selectedContract.contract_id,
-        amount: u64(Number(amount.trim()) * 10 ** precision),
-        use_witness_utxo: false,
-        blinding_utxo: utxo.trim(),
-      });
-
-      return resp.invoice;
-    },
-    onSuccess: (invoice) => {
-      setCreatedInvoice(invoice);
+  const createInvoiceMutation = useRgbOnchainInvoiceCreateMutation({
+    onSuccess: (resp) => {
+      setCreatedInvoice(resp.invoice);
       toast.success("RGB OnChain invoice created");
     },
     onError: (e) => {
@@ -157,31 +78,7 @@ export default function RgbImportPage() {
     },
   });
 
-  const acceptPaymentMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) {
-        throw new Error("No active node selected");
-      }
-      if (!createdInvoice.trim()) {
-        throw new Error("Invoice is required");
-      }
-      if (!consignmentLink.trim() || !consignmentLink.startsWith("http")) {
-        throw new Error("Consignment link is invalid");
-      }
-
-      const data = await downloadTransferConsignmentFromLink(activeNodeId, consignmentLink);
-      if (!data.archive_base64) {
-        throw new Error(
-          (data as any).message || "Failed to download consignment"
-        );
-      }
-
-      return nodeRgbOnchainTransferConsignmentAccept(
-        activeNodeId,
-        createdInvoice,
-        data.archive_base64
-      );
-    },
+  const acceptPaymentMutation = useRgbOnchainTransferConsignmentAcceptMutation({
     onSuccess: () => {
       toast.success("Payment accepted");
       setConsignmentLink("");
@@ -200,7 +97,7 @@ export default function RgbImportPage() {
 
 
   return (
-    <ContentWrapper>
+    <ContentWrapper className="mb-10">
       <ContentHeader title="Import RGB Asset" onBack={() => navigate(-1)} />
 
       <Content>
@@ -209,11 +106,24 @@ export default function RgbImportPage() {
           <Import1
             contractIdInput={contractIdInput}
             setContractIdInput={setContractIdInput}
-            loading={importMutation.isPending}
+            loading={importMutation.isPending || contractsQuery.isFetching}
             disabled={
-              importMutation.isPending || !contractIdInput.trim()
+              importMutation.isPending
+              || !contractIdInput.trim()
+              || contractsQuery.isFetching
             }
-            onNext={() => importMutation.mutate()}
+            onNext={() => {
+              if (!activeNodeId) {
+                toast.error("No active node selected");
+                return;
+              }
+              const contractId = contractIdInput.trim();
+              if (!contractId) {
+                toast.error("Contract ID is required");
+                return;
+              }
+              importMutation.mutate({ nodeId: activeNodeId, contractId });
+            }}
           />
         ) : null}
 
@@ -231,7 +141,35 @@ export default function RgbImportPage() {
                     !amount.trim() ||
                     !utxo.trim()
                   }
-                  onNext={() => createInvoiceMutation.mutate()}
+                  onNext={() => {
+                    if (!activeNodeId) {
+                      toast.error("No active node selected");
+                      return;
+                    }
+                    if (!selectedContract?.contract_id) {
+                      toast.error("Contract not found. Please import asset first.");
+                      return;
+                    }
+                    if (!utxo.trim()) {
+                      toast.error("Blinding UTXO is required");
+                      return;
+                    }
+                    if (!isDigits(amount) || amount.trim() === "0") {
+                      toast.error("Amount must be an integer greater than 0");
+                      return;
+                    }
+
+                    const precision = selectedContract.precision ?? 0;
+                    createInvoiceMutation.mutate({
+                      nodeId: activeNodeId,
+                      request: {
+                        contract_id: selectedContract.contract_id,
+                        amount: u64(Number(amount.trim()) * 10 ** precision),
+                        use_witness_utxo: false,
+                        blinding_utxo: utxo.trim(),
+                      },
+                    });
+                  }}
                 />
               ) : (
                 <Import2Invoice
@@ -253,7 +191,26 @@ export default function RgbImportPage() {
               selectedContract={selectedContract}
               loading={acceptPaymentMutation.isPending}
               disabled={!consignmentLink || acceptPaymentMutation.isPending}
-              onNext={() => acceptPaymentMutation.mutate()}
+              onNext={() => {
+                if (!activeNodeId) {
+                  toast.error("No active node selected");
+                  return;
+                }
+                if (!createdInvoice.trim()) {
+                  toast.error("Invoice is required");
+                  return;
+                }
+                if (!consignmentLink.trim() || !consignmentLink.startsWith("http")) {
+                  toast.error("Consignment link is invalid");
+                  return;
+                }
+
+                acceptPaymentMutation.mutate({
+                  nodeId: activeNodeId,
+                  consignmentLink,
+                  invoice: createdInvoice,
+                });
+              }}
             />
           ) : null}
 

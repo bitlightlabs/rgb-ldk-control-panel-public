@@ -1,14 +1,16 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
-import CopyText from "@/app/components/CopyText";
+import { CopyTextInline } from "@/app/components/CopyText";
+import IconHelp from "@/app/icons/help";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
-import { nodeRgbContracts, nodeRgbLnInvoiceDecode, nodeRgbLnPay } from "@/lib/commands";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useRgbLnPayMutation } from "@/app/mutations";
+import { useNodeRgbContractsQuery, useRgbLnInvoiceDecodeQuery } from "@/app/queries";
 import { formatNumber } from "@/lib/number";
-import { formatAddress } from "@/lib/utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { BTC_CARRIER_TIP } from "@/app/config/constant";
 
 
 export default function SendLnRGBInvoiceConfirm() {
@@ -19,13 +21,7 @@ export default function SendLnRGBInvoiceConfirm() {
   const payload = search.get('payload') ?? "";
   const activeNodeId = currentContext?.node_id;
 
-  const sendMutation = useMutation({
-    mutationFn: async () => {
-      if (!activeNodeId) throw new Error("No active node selected");
-
-      // ln rgb
-      return nodeRgbLnPay(activeNodeId, { invoice: payload });
-    },
+  const sendMutation = useRgbLnPayMutation({
     onSuccess: (resp) => {
       nav('/dashboard/send/success?payment_id='
         + encodeURIComponent(resp.payment_id)
@@ -38,19 +34,9 @@ export default function SendLnRGBInvoiceConfirm() {
     }
   });
 
-   const rgbContractsQuery = useQuery({
-    queryKey: ["send_onchain_rgb_contracts", activeNodeId],
-    queryFn: async () => nodeRgbContracts(activeNodeId!),
-    enabled: !!activeNodeId
-  });
+   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId);
 
-  const rgbInvoiceDecodeQuery = useQuery({
-    queryKey: ["rgb_ln_invoice_decode", activeNodeId, payload],
-    queryFn: async () => {
-      return nodeRgbLnInvoiceDecode(activeNodeId!, {invoice: payload})
-    },
-    enabled: !!activeNodeId && payload.trim() !== "",
-  });
+  const rgbInvoiceDecodeQuery = useRgbLnInvoiceDecodeQuery(activeNodeId, payload);
 
   // current contract
   const currentContract = useMemo(() => {
@@ -69,7 +55,7 @@ export default function SendLnRGBInvoiceConfirm() {
         onBack={() => nav(-1)}
       />
       <Content>
-        <div className="text-xl text-center">You Are Sending</div>
+        <div className="text-lg text-center">You Are Sending</div>
         <div className="mt-9 h-10 leading-10 text-center">
           <span className="text-[34px] font-bold">
             {amount}
@@ -79,17 +65,26 @@ export default function SendLnRGBInvoiceConfirm() {
         <div className="mt-10 bg-background-3 rounded-3xl p-4">
           <div className="h-5 flex justify-between">
             <label className="text-base text-secondary-foreground">To</label>
-            <div className="text-base flex gap-1 items-center">
-              <span>{formatAddress(rgbInvoiceDecodeQuery.data?.destination)}</span>
-              <CopyText
-                text={rgbInvoiceDecodeQuery.data?.destination ?? ""}
-                className="text-secondary-foreground"
-              />
-            </div>
+            <CopyTextInline
+              text={rgbInvoiceDecodeQuery.data?.destination ?? ''}
+              buttonClassName="text-secondary-foreground"
+            />
           </div>
           <div className="bg-background-3 h-[1px] my-4"></div>
           <div className="flex justify-between">
-            <label className="text-base text-secondary-foreground">BTC Carrier</label>
+            <label className="text-base text-secondary-foreground flex gap-2">
+              <span>BTC Carrier</span>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="flex items-center gap-2 hover:text-foreground">
+                    <IconHelp />
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="w-[254px]">
+                  <p>{BTC_CARRIER_TIP}</p>
+                </TooltipContent>
+              </Tooltip>
+            </label>
             <div className="text-base text-right">
               <div className="text-base">{BigInt(rgbInvoiceDecodeQuery.data?.carrier_amount_msat ?? 0) / BigInt(1000)} sats</div>
               {/* <div className="text-sm text-secondary-foreground font-normal">vailable: - BTC</div> */}
@@ -97,13 +92,10 @@ export default function SendLnRGBInvoiceConfirm() {
           </div>
           <div className="mt-4 h-5 flex justify-between">
             <label className="text-base text-secondary-foreground">Contract ID</label>
-            <div className="text-base flex gap-1 items-center">
-              <span>{formatAddress(rgbInvoiceDecodeQuery.data?.contract_id)}</span>
-              <CopyText
-                text={rgbInvoiceDecodeQuery.data?.contract_id ?? ""}
-                className="text-secondary-foreground"
-              />
-            </div>
+            <CopyTextInline
+              text={rgbInvoiceDecodeQuery.data?.contract_id ?? ''}
+              buttonClassName="text-secondary-foreground"
+            />
           </div>
         </div>
 
@@ -122,8 +114,15 @@ export default function SendLnRGBInvoiceConfirm() {
               || rgbInvoiceDecodeQuery.isPending
               || (rgbInvoiceDecodeQuery.data === undefined)
               || sendMutation.isPending
+              || !currentContract
             }
-            onClick={() => sendMutation.mutate()}
+            onClick={() => {
+              if (!activeNodeId) return;
+              sendMutation.mutate({
+                nodeId: activeNodeId,
+                request: { invoice: payload },
+              });
+            }}
           >Confirm Payment</Button>
         </div>
       </Content>

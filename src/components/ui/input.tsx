@@ -24,21 +24,23 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input"> &
 )
 Input.displayName = "Input"
 
-const ComplexInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"input"> & {slot?: any, bottom?: any}>(
-  ({ className, type, ...props }, ref) => {
+const ComplexInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"input"> & {slot?: any, top?: any, bottom?: any, subfix?: any}>(
+  ({ className, type, slot, top, bottom, subfix, ...props }, ref) => {
     return (
       <div className={cn(
         "relative p-4 rounded-2xl bg-background-3 border border-input focus-within:ring-1 focus-within:ring-ring",
         className
       )}>
-        <div className="absolute top-4 right-4 flex items-center">{props.slot}</div>
+        <div className="absolute top-4 right-4 flex items-center">{slot}</div>
+        {top}
         <input
           type={type}
           className="flex h-7 w-full border-0 bg-transparent text-lg transition-colors font-normal placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           ref={ref}
           {...props}
         />
-        <div className="mt-2">{props.bottom}</div>
+        {subfix}
+        <div className="mt-3">{bottom}</div>
       </div>
     )
   }
