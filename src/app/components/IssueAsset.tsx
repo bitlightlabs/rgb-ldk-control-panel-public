@@ -6,6 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useRgbContractIssueMutation } from "@/app/mutations";
 import { useNodeRgbIssuersQuery } from "@/app/queries";
 import { toast } from "sonner";
+import IssuerList from "./IssuerList";
+import RgbUtxoSelect from "./RgbUtxoSelect";
+import { useState } from "react";
 
 interface IProps {
   activeNodeId: string;
@@ -14,6 +17,7 @@ interface IProps {
 }
 export default function IssueAsset(props: IProps) {
   const { activeNodeId } = props;
+  const [utxo, setUtxo] = useState<string | null>(null);
 
   const getIssuers = useNodeRgbIssuersQuery(activeNodeId);
 
@@ -42,13 +46,20 @@ export default function IssueAsset(props: IProps) {
         contract_name: formData.get('contract_name') as string,
         ticker: formData.get('ticker') as string,
         issued_supply,
-        precision
+        precision,
+        utxo: utxo as string,
       }
 
       if(!activeNodeId) {
         throw new Error("No active node selected");
       }
-      if(!data.issuer_name || !data.contract_name || !data.ticker || !data.issued_supply || !data.precision) {
+      if(!data.issuer_name
+        || !data.contract_name
+        || !data.ticker
+        || !data.issued_supply
+        || !data.precision
+        || !utxo
+      ) {
         throw new Error("Please fill all the fields");
       }
 
@@ -68,6 +79,10 @@ export default function IssueAsset(props: IProps) {
         <DialogHeader>
           <DialogTitle>Issue Asset</DialogTitle>
         </DialogHeader>
+
+        <IssuerList
+          activeNodeId={activeNodeId}
+        />
 
         <form id="issue-asset-form" className="grid grid-cols-2 gap-4">
           <Field>
@@ -111,6 +126,14 @@ export default function IssueAsset(props: IProps) {
               Total Supply
             </FieldLabel>
             <Input name="issued_supply" />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="recv_rgb_contract_id">
+              UTXO
+            </FieldLabel>
+            <RgbUtxoSelect
+              onChangeUtxo={setUtxo}
+            />
           </Field>
         </form>
         <div className="mt-4">

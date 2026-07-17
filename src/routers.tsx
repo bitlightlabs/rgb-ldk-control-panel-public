@@ -267,7 +267,21 @@ export const routesConfig = [
           },
           {
             path: 'swap',
-            lazy: () => import("@/app/pages/swap/index").then((mod) => ({ Component: mod.default }))
+            children: [
+              {
+                index: true,
+                lazy: () => import("@/app/pages/swap/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'accept',
+                breadcrumb: [
+                  { title: 'Swap', link: '/dashboard/swap' },
+                  { title: 'Accept', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/swap/accept/index").then((mod) => ({ Component: mod.default }))
+              }
+            ],
+
           }
         ],
       }

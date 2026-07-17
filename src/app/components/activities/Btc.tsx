@@ -1,8 +1,6 @@
 import type { PaymentDetailsDto } from "@/lib/sdk/types";
-import AssetAvatar from "../AssetAvatar";
 import BtcAvatar from "./BtcAvatar";
-import { formatAddress } from "@/lib/utils";
-import CopyText from "../CopyText";
+import { CopyTextInline } from "../CopyText";
 
 interface IProps {
   data: PaymentDetailsDto
@@ -15,14 +13,14 @@ function formatBalance(value: any) {
 export default function Btc(props: IProps) {
   const { data } = props;
   return (
-    <div className="h-16 px-3 flex justify-between items-center">
+    <div className="h-16 px-3 flex justify-between items-center hover:bg-background-3 rounded-2xl">
       <div className="h-10 flex gap-3">
         <BtcAvatar type={data.direction} />
         <div>
           <div className="text-base font-medium leading-5">{data.direction === 'Inbound' ? 'Received' : 'Sending'}</div>
-          <div className="text-sm text-secondary-foreground flex gap-2 items-center">
-            <span>tx: {formatAddress(data.kind_details?.txid)}</span>
-            <CopyText className="text-secondary-foreground" text={data.kind_details?.txid} />
+          <div className="mt-1 text-sm text-secondary-foreground flex gap-1 items-center">
+            <span>tx:</span>
+            <CopyTextInline text={data.kind_details?.txid} />
           </div>
         </div>
       </div>
@@ -32,7 +30,7 @@ export default function Btc(props: IProps) {
             {data.direction === 'Inbound' ? '+' : '-'}{formatBalance(data.amount_msat)} BTC
           </span>
         </div>
-        <div className="text-sm text-secondary-foreground">{data.status}</div>
+        <div className="mt-1 text-sm text-secondary-foreground">{data.status}</div>
       </div>
     </div>
   )

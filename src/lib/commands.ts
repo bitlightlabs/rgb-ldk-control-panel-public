@@ -64,6 +64,7 @@ import type {
   RgbDescriptorResponse,
   SignmessageRequest,
   SignmessageResponse,
+  SwapInfo,
 } from "./sdk/types";
 import { tauriInvoke } from "./tauri";
 import type { RgbContractsExportBundle } from "./domain";
@@ -211,6 +212,10 @@ export async function eventsHttpDebugSet(enabled: boolean): Promise<void> {
 
 export async function contextsUpsert(context: NodeContext): Promise<void> {
   return tauriInvoke("contexts_upsert", { context });
+}
+
+export async function contextsUpdateImage(nodeId: string, image: string): Promise<void> {
+  return tauriInvoke("contexts_update_image", { nodeId: nodeId, image: image });
 }
 
 export async function contextsRemove(nodeId: string): Promise<void> {
@@ -939,4 +944,56 @@ export async function nodeRgbUtxosFund(nodeId: string, request: RgbUtxosFundRequ
 
 export async function nodeRgbUtxoTopUp(nodeId: string, request: RgbUtxosTopUpRequest): Promise<RgbUtxosTopUpResponse> {
   return tauriInvoke("node_rgb_utxo_top_up", { nodeId, request });
+}
+
+export async function nodeSwapOffers(nodeId: string, request: any): Promise<{
+  swap_string: string
+  payment_hash: string
+  info: any
+}> {
+  return tauriInvoke("node_swap_offers", { nodeId, request });
+}
+
+export async function nodeSwapExecute(nodeId: string, request: {swap_string?: string, payment_hash?: string}): Promise<{
+  ok: boolean
+}> {
+  return tauriInvoke("node_swap_execute", { nodeId, request });
+}
+
+export async function nodeSwapAccept(nodeId: string, swapString: string): Promise<any> {
+  return tauriInvoke("node_swap_accept", {
+    nodeId,
+    request: {
+      swap_string: swapString
+    }
+  });
+}
+
+export async function nodeSwapDecode(nodeId: string, swapString: string): Promise<SwapInfo> {
+  return tauriInvoke("node_swap_decode", {
+    nodeId,
+    request: {
+      swap_string: swapString
+    }
+  });
+}
+
+export async function nodeSwapList(nodeId: string): Promise<any> {
+  return tauriInvoke("node_swap_list", {
+    nodeId,
+  });
+}
+
+export async function nodeSwapInfo(nodeId: string, paymentHash: string): Promise<any> {
+  return tauriInvoke("node_swap_info", {
+    nodeId,
+    paymentHash,
+  });
+}
+
+export async function nodeSwapDelete(nodeId: string, paymentHash: string): Promise<any> {
+  return tauriInvoke("node_swap_delete", {
+    nodeId,
+    paymentHash,
+  });
 }

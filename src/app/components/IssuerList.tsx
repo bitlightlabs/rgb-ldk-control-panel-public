@@ -5,6 +5,7 @@ import { useNodeRgbIssuersQuery } from "@/app/queries";
 import { useRgbIssuersImportMutation } from "@/app/mutations";
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
+import { toast } from "sonner";
 
 interface IProps {
   activeNodeId: string | null;
@@ -17,6 +18,7 @@ export default function IssuerList(props: IProps) {
 
   const issuerImportMutation = useRgbIssuersImportMutation({
     onSuccess: () => {
+      toast.success("Issuer imported successfully");
       issuersQuery.refetch();
     }
   })
@@ -54,7 +56,7 @@ export default function IssuerList(props: IProps) {
           <CardTitle className="flex justify-between">
             <span>RGB Issuers List</span>
             <div className="flex gap-3">
-              {/* <Button disabled={issuerImportMutation.isPending} variant="secondary" size="sm" onClick={selectFile}>Import Issuers</Button> */}
+              <Button disabled={issuerImportMutation.isPending} variant="secondary" size="sm" onClick={selectFile}>Import Issuers</Button>
             </div>
           </CardTitle>
         </CardHeader>

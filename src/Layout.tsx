@@ -37,6 +37,7 @@ import IconSettings from "./app/icons/settings";
 import { safeSubstring } from "./lib/utils";
 import DashboardSwitchNode from "./app/components/DashboardSwitchNode";
 import Mask from "./app/components/Mask";
+import IconSwap from "./app/icons/swap";
 
 export default function Layout() {
   const [showMask, setShowMask] = useState(false);
@@ -87,7 +88,6 @@ function AppSideBar(props: {onExit: (loading: boolean) => void}) {
 
   const contextsQuery = useContextsQuery({
     refetchInterval: false,
-
   });
 
   const lockMutation = useNodeLockMutation();
@@ -175,6 +175,17 @@ function AppSideBar(props: {onExit: (loading: boolean) => void}) {
                 >
                   <IconWallet />
                   <span>Wallet</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </Collapsible>
+            <Collapsible asChild>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={pathname === "/dashboard/swap"}
+                  onClick={() => nav("/dashboard/swap")}
+                >
+                  <IconSwap />
+                  <span>Swap</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </Collapsible>

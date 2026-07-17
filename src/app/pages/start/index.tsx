@@ -69,6 +69,7 @@ export default function Start() {
                       context={v}
                       onSwitchNode={setShowSwitchNode}
                       onDeleteNode={setDeleteNodeId}
+                      onRefreshContexts={() => contextsQuery.refetch()}
                     />
                   );
                 })}

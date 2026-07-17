@@ -35,8 +35,14 @@ export function RGBInvoice() {
       const json = await carrierEstimateQuery.refetch()
       const estimateCarrierAmountMsat = json.data?.minimum_viable_carrier_amount_msat ?? '0'
 
-      // Triple the minimum estimate value to enable bidirectional payment
-      const estimateCarrierAmountSat = (BigInt(estimateCarrierAmountMsat) / 1000n * 3n).toString()
+      // If the recipient does not have a reserve fund,
+      // Triple (Punishment reserve + Channel reserve ≈ 3x) the estimate value to enable bidirectional payment
+      // If the value is less than 10 sats (Already have a reserve fund), we will not triple it
+      // but instead use the minimum value of 1 to receive the asset
+      let estimateCarrierAmountSat = '1'
+      if (BigInt(estimateCarrierAmountMsat) / 1000n >= 10n) {
+        estimateCarrierAmountSat = (BigInt(estimateCarrierAmountMsat) / 1000n * 3n).toString()
+      }
       setUserCarrierSat(estimateCarrierAmountSat)
     } catch(e) {}
   }

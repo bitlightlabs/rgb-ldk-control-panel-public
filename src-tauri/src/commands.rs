@@ -292,6 +292,17 @@ pub async fn contexts_remove(
     state.store.remove(&node_id).await
 }
 
+#[tauri::command]
+pub async fn contexts_update_image(
+    state: State<'_, AppState>,
+    node_id: String,
+    image: String,
+) -> Result<(), CommandError> {
+    let mut ctx = get_ctx(&state.store, &node_id).await?;
+    ctx.image = Some(image);
+    state.store.upsert(ctx).await
+}
+
 async fn get_ctx(store: &ContextStore, node_id: &str) -> Result<NodeContext, CommandError> {
     store
         .get(node_id)
@@ -1668,7 +1679,7 @@ pub async fn re_start_local_node(
         Err(e) => {
             // best-effort rollback; ignore remove errors (the original
             // bootstrap failure is the one the caller needs to see).
-            let _ = state.store.remove(&context.node_id).await;
+            // let _ = state.store.remove(&context.node_id).await;
             Err(e)
         },
     }
@@ -2321,7 +2332,7 @@ pub async fn node_rgb_ln_pay(
 pub async fn node_main_channels(
     state: State<'_, AppState>,
     node_id: String,
-) -> Result<Vec<rgbldkd_http::ChannelDetailsExtendedDto>, CommandError> {
+) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     traced_node_call(
         &state,
@@ -2995,7 +3006,7 @@ pub async fn node_rgb_contract_issuers_import(
     name: String,
     format: Option<String>,
     archive_base64: String,
-) -> Result<rgbldkd_http::RgbIssuersImportResponse, CommandError> {
+) -> Result<String, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     let fmt = format.unwrap_or_else(|| "raw".to_string());
     let bytes = general_purpose::STANDARD
@@ -5046,6 +5057,132 @@ pub async fn node_rgb_ln_estimate_carrier(
         "rgb.ln.estimate_carrier",
         None,
         rgbldkd_http::rgb_ln_estimate_carrier(&state.http, &ctx),
+    )
+    .await
+}
+
+
+/// Swap offer
+#[tauri::command]
+pub async fn node_swap_offers(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.swap.offers",
+        None,
+        rgbldkd_http::swap_offers(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+/// Swap execute
+#[tauri::command]
+pub async fn node_swap_execute(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.swap.execute",
+        None,
+        rgbldkd_http::swap_execute(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+/// Swap accept
+#[tauri::command]
+pub async fn node_swap_accept(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.swap.accept",
+        None,
+        rgbldkd_http::swap_accept(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+/// Swap decode
+#[tauri::command]
+pub async fn node_swap_decode(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.swap.decode",
+        None,
+        rgbldkd_http::swap_decode(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+/// Swap list
+#[tauri::command]
+pub async fn node_swap_list(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.swap.list",
+        None,
+        rgbldkd_http::swap_list(&state.http, &ctx),
+    )
+    .await
+}
+
+/// Swap info
+#[tauri::command]
+pub async fn node_swap_info(
+    state: State<'_, AppState>,
+    node_id: String,
+    payment_hash: String
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.swap.info",
+        None,
+        rgbldkd_http::swap_info(&state.http, &ctx, payment_hash),
+    )
+    .await
+}
+
+/// Swap delete
+#[tauri::command]
+pub async fn node_swap_delete(
+    state: State<'_, AppState>,
+    node_id: String,
+    payment_hash: String
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.swap.delete",
+        None,
+        rgbldkd_http::swap_delete(&state.http, &ctx, payment_hash),
     )
     .await
 }

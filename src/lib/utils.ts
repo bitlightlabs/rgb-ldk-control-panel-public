@@ -22,7 +22,7 @@ function getRandomColor(str: string) {
 export function getGradientStyle(text: string) {
   const color = getRandomColor(text);
   const color1 = color(1);
-  const color2 = color(0.6);
+  const color2 = color(1);
 
   return `linear-gradient(135deg, ${color1}, ${color2})`;
 }

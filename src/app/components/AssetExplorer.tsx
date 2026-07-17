@@ -4,10 +4,14 @@ import AssetAvatar from "./AssetAvatar";
 import { useNavigate } from "react-router-dom";
 import { useContextStore } from "../stores/contextStore";
 import { useNodeRgbContractsQuery } from "@/app/queries";
+import IssueAsset from "./IssueAsset";
+import { useState } from "react";
+// import { Button } from "@/components/ui/button";
 
 export type Asset = RgbContractDto;
 
 export function AssetExplorer() {
+  const [showIssue, setShowIssue] = useState(false);
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
 
@@ -22,8 +26,8 @@ export function AssetExplorer() {
     rgbContractsQuery.isPending && !rgbContractsQuery.data;
 
   const table = (
-    <div className="mt-6">
-      <div className="flex justify-between h-7 items-center">
+    <div className="mt-4">
+      <div className="flex justify-between h-7 items-center px-3">
         <div className="text-xs text-secondary-foreground">ASSET</div>
         <div className="text-right text-xs text-secondary-foreground">
           BALANCE
@@ -33,7 +37,7 @@ export function AssetExplorer() {
         {contracts.map((asset) => (
           <div
             key={asset.contract_id}
-            className="cursor-pointer flex justify-between items-center py-3"
+            className="cursor-pointer flex justify-between items-center py-3 px-3 hover:bg-background-3 rounded-2xl"
             role="button"
             // onClick={() => handleSelectAsset(asset.contract_id)}
             onClick={() =>
@@ -49,7 +53,7 @@ export function AssetExplorer() {
                 </div>
               </div>
             </div>
-            <div>
+            <div className="h-10">
               <AssetBalance
                 nodeId={activeNodeId ?? ""}
                 contractId={asset.contract_id}
@@ -64,9 +68,15 @@ export function AssetExplorer() {
 
   return (
     <>
-      <div className="h-full bg-background-3 rounded-3xl p-5 border border-background-2">
-        <div className="flex justify-between h-[22px] items-center">
+      <div className="h-full bg-background-3 rounded-3xl py-5 px-2 border border-background-2 min-h-[405px]">
+        <div className="flex justify-between h-[22px] items-center px-3">
           <span className="font-medium">RGB Assets</span>
+          {/* <div>
+            <Button
+              size="sm"
+              onClick={() => setShowIssue(true)}
+            >Issue Asset</Button>
+          </div> */}
         </div>
         {isInitialLoading ? (
           <div className="text-base py-20 text-center">Loading...</div>
@@ -83,13 +93,13 @@ export function AssetExplorer() {
       </div>
 
       {/* issuers */}
-      {/* {showIssue ? (
+      {showIssue ? (
         <IssueAsset
           onClose={() => setShowIssue(false)}
-          activeNodeId={activeNodeId}
+          activeNodeId={activeNodeId ?? ''}
           onSuccess={() => rgbContractsQuery.refetch()}
         />
-      ) : null} */}
+      ) : null}
 
       {/* Import Contract */}
       {/* {showImport ? (

@@ -37,11 +37,13 @@ import { formatAddress } from "@/lib/utils";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import EmptyNodes from "../components/EmptyNodes";
+import EmptyNodes from "@/app/components/EmptyNodes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import IconHelp from "@/app/icons/help";
+import { parseNumber } from "@/lib/number";
 
 const MIN_RGB_CHANNEL_SATS = 2_000n;
+const MIN_CHANNEL_RESERVE = 2_000n;
 
 function buildConsignmentTemplate(base: string): string {
   const trimmed = base.trim();
@@ -173,10 +175,8 @@ function BtcForm(props: {peers: PeerDetailsDto[]}) {
     openMutation.mutate({ nodeId: activeNodeId, request: req });
   };
 
-  const setMax = () => {
-    if(BigInt(btcBalance.current) > 0n) {
-      setChannelAmountSats(btcBalance.current);
-    }
+  const setMin = () => {
+    setChannelAmountSats(MIN_RGB_CHANNEL_SATS.toString());
   }
 
   return (
@@ -193,8 +193,8 @@ function BtcForm(props: {peers: PeerDetailsDto[]}) {
                 <Button
                   variant="destructive"
                   className="h-7 rounded-full px-2.5 py-0 text-xs"
-                  onClick={setMax}
-                >MAX</Button>
+                  onClick={setMin}
+                >MIN</Button>
               </div>
             }
             bottom={
@@ -351,6 +351,7 @@ function BtcForm(props: {peers: PeerDetailsDto[]}) {
 
 function RGBForm(props: {peers: PeerDetailsDto[]}) {
   const [review, setReview] = useState(false);
+  const [pushToCounterpartySats, setPushToCounterpartySats] = useState("0")
   const [channelAmountSats, setChannelAmountSats] = useState("")
   const [peerNodePubkey, setPeerNodePubkey] = useState("");
   const [peerNodeAddress, setPeerNodeAddress] = useState("");
@@ -377,15 +378,38 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
   };
 
   const check = () => {
-    // check input
-    if(BigInt(channelAmountSats || "0") < BigInt(MIN_RGB_CHANNEL_SATS)) {
+    // check minimum amounts
+    if(BigInt(channelAmountSats || '0') < BigInt(MIN_RGB_CHANNEL_SATS)) {
       toast.error(`The minimum amount is ${MIN_RGB_CHANNEL_SATS} sats. Please increase the channel capacity and try again.`)
+      return
+    }
+    if(BigInt(pushToCounterpartySats || '0') > 0n
+      && BigInt(pushToCounterpartySats) < BigInt(MIN_RGB_CHANNEL_SATS)
+    ) {
+      toast.error(`The minimum push amount is ${MIN_RGB_CHANNEL_SATS} sats.`)
       return
     }
 
     // Check balance
     if(BigInt(channelAmountSats) >= BigInt(rgbUtxoBalance.current)) {
       toast.error("Insufficient receiving capacity.")
+      return
+    }
+
+    // Check push amount
+    if(BigInt(pushToCounterpartySats || '0') >= BigInt(channelAmountSats || '0')) {
+      toast.error("Push amount cannot exceed channel capacity.")
+      return
+    }
+
+    // Channel reserve sats (1% of the capacity, rounded up to MIN_CHANNEL_RESERVE if less than MIN_CHANNEL_RESERVE)
+    let remainingCapacity = BigInt(channelAmountSats || '0') - BigInt(pushToCounterpartySats || '0')
+    let channelReserve = BigInt(channelAmountSats || '0') / 100n;
+    if(channelReserve < MIN_CHANNEL_RESERVE) {
+      channelReserve = MIN_CHANNEL_RESERVE;
+    }
+    if(remainingCapacity < channelReserve) {
+      toast.error(`Capacity is too small.`)
       return
     }
 
@@ -420,18 +444,22 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
       address: peerNodeAddress.trim(),
       channel_amount_sats: channelAmountSats.trim(),
       announce: announce === "1",
-      push_to_counterparty_msat: null,
+      push_to_counterparty_msat: pushToCounterpartySats
+        ? (BigInt(pushToCounterpartySats) * 1000n).toString()
+        : '0',
       rgb: {
         contract_id: selectedContract.contract_id,
-        asset_amount: BigInt(
-          Number(rgbAssetAmount.trim()) * 10 ** precision
-        ).toString(),
+        asset_amount: parseNumber(rgbAssetAmount, precision),
         color_context_data: defaultRgbContextData(currentContext),
       }
     };
     console.log("Open Channel Data:", req);
     openMutation.mutate({ nodeId: activeNodeId, request: req });
   };
+
+  const setMin = () => {
+    setChannelAmountSats(MIN_RGB_CHANNEL_SATS.toString());
+  }
 
   return (
     <>
@@ -478,7 +506,12 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
             inputMode="numeric"
             subfix={
               <div className="absolute z-50 top-4 right-4">
-                <span>sats</span>
+                <span className="mr-3">sats</span>
+                <Button
+                  variant="destructive"
+                  className="h-7 rounded-full px-2.5 py-0 text-xs"
+                  onClick={setMin}
+                >MIN</Button>
               </div>
             }
             bottom={
@@ -498,6 +531,7 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
             onChange={(e) => setChannelAmountSats(e.currentTarget.value)}
           />
         </Field>
+
 
         <Field className="mt-8">
           <FieldLabel>Choose Channel Peer</FieldLabel>
@@ -550,88 +584,94 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
       </div>
 
       {/* Review  */}
-      <Dialog open={review} onOpenChange={() => setReview(false)}>
-        <DialogContent className="w-[560px]">
-          <DialogHeader>
-            <DialogTitle>Open Channel</DialogTitle>
-          </DialogHeader>
-          <div className="bg-background-3 rounded-2xl p-4">
-            <h4 className="text-base leading-5 font-medium ">Node Pubkey</h4>
-            <div className="text-sm text-secondary-foreground mt-2">
-              {peerNodePubkey}
-            </div>
-          </div>
-          <div className="bg-background-3 rounded-2xl p-4">
-            <div className="h-[18px] text-sm text-secondary-foreground flex justify-between">
-              <div>Channel Capacity</div>
-              <div>
-                <span>Available: </span>
-                <RgbUtxoBalance
-                  nodeId={activeNodeId ?? ""}
-                  contractId={selectedContract?.contract_id ?? ""}
-                  onBalance={(sats) => {
-                    rgbUtxoBalance.current = sats
-                  }}
-                />
+      {
+        review ? (
+          <Dialog open onOpenChange={() => setReview(false)}>
+            <DialogContent className="w-[560px]">
+              <DialogHeader>
+                <DialogTitle>Open Channel</DialogTitle>
+              </DialogHeader>
+              <div className="bg-background-3 rounded-2xl p-4">
+                <h4 className="text-base leading-5 font-medium ">Node Pubkey</h4>
+                <div className="text-sm text-secondary-foreground mt-2">
+                  {peerNodePubkey}
+                </div>
               </div>
-            </div>
-            <div className="text-[17px] mt-1 font-medium">
-              {channelAmountSats} sats
-            </div>
-             {selectedContract ? (
-              <>
-                <div className="h-[1px] bg-background-3 my-4"></div>
-                <div className="h-[18px] text-sm text-secondary-foreground">
-                  Initial RGB Deposit
+              <div className="bg-background-3 rounded-2xl p-4">
+                <div className="h-[18px] text-sm text-secondary-foreground flex justify-between">
+                  <div>Channel Capacity</div>
+                  <div>
+                    <span>Available: </span>
+                    <RgbUtxoBalance
+                      nodeId={activeNodeId ?? ""}
+                      contractId={selectedContract?.contract_id ?? ""}
+                      onBalance={(sats) => {
+                        rgbUtxoBalance.current = sats
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="text-[17px] mt-1 font-medium">
-                  {rgbAssetAmount} {selectedContract?.name}
+                  {channelAmountSats} sats
                 </div>
-              </>
-            ) : null}
-          </div>
-          <div className="bg-background-3 rounded-2xl p-4">
-            <div className="h-5 text-base flex justify-between items-center">
-              <div className="text-secondary-foreground">Funding Source</div>
-              <div>RGB Asset UTXO</div>
-            </div>
-          </div>
 
-          {openMutation.isError ? (
-            <Alert variant="destructive" data-testid="open-channel-error">
-              <AlertDescription>
-                {errorToText(openMutation.error)}
-              </AlertDescription>
-            </Alert>
-          ) : null}
+                {selectedContract ? (
+                  <>
+                    <div className="h-[1px] bg-background-3 my-4"></div>
+                    <div className="h-[18px] text-sm text-secondary-foreground">
+                      Initial RGB Deposit
+                    </div>
+                    <div className="text-[17px] mt-1 font-medium">
+                      {rgbAssetAmount} {selectedContract?.name}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+              <div className="bg-background-3 rounded-2xl p-4">
+                <div className="h-5 text-base flex justify-between items-center">
+                  <div className="text-secondary-foreground">Funding Source</div>
+                  <div>RGB Asset UTXO</div>
+                </div>
+              </div>
 
-          <DialogFooter>
-            <Button
-              variant="destructive"
-              size="lg"
-              type="button"
-              className="flex-1 rounded-full"
-              onClick={() => {
-                setReview(false)
-                openMutation.reset()
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="white"
-              size="lg"
-              type="button"
-              className="flex-1 rounded-full"
-              disabled={openMutation.isPending}
-              loading={openMutation.isPending}
-              onClick={submitOpen}
-            >
-              Open Channel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {openMutation.isError ? (
+                <Alert variant="destructive" data-testid="open-channel-error">
+                  <AlertDescription>
+                    {errorToText(openMutation.error)}
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              <DialogFooter>
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  type="button"
+                  className="flex-1 rounded-full"
+                  onClick={() => {
+                    setReview(false)
+                    openMutation.reset()
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="white"
+                  size="lg"
+                  type="button"
+                  className="flex-1 rounded-full"
+                  disabled={openMutation.isPending}
+                  loading={openMutation.isPending}
+                  onClick={submitOpen}
+                >
+                  Open Channel
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        ) : null
+      }
+
     </>
   )
 }

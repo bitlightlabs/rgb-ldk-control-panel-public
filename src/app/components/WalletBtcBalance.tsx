@@ -19,5 +19,5 @@ export default function WalletBtcBalance(props: {nodeId: string, onBalanceLoad?:
 
   return (
     <span>{(balancesQuery.isLoading || !balance) ? '--' : (balance + ' sats')}</span>
-    )
+  )
 }

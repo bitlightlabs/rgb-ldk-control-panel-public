@@ -14,15 +14,19 @@ import IconStart from "@/app/icons/start";
 import { useNodeLockMutation } from "@/app/mutations";
 import { removeNodeScopedCache } from "@/app/queries";
 import { useQueryClient } from "@tanstack/react-query";
+import { LDK_IMAGE, LOCAL_IGNORE_NEW_IMAGE } from "@/app/config/constant";
+import UpdateImage from "@/app/components/UpdateImage";
 
 interface IProps {
   context: NodeContext;
   onSwitchNode: (nodeId: string) => void;
   onDeleteNode: (nodeId: string) => void;
+  onRefreshContexts: () => void;
 }
 
 export default function Account(props: IProps) {
   const { context } = props;
+  const [showUpdate, setShowUpdate] = useState(false)
   const [online, setOnline] = useState(true)
   const [loading, setLoading] = useState(false)
   const [actions, setActions] = useState<any[]>([])
@@ -48,8 +52,8 @@ export default function Account(props: IProps) {
     icon: (
       <IconStart style={{ width: "20px", height: "20px" }} />
     ),
-    data: context.node_id,
-    onClick: (id: string) => startNode(id),
+    data: null,
+    onClick: () => checkUpdate(),
   }
 
   const stopAction = {
@@ -57,8 +61,8 @@ export default function Account(props: IProps) {
     icon: (
       <IconStop style={{ width: "20px", height: "20px" }} />
     ),
-    data: context.node_id,
-    onClick: (id: string) => stopNode(id),
+    data: null,
+    onClick: () => stopNode(),
   }
 
   const onNodeStatusChange = (_: string, online: boolean) => {
@@ -71,12 +75,32 @@ export default function Account(props: IProps) {
     setOnline(online)
   }
 
-  const startNode = async (nodeId: string) => {
+  const checkUpdate = () => {
+    const nodeId = context.node_id
+    if(!nodeId) {
+      return
+    }
+
+    const ignore = globalThis.localStorage.getItem(LOCAL_IGNORE_NEW_IMAGE)
+    if(!ignore && context.image !== LDK_IMAGE) {
+      setShowUpdate(true)
+      return;
+    }
+
+    startNode()
+  }
+
+  const startNode = async () => {
+    const nodeId = context.node_id
+    if(!nodeId || loading) {
+      return
+    }
+
     try {
       setLoading(true)
-      console.log("Starting node:", nodeId);
       await reStartLocalNode(nodeId);
       onNodeStatusChange(nodeId, true)
+      props.onRefreshContexts()
     } catch(e) {
       toast.error(errorToText(e))
     } finally {
@@ -84,7 +108,12 @@ export default function Account(props: IProps) {
     }
   }
 
-  const stopNode = async (nodeId: string) => {
+  const stopNode = async () => {
+    const nodeId = context.node_id
+    if(!nodeId || loading) {
+      return
+    }
+
     try {
       setLoading(true)
       console.log("Stopping node:", nodeId);
@@ -100,48 +129,62 @@ export default function Account(props: IProps) {
   }
 
   return (
-    <div
-      className="group relative h-18 mb-2 p-3 bg-background-3 rounded-2xl cursor-pointer hover:bg-background-2"
-      role="button"
-      onClick={() => props.onSwitchNode(context.node_id)}
-    >
-      {
-        !online ? (
-          <CustomTooltip className="hidden group-hover:block">
-            Node offline. Ensure Docker
-            is running to connect.
-          </CustomTooltip>
-        ) : null
-      }
+    <>
+      <div
+        className="group relative h-18 mb-2 p-3 bg-background-3 rounded-2xl cursor-pointer hover:bg-background-2"
+        role="button"
+        onClick={() => props.onSwitchNode(context.node_id)}
+      >
+        {
+          !online ? (
+            <CustomTooltip className="hidden group-hover:block">
+              Node offline. Ensure Docker
+              is running to connect.
+            </CustomTooltip>
+          ) : null
+        }
 
-      <div className="absolute right-[10px] top-[10px]">
-        <DropMenu
-          className="w-6 h-6"
-          direaction="vertical"
-          variant="ghost"
-          disabled={loading}
-          list={actions}
-        />
-      </div>
-      <div className="h-full items-center flex gap-3">
-        <NodeIcon
-          className="w-8 h-8"
-          forceOnline={online}
-          nodeId={context.node_id}
-          name={context?.display_name ?? ''}
-          onStatusChange={onNodeStatusChange}
-        />
-        <div>
-          <h4 className="text-base font-medium truncate pr-8">
-            {safeSubstring(context.display_name, 9)}
-          </h4>
-          <NetworkMeta
-            network={context.network}
-            // todo ====== nodecontext add network type ======
-            type={"Local"}
+        <div
+          className="absolute right-[10px] top-[10px]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <DropMenu
+            className="w-6 h-6"
+            direaction="vertical"
+            variant="ghost"
+            disabled={loading}
+            list={actions}
           />
         </div>
+        <div className="h-full items-center flex gap-3">
+          <NodeIcon
+            className="w-8 h-8"
+            forceOnline={online}
+            nodeId={context.node_id}
+            name={context?.display_name ?? ''}
+            onStatusChange={onNodeStatusChange}
+          />
+          <div>
+            <h4 className="text-base font-medium truncate pr-8">
+              {safeSubstring(context.display_name, 9)}
+            </h4>
+            <NetworkMeta
+              network={context.network}
+              // todo ====== nodecontext add network type ======
+              type={"Local"}
+            />
+          </div>
+        </div>
       </div>
-    </div>
+
+      {/* Update Image */}
+      {showUpdate ? (
+        <UpdateImage
+          nodeId={context.node_id}
+          onClose={() => setShowUpdate(false)}
+          onStart={startNode}
+        />
+      ) : null}
+    </>
   )
 }

@@ -74,6 +74,15 @@ export const queryKeys = {
     ["rgb_onchain_invoice_decode", nodeId, payload] as const,
   rgbInvoiceEstimateCarrier: (nodeId: string) =>
     ["rgb_invoice_estimate_carrier", nodeId] as const,
+
+  // ---- swap ----
+  nodeSwapOffers: (nodeId: string) => ["node_swap_offers", nodeId] as const,
+  nodeSwapList: (nodeId: string) => ["node_swap_list", nodeId] as const,
+  nodeSwapInfo: (nodeId: string, paymentHash: string) =>
+    ["node_swap_info", nodeId, paymentHash] as const,
+  nodeSwapAccept: (nodeId: string, swapString: string) =>
+    ["node_swap_accept", nodeId, swapString] as const,
+  nodeSwapExecute: (nodeId: string) => ["node_swap_execute", nodeId] as const,
 } as const;
 
 export type QueryKey = ReturnType<

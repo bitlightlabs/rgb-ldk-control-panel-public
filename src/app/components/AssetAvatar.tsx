@@ -1,5 +1,6 @@
 import { getGradientStyle } from "@/lib/utils";
 import { cn } from "@/lib/utils"
+import BTCIcon from '@/assets/btc.png'
 
 export default function AssetAvatar({ name, className = '' }: { name: string, className?: string }) {
   const first = (name.trim().charAt(0) || "?").toUpperCase();
@@ -11,7 +12,10 @@ export default function AssetAvatar({ name, className = '' }: { name: string, cl
       )}
       style={{ background: getGradientStyle(name) }}
     >
-      {first}
+      {name.toUpperCase() === 'BTC'
+        ? <img src={BTCIcon} alt="BTC" style={{width: '100%', height: '100%'}} />
+        : first
+      }
     </span>
   );
 }

@@ -87,7 +87,8 @@ export interface ChannelDetailsExtendedDto {
   is_channel_ready: boolean;
   is_usable: boolean;
   is_announced: boolean;
-  rgb_balance: any
+  rgb_balance?: {contract_id: string, local_amount: string, remote_amount: string};
+  short_channel_id: string
 }
 
 export interface OpenChannelRequest {
@@ -510,4 +511,23 @@ export interface SignmessageResponse {
   pubkey: string,
   derivation_path: string,
 	digest_hex?: String
+}
+
+
+export interface SwapInfo {
+  "asset_amount": string
+  "asset_id": string,
+  "btc_amount_msat": string,
+  "btc_carrier_amount_msat": string,
+  "channel_scid": string
+  "counterparty_node_id": string,
+  "created_at_unix_secs": string,
+  "expiry_secs": number,
+  "is_multihop": boolean,
+  "maker_gives_rgb": boolean,
+  "payment_hash": string,
+  "role": string,
+  /** `Offered | Accepted | Settled` */
+  "status": string
+  contract_id: string
 }

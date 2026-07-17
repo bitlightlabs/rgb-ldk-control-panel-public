@@ -100,7 +100,7 @@ export default function ImportWallet() {
         network,
         esploraUrl: option.esploraUrl,
       });
-      setCurrentContext(context)
+      setCurrentContext(context);
       setProgress(40);
 
       // 3. Init Node

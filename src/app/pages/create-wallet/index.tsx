@@ -41,7 +41,6 @@ export function CreateWallet() {
   }
 
   useEffect(() => {
-    console.log("222", accountName)
     if (!contextsQuery.data) return;
     setAccountName(`Node ${contextsQuery.data.length + 1}`);
   }, [accountName, contextsQuery.data, setAccountName])

@@ -51,7 +51,7 @@ export function CopyTextInline(
 
   return (
     <div
-      className={cn("text-base h-5 flex items-center gap-2", className)}
+      className={cn("text-base font-normal h-5 flex items-center gap-2", className)}
       onClick={(e) => e.stopPropagation()}
     >
       <span

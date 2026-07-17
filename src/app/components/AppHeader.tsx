@@ -12,7 +12,8 @@ import testnet4Icon from "@/assets/testnet4.svg";
 import { useBreadcrumbs } from "@/hooks/use-breadcrumb";
 import { useContextStore } from "../stores/contextStore";
 import IconWallet from "../icons/wallet";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import IconSwap from "../icons/swap";
 
 const NETWORK_ICONS: Record<string, string> = {
   mainnet: mainnetIcon,
@@ -47,6 +48,7 @@ export function AppHeader() {
 
 export function AppBreadcrumb() {
   const breadcrumbs = useBreadcrumbs();
+  const location = useLocation();
 
   const menu = [];
   for (let i = 0; i < breadcrumbs.length; i++) {
@@ -68,7 +70,13 @@ export function AppBreadcrumb() {
       <div className="h-full flex items-center">
         {
           <Breadcrumb className="flex items-center">
-            <IconWallet className="mr-2 h-3 w-3 text-secondary-foreground" />
+            {
+              location.pathname.includes('swap') ? (
+                <IconSwap className="mr-2 h-3 w-3 text-secondary-foreground" />
+              ) : (
+                <IconWallet className="mr-2 h-3 w-3 text-secondary-foreground" />
+              )
+            }
             <BreadcrumbList>{menu}</BreadcrumbList>
           </Breadcrumb>
         }

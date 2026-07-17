@@ -187,6 +187,14 @@ pub fn run() {
 			commands::node_rgb_address_current,
 			commands::stop_local_node,
 			commands::node_rgb_ln_estimate_carrier,
+			commands::contexts_update_image,
+			commands::node_swap_offers,
+			commands::node_swap_execute,
+			commands::node_swap_accept,
+			commands::node_swap_decode,
+			commands::node_swap_list,
+			commands::node_swap_info,
+			commands::node_swap_delete,
 		])
 		.build(tauri::generate_context!())
 		.expect("error while running tauri application");

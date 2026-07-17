@@ -220,13 +220,13 @@ impl serde::Serialize for CommandError {
 				"http request failed".to_string(),
 				Some("Check the node is running and the base url is reachable."),
 			),
-				CommandError::NodeLocked => (
-					"node_locked",
-					"node is locked".to_string(),
-					Some(
-						"Unlock in the app: go to Nodes → Actions → Unlock. If you don’t see updates afterwards, go to Nodes → Actions → Start events. If Unlock is disabled, edit the node context and set Control API Base URL + Token file path."
-					),
+			CommandError::NodeLocked => (
+				"node_locked",
+				"node is locked".to_string(),
+				Some(
+					"Unlock in the app: go to Nodes → Actions → Unlock. If you don’t see updates afterwards, go to Nodes → Actions → Start events. If Unlock is disabled, edit the node context and set Control API Base URL + Token file path."
 				),
+			),
 			CommandError::Io => ("io", "io error".to_string(), None),
 			CommandError::ExternalCommandFailed {
 				command,

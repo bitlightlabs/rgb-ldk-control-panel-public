@@ -35,12 +35,12 @@ pub fn pull_image(image: &str) -> Result<(), String> {
     let status = Command::new(docker_path)
         .args(["pull", image])
         .status()
-        .map_err(|e| format!("Failed to execute docker pull {}: {}", image, e))?;
+        .map_err(|e| format!("Failed to pull image: {}", image))?;
 
     if status.success() {
         Ok(())
     } else {
-        Err(format!("docker pull {} failed, code: {:?}", image, status.code()))
+        Err(format!("Failed to pull image: {}, Check your network", image))
     }
 }
 

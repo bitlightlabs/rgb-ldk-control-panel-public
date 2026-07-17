@@ -398,6 +398,7 @@ pub struct ChannelDetailsExtendedDto {
 	pub is_usable: bool,
 	pub is_announced: bool,
 	pub rgb_balance: Option<RgbChannelBalanceDto>,
+	pub short_channel_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1358,7 +1359,7 @@ pub async fn rgb_ln_pay(
 pub async fn main_channels(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
-) -> Result<Vec<ChannelDetailsExtendedDto>, CommandError> {
+) -> Result<Value, CommandError> {
 	let base = parse_base_url(&ctx.main_api_base_url)?;
 	let url = base.join("api/v1/channels").map_err(|_| {
 		CommandError::InvalidBaseUrl {
@@ -1377,7 +1378,7 @@ pub async fn main_channels(
 		return Err(classify_non_success("main", resp).await?);
 	}
 
-	resp.json::<Vec<ChannelDetailsExtendedDto>>()
+	resp.json::<Value>()
 		.await
 		.map_err(|_| CommandError::HttpRequestFailed)
 }
@@ -2288,7 +2289,7 @@ pub async fn rgb_issuers_import(
     name: &str,
     format: &str,
     archive: &[u8],
-) -> Result<RgbIssuersImportResponse, CommandError> {
+) -> Result<String, CommandError> {
     let base = parse_base_url(&ctx.main_api_base_url)?;
     let url = base
         .join(&format!(
@@ -2311,11 +2312,14 @@ pub async fn rgb_issuers_import(
         .send()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
+    // if !resp.status().is_success() {
+    //     return Err(classify_non_success("main", resp).await?);
+    // }
 
-    resp.json::<RgbIssuersImportResponse>()
+    // resp.json::<Value>()
+    //     .await
+    //     .map_err(|_| CommandError::HttpRequestFailed)
+		resp.text()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)
 }
@@ -2810,6 +2814,203 @@ pub async fn rgb_ln_estimate_carrier(
 	})?;
 
 	let mut req = client.post(url);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+
+pub async fn swap_offers(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/swap/offers").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.post(url).json(request);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn swap_execute(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/swap/execute").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.post(url).json(request);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn swap_accept(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/swap/accept").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.post(url).json(request);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn swap_decode(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/swap/decode").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.post(url).json(request);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn swap_list(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join("api/v1/swap/list").map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.get(url);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn swap_info(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	payment_hash: String
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join(&format!("api/v1/swap/{payment_hash}")).map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.get(url);
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		req = req.bearer_auth(token);
+	}
+
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success("main", resp).await?);
+	}
+
+	resp.json::<Value>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+pub async fn swap_delete(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	payment_hash: String
+) -> Result<Value, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	let url = base.join(&format!("api/v1/swap/{payment_hash}")).map_err(|_| {
+		CommandError::InvalidBaseUrl {
+			url: ctx.main_api_base_url.clone(),
+		}
+	})?;
+
+	let mut req = client.delete(url);
 	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
 		let token = read_token_file(Path::new(path))?;
 		req = req.bearer_auth(token);

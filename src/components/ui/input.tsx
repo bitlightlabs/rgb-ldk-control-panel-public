@@ -10,7 +10,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input"> &
         <input
           type={type}
           className={cn(
-            "focus-visible:ring-1 focus-visible:ring-ring flex rounded-2xl border border-input h-13 w-full bg-transparent px-3 py-1 text-lg transition-colors file:border-0 file:bg-transparent font-normal placeholder:text-lg placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+            "focus-visible:ring-1 focus-visible:ring-muted-foreground flex rounded-2xl border border-input h-13 w-full bg-transparent px-3 py-1 text-lg transition-colors file:border-0 file:bg-transparent font-normal placeholder:text-lg placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
             className
           )}
           ref={ref}
@@ -28,14 +28,14 @@ const ComplexInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"in
   ({ className, type, slot, top, bottom, subfix, ...props }, ref) => {
     return (
       <div className={cn(
-        "relative p-4 rounded-2xl bg-background-3 border border-input focus-within:ring-1 focus-within:ring-ring",
+        "relative p-4 rounded-2xl bg-background-3 border border-input focus-within:ring-1 focus-within:ring-muted-foreground",
         className
       )}>
         <div className="absolute top-4 right-4 flex items-center">{slot}</div>
         {top}
         <input
           type={type}
-          className="flex h-7 w-full border-0 bg-transparent text-lg transition-colors font-normal placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          className="flex h-7 leading-7 w-full border-0 bg-transparent text-lg transition-colors font-normal placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           ref={ref}
           {...props}
         />
@@ -79,7 +79,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, React.ComponentProps<"i
           autoComplete="off"
           type={type}
           className={cn(
-            "focus-visible:ring-1 focus-visible:ring-ring flex rounded-2xl border border-input h-13 w-full bg-transparent px-3 py-1 text-lg transition-colors font-normal placeholder:text-lg placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
+            "focus-visible:ring-1 focus-visible:ring-muted-foreground flex rounded-2xl border border-input h-13 w-full bg-transparent px-3 py-1 text-lg transition-colors font-normal placeholder:text-lg placeholder:font-normal placeholder:text-muted-foreground focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
             className,
             prefix ? "pl-10" : ""
           )}
