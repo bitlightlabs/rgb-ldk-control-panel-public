@@ -254,7 +254,7 @@ function NodeInfo() {
 
   return (
     <div className="h-20 flex justify-between gap-3">
-      <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-2">
+      <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-3">
         <div className="text-xs text-secondary-foreground leading-[18px]">Pubkey</div>
         <div className="mt-2">
           <CopyTextInline
@@ -263,7 +263,7 @@ function NodeInfo() {
           />
         </div>
       </div>
-      <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-2">
+      <div className="flex-1 rounded-3xl bg-background-3 py-4 px-5 border border-background-3">
         <div className="text-xs text-secondary-foreground leading-[18px]">Address</div>
         <div className="mt-2">
           <CopyTextInline

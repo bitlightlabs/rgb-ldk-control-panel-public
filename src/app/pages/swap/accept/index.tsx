@@ -129,6 +129,13 @@ function AcceptDialog(props: {
 
   const acceptSwap = async () => {
     try {
+      // Check if expiry time has passed
+      const createdTime = Number(data?.created_at_unix_secs || '0') * 1000;
+      const expiryTime = createdTime + (Number(data?.expiry_secs || '0') * 1000);
+      if (Date.now() > expiryTime) {
+        throw new Error('Swap has expired.');
+      }
+
       await nodeswapAccept.mutateAsync({ nodeId, swapString });
       toast.success('Swap transaction accepted successfully.')
       props.onClose()
@@ -214,10 +221,21 @@ function AcceptDialog(props: {
             }
           />
           <Row
-            label="Timestamp"
+            label="Created Time"
             value={
               <div>
                 {new Date(Number(data?.created_at_unix_secs || '0') * 1000).toLocaleString()}
+              </div>
+            }
+          />
+          <Row
+            label="Expiry Time"
+            value={
+              <div>
+                {new Date(
+                  Number(data?.created_at_unix_secs || '0') * 1000
+                  + (Number(data?.expiry_secs || '0') * 1000)
+                ).toLocaleString()}
               </div>
             }
           />

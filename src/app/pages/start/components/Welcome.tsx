@@ -29,7 +29,7 @@ export default function Welcome(props: IProps) {
       </div>
 
       <div className="mt-10 grid grid-cols-2 gap-5">
-        <div className="h-auto px-8 py-8 rounded-3xl bg-background-3 border border-background-2 hover:bg-background-2 justify-start text-left">
+        <div className="h-auto px-8 py-8 rounded-3xl bg-background-3 border border-background-3 hover:bg-background-2 justify-start text-left">
           <div className="w-[56px] h-[56px] flex items-center justify-center bg-background-3 rounded-2xl">
             <IconDisk style={{ width: "24px", height: "24px" }} />
           </div>
@@ -48,7 +48,7 @@ export default function Welcome(props: IProps) {
             </Button>
           </div>
         </div>
-        <div className="h-auto px-8 py-8 rounded-2xl bg-background-3 border border-background-2 hover:bg-background-2 justify-start text-left">
+        <div className="h-auto px-8 py-8 rounded-2xl bg-background-3 border border-background-3 hover:bg-background-2 justify-start text-left">
           <div className="w-[56px] h-[56px] flex items-center justify-center bg-background-3 rounded-2xl">
             <IconCloud style={{ width: "24px", height: "24px" }} />
           </div>

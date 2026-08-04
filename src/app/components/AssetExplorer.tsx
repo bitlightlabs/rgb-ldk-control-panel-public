@@ -6,7 +6,7 @@ import { useContextStore } from "../stores/contextStore";
 import { useNodeRgbContractsQuery } from "@/app/queries";
 import IssueAsset from "./IssueAsset";
 import { useState } from "react";
-// import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 
 export type Asset = RgbContractDto;
 
@@ -68,15 +68,15 @@ export function AssetExplorer() {
 
   return (
     <>
-      <div className="h-full bg-background-3 rounded-3xl py-5 px-2 border border-background-2 min-h-[405px]">
+      <div className="h-full bg-background-3 rounded-3xl py-5 px-2 border border-background-3 min-h-[405px]">
         <div className="flex justify-between h-[22px] items-center px-3">
           <span className="font-medium">RGB Assets</span>
-          {/* <div>
+          <div>
             <Button
               size="sm"
               onClick={() => setShowIssue(true)}
             >Issue Asset</Button>
-          </div> */}
+          </div>
         </div>
         {isInitialLoading ? (
           <div className="text-base py-20 text-center">Loading...</div>

@@ -1,17 +1,13 @@
 import { useNodePaymentsListQuery, useNodeRgbContractsQuery } from "@/app/queries";
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
 import { useNavigate } from "react-router-dom";
-import Btc from "@/app/components/activities/Btc";
-import { Button } from "@/components/ui/button";
-import IconReceive from "@/app/icons/receive";
-import Empty from "@/app/components/Empty";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 import { useNodeSwapListQuery } from "@/app/queries/swap";
-import type { PaymentDetailsDto, SwapInfo } from "@/lib/sdk/types";
-import SwapItem from "@/app/components/activities/Swap";
 import { ButtonDropMenu } from "@/app/components/DropMenu";
+import { SwapList } from "./SwapList";
+import { OnChainList } from "./OnchainList";
 
 export default function ActivitiesPage() {
   const nav = useNavigate()
@@ -44,9 +40,9 @@ export default function ActivitiesPage() {
       return (
         <SwapList
           filterType={filterType}
-          loading={useSwapListQuery.isFetching || rgbContractsQuery.isFetching}
           contracts={contracts}
           list={list}
+          onRefresh={() => useSwapListQuery.refetch()}
         />
       )
     }
@@ -75,7 +71,7 @@ export default function ActivitiesPage() {
   return (
     <ContentWrapper className="w-full">
       <ContentHeader title="Activities" onBack={() => nav('/dashboard')} />
-      <Content className="px-2">
+      <Content className="px-2 h-[618px] overflow-y-auto">
         <div className="px-3 flex justify-between">
           <Tabs value={tab} onValueChange={changeTab}>
             <TabsList className="h-10 flex items-center justify-start w-auto rounded-full bg-background gap-1">
@@ -145,64 +141,6 @@ export default function ActivitiesPage() {
   );
 }
 
-function OnChainList(props: {loading: boolean, list: PaymentDetailsDto[]}) {
-  const { loading, list } = props;
-  const nav = useNavigate();
 
-  if(list.length === 0 && !loading) {
-    return (
-      <div className="flex h-[532px] items-center justify-center">
-        <Empty
-          title={"No transaction yet"}
-          subTitle={"You must recent incoming and outgoing payments will show up here."}
-          action={
-            <Button
-              size="lg"
-              variant="destructive"
-              className="rounded-full"
-              onClick={() => nav('/dashboard/receive')}
-            >
-              <IconReceive />
-              <span>Receive Your First Payment</span>
-            </Button>
-          }
-        />
-      </div>
-    )
-  }
 
-  return list.map((item) => {
-    return (
-      <Btc data={item} />
-    )
-  })
-}
 
-function SwapList(props: {filterType: string, loading: boolean, list: SwapInfo[], contracts: any[]}) {
-  const { loading, list, contracts } = props;
-
-  // const groupByDate = (list: SwapInfo[]) => {
-  //   const groups: { [key: string]: SwapInfo[] } = {};
-  //   list.forEach((item) => {
-  //     const date = new Date(Number(item.created_at_unix_secs || '0') * 1000);
-  //     const dateString = date.toLocaleDateString();
-  //     if (!groups[dateString]) {
-  //       groups[dateString] = [];
-  //     }
-  //     groups[dateString].push(item);
-  //   });
-  //   return groups;
-  // }
-
-  const filtered = list.filter((item) => {
-    if(props.filterType === 'All Status') {
-      return true;
-    }
-
-    return item.status === props.filterType;
-  })
-
-  return filtered.map((item: any, i: any) => {
-    return <SwapItem key={i} contracts={contracts} data={item} />
-  })
-}

@@ -35,7 +35,7 @@ export function DashboardPage() {
   return (
     <div>
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-background-3 px-4 py-6 rounded-3xl h-[158px] border border-background-2">
+        <div className="bg-background-3 px-4 py-6 rounded-3xl h-[158px] border border-background-3">
           <div className="flex h-6 items-center justify-between">
             <div className="h-6 flex gap-2 items-center">
               <span className="text-lg font-medium">🔗 On-chain</span>
@@ -69,7 +69,7 @@ export function DashboardPage() {
             = {balancesQuery.data?.btc.onchain_total_sats} sats
           </div>
         </div>
-        <div className="bg-background-3 px-4 py-6 rounded-3xl h-[158px] border border-background-2">
+        <div className="bg-background-3 px-4 py-6 rounded-3xl h-[158px] border border-background-3">
           <div className="flex h-6 items-center">
             <span className="text-lg font-medium">⚡️ Lightning</span>
           </div>

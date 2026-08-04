@@ -14,6 +14,8 @@ import { useContextStore } from "../stores/contextStore";
 import IconWallet from "../icons/wallet";
 import { Link, useLocation } from "react-router-dom";
 import IconSwap from "../icons/swap";
+import IconBox from "../icons/box";
+import IconLight from "../icons/light";
 
 const NETWORK_ICONS: Record<string, string> = {
   mainnet: mainnetIcon,
@@ -65,18 +67,28 @@ export function AppBreadcrumb() {
     }
   }
 
+  const renderIcon = () => {
+    if(location.pathname.includes('swap')) {
+      return <IconSwap className="mr-2 h-3 w-3 text-secondary-foreground" />
+    }
+
+    if(location.pathname.includes('peers')) {
+      return <IconBox className="mr-2 h-3 w-3 text-secondary-foreground" />
+    }
+
+    if(location.pathname.includes('channels')) {
+      return <IconLight className="mr-2 h-3 w-3 text-secondary-foreground" />
+    }
+
+    return <IconWallet className="mr-2 h-3 w-3 text-secondary-foreground" />
+  }
+
   return (
     <header className="sticky top-0 z-40 flex h-[58px] shrink-0 justify-between gap-2 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="h-full flex items-center">
         {
           <Breadcrumb className="flex items-center">
-            {
-              location.pathname.includes('swap') ? (
-                <IconSwap className="mr-2 h-3 w-3 text-secondary-foreground" />
-              ) : (
-                <IconWallet className="mr-2 h-3 w-3 text-secondary-foreground" />
-              )
-            }
+            {renderIcon()}
             <BreadcrumbList>{menu}</BreadcrumbList>
           </Breadcrumb>
         }

@@ -32,6 +32,7 @@ export const queryKeys = {
   nodeWalletAddressCurrent: (nodeId: string) =>
     ["node_wallet_address_current", nodeId] as const,
   nodeChannels: (nodeId: string) => ["node_channels", nodeId] as const,
+  nodeChannelsClosing: (nodeId: string) => ["node_channels_closing", nodeId] as const,
   nodePeers: (nodeId: string) => ["node_peers", nodeId] as const,
   nodePayments: (nodeId: string) => ["node_payments", nodeId] as const,
 

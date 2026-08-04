@@ -1,5 +1,6 @@
 use crate::{context_store::NodeContext, error::CommandError, ldk_types};
 use reqwest::Url;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{path::Path};
@@ -839,139 +840,163 @@ pub async fn classify_non_success(
 	Ok(e)
 }
 
+fn main_url(ctx: &NodeContext, path: &str) -> Result<Url, CommandError> {
+	let base = parse_base_url(&ctx.main_api_base_url)?;
+	base.join(path).map_err(|_| CommandError::InvalidBaseUrl {
+		url: ctx.main_api_base_url.clone(),
+	})
+}
+
+fn with_optional_main_bearer(
+	ctx: &NodeContext,
+	req: reqwest::RequestBuilder,
+) -> Result<reqwest::RequestBuilder, CommandError> {
+	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
+		let token = read_token_file(Path::new(path))?;
+		Ok(req.bearer_auth(token))
+	} else {
+		Ok(req)
+	}
+}
+
+async fn send_checked(
+	service: &'static str,
+	req: reqwest::RequestBuilder,
+) -> Result<reqwest::Response, CommandError> {
+	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	if !resp.status().is_success() {
+		return Err(classify_non_success(service, resp).await?);
+	}
+	Ok(resp)
+}
+
+async fn main_get_json<T>(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	path: &str,
+) -> Result<T, CommandError>
+where
+	T: DeserializeOwned,
+{
+	let url = main_url(ctx, path)?;
+	let req = with_optional_main_bearer(ctx, client.get(url))?;
+	let resp = send_checked("main", req).await?;
+	resp.json::<T>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+async fn main_post_json<B, T>(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	path: &str,
+	body: &B,
+) -> Result<T, CommandError>
+where
+	B: Serialize + ?Sized,
+	T: DeserializeOwned,
+{
+	let url = main_url(ctx, path)?;
+	let req = with_optional_main_bearer(ctx, client.post(url).json(body))?;
+	let resp = send_checked("main", req).await?;
+	resp.json::<T>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+async fn main_post_bytes_json<T>(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	path: &str,
+	archive: &[u8],
+) -> Result<T, CommandError>
+where
+	T: DeserializeOwned,
+{
+	let url = main_url(ctx, path)?;
+	let req = with_optional_main_bearer(
+		ctx,
+		client
+			.post(url)
+			.header("Content-Type", "application/octet-stream")
+			.body(archive.to_vec()),
+	)?;
+	let resp = send_checked("main", req).await?;
+	resp.json::<T>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+async fn main_get_bytes(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	path: &str,
+) -> Result<Vec<u8>, CommandError> {
+	let url = main_url(ctx, path)?;
+	let req = with_optional_main_bearer(ctx, client.get(url))?;
+	let resp = send_checked("main", req).await?;
+	let bytes = resp.bytes().await.map_err(|_| CommandError::HttpRequestFailed)?;
+	Ok(bytes.to_vec())
+}
+
+async fn main_post_json_raw(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	path: &str,
+	body: &Value,
+) -> Result<Value, CommandError> {
+	main_post_json(client, ctx, path, body).await
+}
+
+async fn main_delete_json<T>(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	path: &str,
+) -> Result<T, CommandError>
+where
+	T: DeserializeOwned,
+{
+	let url = main_url(ctx, path)?;
+	let req = with_optional_main_bearer(ctx, client.delete(url))?;
+	let resp = send_checked("main", req).await?;
+	resp.json::<T>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
 pub async fn main_status(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<MainStatusResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/status").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<MainStatusResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/status").await
 }
 
 pub async fn main_version(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<VersionResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/version").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<VersionResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/version").await
 }
 
 pub async fn main_node_id(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<NodeIdResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/node_id").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<NodeIdResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/node_id").await
 }
 
 pub async fn main_listening_addresses(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<ListeningAddressesResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/listening_addresses").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<ListeningAddressesResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/listening_addresses").await
 }
 
 pub async fn main_peers(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<Vec<PeerDetailsDto>, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/peers").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Vec<PeerDetailsDto>>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/peers").await
 }
 
 pub async fn main_peers_connect(
@@ -979,27 +1004,7 @@ pub async fn main_peers_connect(
 	ctx: &NodeContext,
 	body: PeerConnectRequest,
 ) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/peers/connect")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/peers/connect", &body).await
 }
 
 pub async fn main_peers_disconnect(
@@ -1007,150 +1012,30 @@ pub async fn main_peers_disconnect(
 	ctx: &NodeContext,
 	body: PeerDisconnectRequest,
 ) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/peers/disconnect")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/peers/disconnect", &body).await
 }
 
 pub async fn main_balances(client: &reqwest::Client, ctx: &NodeContext) -> Result<BalancesDto, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/balances").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<BalancesDto>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/balances").await
 }
 
 pub async fn wallet_address_new(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<WalletNewAddressResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/wallet/address/new")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&serde_json::json!({}));
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<WalletNewAddressResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/wallet/address/new", &serde_json::json!({})).await
 }
 
 pub async fn wallet_sync(client: &reqwest::Client, ctx: &NodeContext) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/wallet/sync").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&serde_json::json!({}));
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/wallet/sync", &serde_json::json!({})).await
 }
 
 pub async fn rgb_sync(client: &reqwest::Client, ctx: &NodeContext) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/sync").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&serde_json::json!({}));
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/sync", &serde_json::json!({})).await
 }
 
 pub async fn rgb_contracts(client: &reqwest::Client, ctx: &NodeContext) -> Result<RgbContractsResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/contracts").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbContractsResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/rgb/contracts").await
 }
 
 pub async fn rgb_contract_issue(
@@ -1158,27 +1043,7 @@ pub async fn rgb_contract_issue(
 	ctx: &NodeContext,
 	req_body: RgbContractsIssueRequest,
 ) -> Result<RgbContractsIssueResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/contracts/issue").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbContractsIssueResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/contracts/issue", &req_body).await
 }
 
 pub async fn rgb_contract_export(
@@ -1186,27 +1051,7 @@ pub async fn rgb_contract_export(
 	ctx: &NodeContext,
 	req_body: RgbContractsExportRequest,
 ) -> Result<RgbContractsExportResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/contracts/export").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbContractsExportResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/contracts/export", &req_body).await
 }
 
 pub async fn rgb_consignment_download(
@@ -1215,26 +1060,12 @@ pub async fn rgb_consignment_download(
 	consignment_key: &str,
 	format: &str,
 ) -> Result<Vec<u8>, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join(&format!("api/v1/rgb/consignments/{consignment_key}?format={format}"))
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	let bytes = resp.bytes().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	Ok(bytes.to_vec())
+	main_get_bytes(
+		client,
+		ctx,
+		&format!("api/v1/rgb/consignments/{consignment_key}?format={format}"),
+	)
+	.await
 }
 
 pub async fn rgb_contract_import(
@@ -1244,32 +1075,13 @@ pub async fn rgb_contract_import(
 	format: &str,
 	archive: &[u8],
 ) -> Result<RgbContractsImportResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join(&format!(
-			"api/v1/rgb/contracts/import?contract_id={contract_id}&format={format}"
-		))
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client
-		.post(url)
-		.header("Content-Type", "application/octet-stream")
-		.body(archive.to_vec());
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbContractsImportResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_bytes_json(
+		client,
+		ctx,
+		&format!("api/v1/rgb/contracts/import?contract_id={contract_id}&format={format}"),
+		archive,
+	)
+	.await
 }
 
 pub async fn rgb_contract_balance(
@@ -1277,27 +1089,7 @@ pub async fn rgb_contract_balance(
 	ctx: &NodeContext,
 	contract_id: &str,
 ) -> Result<RgbContractBalanceResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join(&format!("api/v1/rgb/contract/{contract_id}/balance"))
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbContractBalanceResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, &format!("api/v1/rgb/contract/{contract_id}/balance")).await
 }
 
 pub async fn rgb_ln_invoice_create(
@@ -1305,27 +1097,7 @@ pub async fn rgb_ln_invoice_create(
 	ctx: &NodeContext,
 	req_body: RgbLnInvoiceCreateRequest,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/ln/invoice/create").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/ln/invoice/create", &req_body).await
 }
 
 pub async fn rgb_ln_pay(
@@ -1333,54 +1105,21 @@ pub async fn rgb_ln_pay(
 	ctx: &NodeContext,
 	req_body: RgbLnPayRequest,
 ) -> Result<SendResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/ln/pay").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<SendResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/ln/pay", &req_body).await
 }
 
 pub async fn main_channels(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/channels").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
+	main_get_json(client, ctx, "api/v1/channels").await
+}
 
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+pub async fn main_channels_closing(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, "api/v1/channels/closing").await
 }
 
 pub async fn channel_open(
@@ -1388,27 +1127,7 @@ pub async fn channel_open(
 	ctx: &NodeContext,
 	req_body: OpenChannelRequest,
 ) -> Result<OpenChannelResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/channel/open").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OpenChannelResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/channel/open", &req_body).await
 }
 
 pub async fn bolt11_receive(
@@ -1416,27 +1135,7 @@ pub async fn bolt11_receive(
 	ctx: &NodeContext,
 	req_body: Bolt11ReceiveRequest,
 ) -> Result<Bolt11ReceiveResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt11/receive").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt11ReceiveResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt11/receive", &req_body).await
 }
 
 pub async fn bolt11_receive_var(
@@ -1444,27 +1143,7 @@ pub async fn bolt11_receive_var(
 	ctx: &NodeContext,
 	req_body: Bolt11ReceiveVarRequest,
 ) -> Result<Bolt11ReceiveResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt11/receive_var").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt11ReceiveResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt11/receive_var", &req_body).await
 }
 
 pub async fn bolt11_decode(
@@ -1472,27 +1151,7 @@ pub async fn bolt11_decode(
 	ctx: &NodeContext,
 	req_body: Bolt11DecodeRequest,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt11/decode").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt11/decode", &req_body).await
 }
 
 pub async fn bolt11_send(
@@ -1500,27 +1159,7 @@ pub async fn bolt11_send(
 	ctx: &NodeContext,
 	req_body: Bolt11SendRequest,
 ) -> Result<SendResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt11/send").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<SendResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt11/send", &req_body).await
 }
 
 pub async fn bolt11_send_using_amount(
@@ -1528,27 +1167,7 @@ pub async fn bolt11_send_using_amount(
 	ctx: &NodeContext,
 	req_body: Bolt11SendUsingAmountRequest,
 ) -> Result<SendResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/bolt11/send_using_amount")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<SendResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt11/send_using_amount", &req_body).await
 }
 
 pub async fn bolt11_pay(
@@ -1556,27 +1175,7 @@ pub async fn bolt11_pay(
 	ctx: &NodeContext,
 	req_body: Bolt11PayRequest,
 ) -> Result<Bolt11PayResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt11/pay").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt11PayResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt11/pay", &req_body).await
 }
 
 pub async fn bolt12_offer_receive(
@@ -1584,27 +1183,7 @@ pub async fn bolt12_offer_receive(
 	ctx: &NodeContext,
 	req_body: Bolt12OfferReceiveRequest,
 ) -> Result<Bolt12OfferResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt12/offer/receive").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt12OfferResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt12/offer/receive", &req_body).await
 }
 
 pub async fn bolt12_offer_receive_var(
@@ -1612,27 +1191,7 @@ pub async fn bolt12_offer_receive_var(
 	ctx: &NodeContext,
 	req_body: Bolt12OfferReceiveVarRequest,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt12/offer/receive_var").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt12/offer/receive_var", &req_body).await
 }
 
 pub async fn bolt12_offer_decode(
@@ -1640,27 +1199,7 @@ pub async fn bolt12_offer_decode(
 	ctx: &NodeContext,
 	req_body: Bolt12OfferDecodeRequest,
 ) -> Result<Bolt12OfferDecodeResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt12/offer/decode").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt12OfferDecodeResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt12/offer/decode", &req_body).await
 }
 
 pub async fn bolt12_offer_send(
@@ -1668,27 +1207,7 @@ pub async fn bolt12_offer_send(
 	ctx: &NodeContext,
 	req_body: Bolt12OfferSendRequest,
 ) -> Result<SendResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt12/offer/send").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<SendResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt12/offer/send", &req_body).await
 }
 
 pub async fn bolt12_refund_initiate(
@@ -1696,27 +1215,7 @@ pub async fn bolt12_refund_initiate(
 	ctx: &NodeContext,
 	req_body: Bolt12RefundInitiateRequest,
 ) -> Result<Bolt12RefundInitiateResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt12/refund/initiate").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt12RefundInitiateResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt12/refund/initiate", &req_body).await
 }
 
 pub async fn bolt12_refund_decode(
@@ -1724,27 +1223,7 @@ pub async fn bolt12_refund_decode(
 	ctx: &NodeContext,
 	req_body: Bolt12RefundDecodeRequest,
 ) -> Result<Bolt12RefundDecodeResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/bolt12/refund/decode").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt12RefundDecodeResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt12/refund/decode", &req_body).await
 }
 
 pub async fn bolt12_refund_request_payment(
@@ -1752,27 +1231,7 @@ pub async fn bolt12_refund_request_payment(
 	ctx: &NodeContext,
 	req_body: Bolt12RefundRequestPaymentRequest,
 ) -> Result<Bolt12RefundRequestPaymentResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/bolt12/refund/request_payment")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Bolt12RefundRequestPaymentResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/bolt12/refund/request_payment", &req_body).await
 }
 
 pub async fn channel_close(
@@ -1780,27 +1239,7 @@ pub async fn channel_close(
 	ctx: &NodeContext,
 	req_body: CloseChannelRequest,
 ) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/channel/close").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/channel/close", &req_body).await
 }
 
 pub async fn channel_force_close(
@@ -1808,54 +1247,14 @@ pub async fn channel_force_close(
 	ctx: &NodeContext,
 	req_body: CloseChannelRequest,
 ) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/channel/force_close").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/channel/force_close", &req_body).await
 }
 
 pub async fn payments_list(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<Vec<PaymentDetailsDto>, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/payments").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Vec<PaymentDetailsDto>>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/payments").await
 }
 
 pub async fn payment_get(
@@ -1863,27 +1262,7 @@ pub async fn payment_get(
 	ctx: &NodeContext,
 	payment_id: &str,
 ) -> Result<PaymentDetailsDto, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join(&format!("api/v1/payment/{payment_id}"))
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<PaymentDetailsDto>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, &format!("api/v1/payment/{payment_id}")).await
 }
 
 pub async fn payment_wait(
@@ -1892,27 +1271,13 @@ pub async fn payment_wait(
 	payment_id: &str,
 	req_body: PaymentWaitRequest,
 ) -> Result<PaymentWaitResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join(&format!("api/v1/payment/{payment_id}/wait"))
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<PaymentWaitResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(
+		client,
+		ctx,
+		&format!("api/v1/payment/{payment_id}/wait"),
+		&req_body,
+	)
+	.await
 }
 
 pub async fn payment_abandon(
@@ -1920,74 +1285,26 @@ pub async fn payment_abandon(
 	ctx: &NodeContext,
 	payment_id: &str,
 ) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join(&format!("api/v1/payment/{payment_id}/abandon"))
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(
+		client,
+		ctx,
+		&format!("api/v1/payment/{payment_id}/abandon"),
+		&serde_json::json!({}),
+	)
+	.await
 }
 
 pub async fn events_wait_next(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<EventDto, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/events/wait_next")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&serde_json::json!({}));
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<EventDto>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/events/wait_next", &serde_json::json!({})).await
 }
 
 pub async fn events_handled(client: &reqwest::Client, ctx: &NodeContext) -> Result<(), CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/events/handled")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.post(url).json(&serde_json::json!({}));
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
+	let url = main_url(ctx, "api/v1/events/handled")?;
+	let req = with_optional_main_bearer(ctx, client.post(url).json(&serde_json::json!({})))?;
+	let _ = send_checked("main", req).await?;
 	Ok(())
 }
 
@@ -1995,27 +1312,7 @@ pub async fn main_healthz(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<OkResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/healthz").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<OkResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/healthz").await
 }
 
 pub async fn main_readyz(
@@ -2159,30 +1456,7 @@ pub async fn rgb_utxos_summary(
     client: &reqwest::Client,
     ctx: &NodeContext,
 ) -> Result<RgbUtxosSummaryResponse, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/utxos/summary")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.get(url);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<RgbUtxosSummaryResponse>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/rgb/utxos/summary").await
 }
 
 
@@ -2191,60 +1465,14 @@ pub async fn rgb_onchain_invoice_create(
     ctx: &NodeContext,
     req_body: RgbOnchainInvoiceCreateRequest,
 ) -> Result<RgbOnchainInvoiceResponse, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/onchain/invoice/create")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.post(url).json(&req_body);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<RgbOnchainInvoiceResponse>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/onchain/invoice/create", &req_body).await
 }
 
 pub async fn rgb_address_new(
     client: &reqwest::Client,
     ctx: &NodeContext,
 ) -> Result<WalletNewAddressResponse, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/address/new")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.post(url).json(&serde_json::json!({}));
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<WalletNewAddressResponse>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/address/new", &serde_json::json!({})).await
 }
 
 pub async fn rgb_onchain_receive_archive(
@@ -2254,33 +1482,13 @@ pub async fn rgb_onchain_receive_archive(
 		payment_id: &str,
     archive: &[u8],
 ) -> Result<RgbOnchainReceiveResponse, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join(&format!("api/v1/rgb/onchain/receive?format={format}&payment_id={payment_id}"))
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client
-        .post(url)
-        .header("Content-Type", "application/octet-stream")
-        .body(archive.to_vec());
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<RgbOnchainReceiveResponse>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_post_bytes_json(
+		client,
+		ctx,
+		&format!("api/v1/rgb/onchain/receive?format={format}&payment_id={payment_id}"),
+		archive,
+	)
+	.await
 }
 
 pub async fn rgb_issuers_import(
@@ -2328,30 +1536,7 @@ pub async fn rgb_issuers(
     client: &reqwest::Client,
     ctx: &NodeContext,
 ) -> Result<RgbIssuersResponse, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/issuers")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.get(url);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<RgbIssuersResponse>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/rgb/issuers").await
 }
 
 pub async fn rgb_onchain_send(
@@ -2359,54 +1544,14 @@ pub async fn rgb_onchain_send(
 	ctx: &NodeContext,
 	req_body: RgbOnchainSendRequest,
 ) -> Result<RgbOnchainSendResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/onchain/send").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbOnchainSendResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/onchain/send", &req_body).await
 }
 
 pub async fn rgb_onchain_payments(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<RgbOnchainPaymentsResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/onchain/payments").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbOnchainPaymentsResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/rgb/onchain/payments").await
 }
 
 
@@ -2414,27 +1559,7 @@ pub async fn rgb_descriptor(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/descriptor").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/rgb/descriptor").await
 }
 
 pub async fn rgb_sign_message(
@@ -2442,27 +1567,7 @@ pub async fn rgb_sign_message(
 	ctx: &NodeContext,
 	body: RgbSignMessageRequest
 ) -> Result<RgbSignMessageResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/sign_message").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<RgbSignMessageResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/sign_message", &body).await
 }
 
 
@@ -2471,27 +1576,7 @@ pub async fn bolt11_rgb_ln_invoice_decode(
 	ctx: &NodeContext,
 	req_body: Bolt11DecodeRequest,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/ln/invoice/decode").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(&req_body);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/ln/invoice/decode", &req_body).await
 }
 
 
@@ -2500,34 +1585,12 @@ pub async fn rgb_utxos(
     ctx: &NodeContext,
 		refresh: bool,
 ) -> Result<Value, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-		let mut api = "api/v1/rgb/utxos";
-		if refresh {
-			api = "api/v1/rgb/utxos?refresh=true";
-		}
-    let url = base
-        .join(api)
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.get(url);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<Value>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	let api = if refresh {
+		"api/v1/rgb/utxos?refresh=true"
+	} else {
+		"api/v1/rgb/utxos"
+	};
+	main_get_json(client, ctx, api).await
 }
 
 
@@ -2536,30 +1599,7 @@ pub async fn rgb_utxo_release(
     ctx: &NodeContext,
 		request: ldk_types::RgbUtxosReleaseRequest,
 ) -> Result<Value, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/utxos/release")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.post(url).json(&request);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<Value>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/utxos/release", &request).await
 }
 
 
@@ -2567,30 +1607,7 @@ pub async fn wallet_l1_utxos(
     client: &reqwest::Client,
     ctx: &NodeContext,
 ) -> Result<Value, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/wallet/utxos")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.get(url);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<Value>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/wallet/utxos").await
 }
 
 
@@ -2610,31 +1627,7 @@ pub async fn rgb_utxo_sweep(
     ctx: &NodeContext,
 		req: &UtxoSweepRequestBody
 ) -> Result<Value, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/utxos/sweep")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.post(url).json(&req);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<Value>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/utxos/sweep", req).await
 }
 
 
@@ -2665,31 +1658,7 @@ pub async fn rgb_utxo_top_up(
     ctx: &NodeContext,
 		req: &UtxoTopUpRequestBody
 ) -> Result<Value, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/utxos/top_up")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.post(url).json(&req);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<Value>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/utxos/top_up", req).await
 }
 
 
@@ -2714,30 +1683,7 @@ pub async fn rgb_utxos_fund(
     ctx: &NodeContext,
 		req: &RgbUtxosFundRequestBody
 ) -> Result<Value, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/rgb/utxos/fund")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.post(url).json(&req);
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<Value>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/utxos/fund", req).await
 }
 
 
@@ -2746,27 +1692,7 @@ pub async fn rgb_address_current(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<WalletNewAddressResponse, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base
-		.join("api/v1/rgb/address/current")
-		.map_err(|_| CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		})?;
-
-	let mut req = client.get(url).json(&serde_json::json!({}));
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<WalletNewAddressResponse>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/rgb/address/current").await
 }
 
 
@@ -2775,30 +1701,7 @@ pub async fn wallet_address_current(
     client: &reqwest::Client,
     ctx: &NodeContext,
 ) -> Result<Value, CommandError> {
-    let base = parse_base_url(&ctx.main_api_base_url)?;
-    let url = base
-        .join("api/v1/wallet/address/current")
-        .map_err(|_| CommandError::InvalidBaseUrl {
-            url: ctx.main_api_base_url.clone(),
-        })?;
-
-    let mut req = client.get(url).json(&serde_json::json!({}));
-    if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-        let token = read_token_file(Path::new(path))?;
-        req = req.bearer_auth(token);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)?;
-    if !resp.status().is_success() {
-        return Err(classify_non_success("main", resp).await?);
-    }
-
-    resp.json::<Value>()
-        .await
-        .map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/wallet/address/current").await
 }
 
 /// Estimate carrier amount of invoice for RGB assets
@@ -2806,27 +1709,7 @@ pub async fn rgb_ln_estimate_carrier(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/rgb/ln/invoice/estimate_carrier").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json(client, ctx, "api/v1/rgb/ln/invoice/estimate_carrier", &serde_json::json!({})).await
 }
 
 
@@ -2835,27 +1718,7 @@ pub async fn swap_offers(
 	ctx: &NodeContext,
 	request: &Value
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/swap/offers").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(request);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json_raw(client, ctx, "api/v1/swap/offers", request).await
 }
 
 pub async fn swap_execute(
@@ -2863,28 +1726,7 @@ pub async fn swap_execute(
 	ctx: &NodeContext,
 	request: &Value
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/swap/execute").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(request);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json_raw(client, ctx, "api/v1/swap/execute", request).await
 }
 
 pub async fn swap_accept(
@@ -2892,27 +1734,7 @@ pub async fn swap_accept(
 	ctx: &NodeContext,
 	request: &Value
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/swap/accept").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(request);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json_raw(client, ctx, "api/v1/swap/accept", request).await
 }
 
 pub async fn swap_decode(
@@ -2920,54 +1742,14 @@ pub async fn swap_decode(
 	ctx: &NodeContext,
 	request: &Value
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/swap/decode").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.post(url).json(request);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_post_json_raw(client, ctx, "api/v1/swap/decode", request).await
 }
 
 pub async fn swap_list(
 	client: &reqwest::Client,
 	ctx: &NodeContext,
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join("api/v1/swap/list").map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, "api/v1/swap/list").await
 }
 
 pub async fn swap_info(
@@ -2975,27 +1757,7 @@ pub async fn swap_info(
 	ctx: &NodeContext,
 	payment_hash: String
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join(&format!("api/v1/swap/{payment_hash}")).map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.get(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_get_json(client, ctx, &format!("api/v1/swap/{payment_hash}")).await
 }
 
 pub async fn swap_delete(
@@ -3003,25 +1765,5 @@ pub async fn swap_delete(
 	ctx: &NodeContext,
 	payment_hash: String
 ) -> Result<Value, CommandError> {
-	let base = parse_base_url(&ctx.main_api_base_url)?;
-	let url = base.join(&format!("api/v1/swap/{payment_hash}")).map_err(|_| {
-		CommandError::InvalidBaseUrl {
-			url: ctx.main_api_base_url.clone(),
-		}
-	})?;
-
-	let mut req = client.delete(url);
-	if let Some(path) = ctx.main_api_token_file_path.as_deref() {
-		let token = read_token_file(Path::new(path))?;
-		req = req.bearer_auth(token);
-	}
-
-	let resp = req.send().await.map_err(|_| CommandError::HttpRequestFailed)?;
-	if !resp.status().is_success() {
-		return Err(classify_non_success("main", resp).await?);
-	}
-
-	resp.json::<Value>()
-		.await
-		.map_err(|_| CommandError::HttpRequestFailed)
+	main_delete_json(client, ctx, &format!("api/v1/swap/{payment_hash}")).await
 }

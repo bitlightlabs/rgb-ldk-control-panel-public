@@ -41,7 +41,7 @@ export function ActionHeader(props: PropsWithChildren & {title: string, onBack: 
 
 export function Content(props: PropsWithChildren & {className?: string}) {
   return (
-    <div className={cn("mt-5 px-5 py-5 bg-background-3 rounded-3xl border border-background-2", props.className)}>
+    <div className={cn("mt-5 px-5 py-5 bg-background-3 rounded-3xl border border-background-3", props.className)}>
       {props.children}
     </div>
   )

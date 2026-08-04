@@ -75,6 +75,31 @@ export default function Swap() {
     setToAmount(oldFromAmount);
   }
 
+  const renderChannelAvailable = () => {
+    if(!channel || !fromAsset) {
+      return '--'
+    }
+
+    if(fromAsset.name === 'BTC') {
+      if(channel?.outbound_capacity_msat) {
+        return formatNumber(channel.outbound_capacity_msat, 3) + ' sats'
+      }
+      return '--'
+    }
+
+    return (
+      <span>
+        {channel?.rgb_balance
+          ? formatNumber(
+            channel?.rgb_balance?.local_amount ?? 0,
+            fromAsset.precision ?? 0
+          )
+          : '--'}
+        <span>{' ' + (fromAsset.name ?? '')}</span>
+      </span>
+    )
+  }
+
   return (
     <ContentWrapper className="mb-10">
       <div className="sticky top-0 z-40 flex h-[68px] justify-between items-center ">
@@ -141,23 +166,7 @@ export default function Swap() {
                   className={"text-xs text-secondary-foreground " + (error ? 'text-error!' : '')}
                 >
                   <span>Available: </span>
-                  {
-                    fromAsset?.name === 'BTC' ? (
-                      channel?.outbound_capacity_msat ? (
-                        formatNumber(channel.outbound_capacity_msat, 3) + ' sats'
-                      ) : '--'
-                    ) : (
-                      <span>
-                        {channel?.rgb_balance
-                          ? formatNumber(
-                            channel?.rgb_balance?.local_amount ?? 0,
-                            fromAsset?.precision ?? 0
-                          )
-                          : '--'}
-                        <span>{' ' + (fromAsset?.name ?? '')}</span>
-                      </span>
-                    )
-                  }
+                  {renderChannelAvailable()}
                 </div>
                 {
                   fromAsset && channel ? (

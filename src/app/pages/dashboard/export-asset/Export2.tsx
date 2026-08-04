@@ -16,7 +16,7 @@ export default function Export2(props: IProps) {
       <div className="mt-2 text-base text-secondary-foreground leading-5">
         Complete the export by downloading the proof file and importing it into your wallet.
       </div>
-      <div className="mt-10 py-10 px-6 bg-background-3 rounded-2xl border border-dashed border-background-2">
+      <div className="mt-10 py-10 px-6 bg-background-3 rounded-2xl border border-dashed border-background-3">
         <div className="w-16 h-16 mx-auto">
           <IconDownload />
         </div>

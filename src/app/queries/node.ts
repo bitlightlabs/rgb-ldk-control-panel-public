@@ -12,6 +12,7 @@ import {
   nodeMainVersion,
   nodeWalletAddressCurrent,
   nodePaymentsList,
+  nodeMainChannelsClosing,
 } from "@/lib/commands";
 import type {
   ControlStatusDto,
@@ -20,6 +21,7 @@ import type {
 } from "@/lib/domain";
 import type {
   BalancesDto,
+  ChannelClosing,
   ChannelDetailsExtendedDto,
   ListeningAddressesResponse,
   NodeIdResponse,
@@ -141,6 +143,17 @@ export function useNodeMainChannelsQuery(
   return useQuery({
     queryKey: queryKeys.nodeChannels(nodeId ?? ""),
     queryFn: () => nodeMainChannels(nodeId!),
+    ...mergeNodeOptions(nodeId, options),
+  });
+}
+
+export function useNodeMainChannelsClosingQuery(
+  nodeId: string | null | undefined,
+  options?: NodeOptions<ChannelClosing[]>,
+) {
+  return useQuery({
+    queryKey: queryKeys.nodeChannelsClosing(nodeId ?? ""),
+    queryFn: () => nodeMainChannelsClosing(nodeId!),
     ...mergeNodeOptions(nodeId, options),
   });
 }

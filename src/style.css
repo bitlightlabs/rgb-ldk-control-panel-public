@@ -195,7 +195,7 @@ body {
 
 ::-webkit-scrollbar {
   position: relative;
-  width: 5px;
+  width: 0;
   /* height: 8px; */
 }
 ::-webkit-scrollbar-thumb {

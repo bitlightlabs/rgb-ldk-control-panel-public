@@ -126,7 +126,7 @@ export default function UtxoPage() {
             </Button>
           </div>
         </ActionHeader>
-        <Content className="mt-4 h-[630px] flex justify-center items-center">
+        <Content className="mt-4 h-[622px] flex justify-center items-center">
           <Empty
             title="No UTXOs Found"
             subTitle="Create an RGB-compatible UTXO to anchor your assets and start transacting."

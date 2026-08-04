@@ -65,6 +65,7 @@ import type {
   SignmessageRequest,
   SignmessageResponse,
   SwapInfo,
+  ChannelClosing,
 } from "./sdk/types";
 import { tauriInvoke } from "./tauri";
 import type { RgbContractsExportBundle } from "./domain";
@@ -325,6 +326,10 @@ export async function nodeRgbLnPay(nodeId: string, request: RgbLnPayRequest): Pr
 
 export async function nodeMainChannels(nodeId: string): Promise<ChannelDetailsExtendedDto[]> {
   return tauriInvoke("node_main_channels", { nodeId: nodeId });
+}
+
+export async function nodeMainChannelsClosing(nodeId: string): Promise<ChannelClosing[]> {
+  return tauriInvoke("node_main_channels_closing", { nodeId: nodeId });
 }
 
 export async function nodeChannelOpen(nodeId: string, request: OpenChannelRequest): Promise<OpenChannelResponse> {

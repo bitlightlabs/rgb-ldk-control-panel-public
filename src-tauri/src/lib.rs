@@ -195,6 +195,7 @@ pub fn run() {
 			commands::node_swap_list,
 			commands::node_swap_info,
 			commands::node_swap_delete,
+			commands::node_main_channels_closing,
 		])
 		.build(tauri::generate_context!())
 		.expect("error while running tauri application");

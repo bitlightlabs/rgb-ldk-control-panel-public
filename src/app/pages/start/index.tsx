@@ -9,6 +9,10 @@ import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
 import JsonData from '@/../package.json'
 import Account from "./components/Account";
+import { LDK_IMAGE } from "@/app/config/constant";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
+import { CopyTextInline } from "@/app/components/CopyText";
 
 export default function Start() {
   const [deleteNodeId, setDeleteNodeId] = useState<string>("")
@@ -86,9 +90,45 @@ export default function Start() {
             ) : null}
 
             <div
-              className="leading-[18px] absolute left-0 bottom-4 right-0 text-xs text-center text-secondary-foreground"
+              className="absolute left-2 bottom-4 right-2"
             >
-              v{JsonData.version}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    className="hover:bg-background-3 w-full data-[state=open]:bg-background-3 rounded-2xl"
+                  >
+                    v{JsonData.version}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className="w-[260px] rounded-2xl shadow-md shadow-background/60"
+                  side="top"
+                  align="start"
+                  sideOffset={4}
+                >
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>Control Panel Version:</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      className="h-11 px-3 gap-3"
+                    >
+                      v{JsonData.version}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator className="mx-3 my-2" />
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>LDK Image Version:</DropdownMenuLabel>
+                    <DropdownMenuItem
+                      className="h-11 px-3 gap-3"
+                    >
+                      <CopyTextInline
+                        text={LDK_IMAGE.split(':')[1]}
+                      />
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           <div className="h-full ml-[268px]">

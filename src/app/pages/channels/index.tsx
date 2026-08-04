@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import type { StoredEvent } from "@/lib/domain";
 import { useChannelCloseMutation } from "@/app/mutations";
 import {
   useEventsListQuery,
+  useNodeMainChannelsClosingQuery,
   useNodeMainChannelsQuery,
   useNodeRgbContractsQuery,
 } from "@/app/queries";
@@ -40,6 +41,8 @@ import { useContextStore } from "@/app/stores/contextStore";
 import IconRefresh from "@/app/icons/refresh";
 import { formatNumber } from "@/lib/number";
 import DropMenu from "@/app/components/DropMenu";
+import { ChannelClosing, ChannelDetailsExtendedDto } from "@/lib/sdk/types";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 function truncateMiddle(s: string, head = 10, tail = 10): string {
   if (s.length <= head + tail + 3) return s;
@@ -101,6 +104,7 @@ export default function ChannelsPage() {
   const [loading, setLoading] = useState<boolean>(false);
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
+  const [tab, setTab] = useState<string>('Channels');
 
   const refreshList = () => {
     let t = setTimeout(() => {
@@ -109,24 +113,40 @@ export default function ChannelsPage() {
     }, 2000);
 
     setLoading(true);
-    channelsQuery.refetch()
+    if(tab === 'Channels') {
+      channelsQuery.refetch()
+    } else {
+      channelsClosingQuery.refetch()
+    }
   }
 
   const channelsQuery = useNodeMainChannelsQuery(activeNodeId, {
-    refetchInterval: false,
+    enabled: false,
+  });
+  const channelsClosingQuery = useNodeMainChannelsClosingQuery(activeNodeId, {
+    enabled: false,
   });
 
   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId, {
-    refetchInterval: false,
+    enabled: false,
   });
+
+  useEffect(() => {
+    if(!activeNodeId) return;
+    rgbContractsQuery.refetch();
+    channelsQuery.refetch();
+  }, [activeNodeId])
 
   const eventsQuery = useEventsListQuery(activeNodeId, 200, {
     refetchInterval: false,
   });
 
   const closeChannelMutation = useChannelCloseMutation({
-    onSuccess: async () => {
-      await channelsQuery.refetch();
+    onSuccess: () => {
+      let t = setTimeout(() => {
+        clearTimeout(t);
+        channelsQuery.refetch();
+      }, 1000);
     },
   });
 
@@ -194,12 +214,356 @@ export default function ChannelsPage() {
     return formatNumber(balance, contract.precision ?? 0) + ' ' + contract.name;
   }
 
-  if (!activeNodeId || channelsQuery.isPending) {
-    return null
+  const renderDetail = (selectedChannel: ChannelDetailsExtendedDto) => {
+    return (
+      <ContentWrapper className="w-full">
+        <ContentHeader title="" onBack={() => setShowDetail(false)} />
+
+        <Content className="grid grid-cols-2 gap-10">
+          <div>
+            <h4 className="text-base">Channel Detail</h4>
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="text-sm font-medium">Counterparty Node ID</label>
+                <div className="mt-1 break-all text-sm text-secondary-foreground">
+                  {selectedChannel.counterparty_node_id}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">User Channel ID</label>
+                <div className="mt-1 break-all text-sm text-secondary-foreground">
+                  {selectedChannel.user_channel_id}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Channel Point</label>
+                <div className="mt-1 break-all text-sm text-secondary-foreground">
+                  {selectedChannel.channel_point ?? "-"}
+                </div>
+              </div>
+              <pre className="max-h-[200px] overflow-auto p-2 text-sm">
+                {JSON.stringify(selectedChannel, null, 2)}
+              </pre>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-base">Overview</h4>
+            <div className="mt-6 text-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <span>Type</span>
+                <span className="font-medium">
+                  {getChannelTypeLabel(selectedChannel)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Ready</span>
+                <span className="font-medium">
+                  {String(selectedChannel.is_channel_ready)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Usable</span>
+                <span className="font-medium">
+                  {String(selectedChannel.is_usable)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Value</span>
+                <span className="font-medium">
+                  {selectedChannel.channel_value_sats.toString()} sats
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Outbound</span>
+                <span className="font-medium">
+                  {selectedChannel.outbound_capacity_msat.toString()} msat
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Inbound</span>
+                <span className="font-medium">
+                  {selectedChannel.inbound_capacity_msat.toString()} msat
+                </span>
+              </div>
+              <div className="mt-3">
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  className="rounded-full w-full"
+                  onClick={() => {
+                    setSelectedUserChannelId(selectedChannel.user_channel_id)
+                    setConfirmAction("close")
+                  }}
+                >Close Channel</Button>
+              </div>
+              {selectedChannelRgbBalance ? (
+                <>
+                  <div className="h-px-30 my-1" />
+                  <div className="flex items-center justify-between">
+                    <span className="ui-muted">RGB Contract ID</span>
+                    <span className="font-mono text-xs">
+                      {truncateMiddle(
+                        selectedChannelRgbBalance.contractId,
+                        12,
+                        12
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="ui-muted">RGB Local</span>
+                    <span className="font-medium text-xs">
+                      {selectedChannelRgbDisplay
+                        ? `${selectedChannelRgbDisplay.localAmount} ${selectedChannelRgbDisplay.ticker}`
+                        : selectedChannelRgbBalance.localAmount}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="ui-muted">RGB Remote</span>
+                    <span className="font-medium text-xs">
+                      {selectedChannelRgbDisplay
+                        ? `${selectedChannelRgbDisplay.remoteAmount} ${selectedChannelRgbDisplay.ticker}`
+                        : selectedChannelRgbBalance.remoteAmount}
+                    </span>
+                  </div>
+                </>
+              ) : null}
+
+              {selectedEvents.length ? (
+                <div className="pt-2">
+                  <div className="pb-1 text-xs font-semibold">
+                    Recent events
+                  </div>
+                  <div className="space-y-1">
+                    {selectedEvents.map((ev, idx) => (
+                      <div
+                        key={`${ev.received_at_ms}-${idx}`}
+                        className="rounded-md border ui-border p-2 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="font-semibold">{ev.event.type}</div>
+                          <div className="font-mono text-[11px]">
+                            {ev.received_at_ms}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </Content>
+      </ContentWrapper>
+    )
   }
 
-  const list = channelsQuery.data ?? []
-  if(list.length === 0) {
+  const renderChannelsList = (list: ChannelDetailsExtendedDto[]) => {
+    return (
+      <Table style={{minWidth: 'max-content'}}>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>NODE / TYPE</TableHead>
+            <TableHead>STATUS</TableHead>
+            <TableHead>CAPACITY</TableHead>
+            <TableHead>OUTBOUND / BALANCE</TableHead>
+            <TableHead>RGB LOCAL / RGB REMOTE</TableHead>
+            <TableHead className="text-right"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.map((v) => {
+              return (
+                <TableRow
+                  key={v.user_channel_id}
+                  className="h-14 cursor-pointer"
+                  onClick={() => {
+                    setSelectedUserChannelId(v.user_channel_id)
+                    setShowDetail(true)
+                  }}
+                >
+                  <TableCell>
+                    <div>
+                      <CopyTextInline
+                        length={12}
+                        text={v.user_channel_id}
+                        buttonClassName="text-secondary-foreground"
+                      />
+                      <div className="mt-1">
+                        {v.rgb_balance
+                          ? <Badge variant="secondary">BTC/RGB</Badge>
+                          : <Badge variant="secondary">BTC</Badge>
+                        }
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {v.is_channel_ready
+                      ? <Badge variant="success">READY</Badge>
+                      : <Badge variant="destructive">PENDING</Badge>}
+                  </TableCell>
+                  <TableCell>{v.channel_value_sats} sats</TableCell>
+                  <TableCell>
+                    <div>{formatNumber(v.outbound_capacity_msat, 3)} sats</div>
+                    <div>{formatNumber(v.local_balance_msat ?? 0, 3)} sats</div>
+                  </TableCell>
+                  <TableCell>
+                    {
+                      v.rgb_balance ? (
+                        <div>
+                          <div>{formatRgbBalance(v.rgb_balance.local_amount, v.rgb_balance.contract_id)}</div>
+                          <div>{formatRgbBalance(v.rgb_balance.remote_amount, v.rgb_balance.contract_id)}</div>
+                        </div>
+                      ) : (
+                        <span>--</span>
+                      )
+                    }
+                    <div></div>
+                  </TableCell>
+                  <TableCell>
+                    <DropMenu
+                      direaction="horizontal"
+                      variant="ghost"
+                      list={[
+                        {
+                          label: <span className="text-error">Close Channel</span>,
+                          icon: <IconDelete className="text-error" />,
+                          data: v.user_channel_id,
+                          onClick: (id: string) => {
+                            console.log("close channel", id)
+                            setSelectedUserChannelId(id)
+                            setConfirmAction("close")
+                          }
+                        }
+                      ]}
+                    />
+                  </TableCell>
+                </TableRow>
+              )
+            })
+          }
+        </TableBody>
+      </Table>
+    )
+  }
+  const renderSettlingList = (list: ChannelClosing[]) => {
+    return (
+      <Table style={{minWidth: 'max-content'}}>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>NODE / TYPE</TableHead>
+            <TableHead>STATUS</TableHead>
+            <TableHead>BTC BALANCE</TableHead>
+            <TableHead>RGB LOCAL / RGB REMOTE</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {list.map((v) => {
+              return (
+                <TableRow
+                  key={v.channel_id}
+                  className="h-14 cursor-pointer"
+                >
+                  <TableCell>
+                    <div>
+                      <CopyTextInline
+                        length={12}
+                        text={v.channel_id}
+                        buttonClassName="text-secondary-foreground"
+                      />
+                      <div className="mt-1">
+                        {v.rgb
+                          ? <Badge variant="secondary">BTC/RGB</Badge>
+                          : <Badge variant="secondary">BTC</Badge>
+                        }
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="destructive">{v.status}</Badge>
+                  </TableCell>
+                  <TableCell>
+                    {v.btc_balances
+                      ? v.btc_balances.reduce((acc, curr) => acc + BigInt(curr.amount_sats), 0n)
+                      : '--'} sats
+                  </TableCell>
+                  <TableCell>
+                    {
+                      v.rgb ? (
+                        <div>
+                          <div>{formatRgbBalance(v.rgb.local_amount, v.rgb.contract_id)}</div>
+                          <div>{formatRgbBalance(v.rgb.remote_amount, v.rgb.contract_id)}</div>
+                          {
+                            v.rgb.sweep_status === 'parked' ? (
+                              <Badge variant="destructive">Wallet balance is insufficient. Please top up</Badge>
+                            ) : null
+                          }
+                        </div>
+                      ) : (
+                        <span>--</span>
+                      )
+                    }
+                    <div></div>
+                  </TableCell>
+                </TableRow>
+              )
+            })
+          }
+        </TableBody>
+      </Table>
+    )
+  }
+
+  const renderList = () => {
+    const list = channelsQuery.data ?? []
+    const closingList = channelsClosingQuery.data ?? []
+
+    return (
+      <Content className="mt-0 px-2 py-3">
+        {renderTabs()}
+        <div className="mt-3">
+          {
+            tab === 'Channels' ? renderChannelsList(list) : renderSettlingList(closingList)
+          }
+        </div>
+      </Content>
+    )
+  }
+
+  const changeTab = (value: string) => {
+    setTab(value);
+    if(value === 'Channels') {
+      channelsQuery.refetch();
+    } else if(value === 'Settling') {
+      channelsClosingQuery.refetch()
+    }
+  }
+
+  const renderTabs = () => {
+    return (
+      <div className="flex">
+        <Tabs value={tab} onValueChange={changeTab}>
+          <TabsList className="h-10 flex items-center justify-start w-auto rounded-full bg-background gap-1">
+            <TabsTrigger
+              className="h-8 px-4 rounded-full text-base font-medium data-[state=active]:bg-background-2 hover:bg-background-2"
+              value="Channels"
+            >
+              Channels
+            </TabsTrigger>
+            <TabsTrigger
+              className="h-8 px-4 rounded-full text-base font-medium data-[state=active]:bg-background-2 hover:bg-background-2"
+              value="Settling"
+            >
+              Settling
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+    )
+  }
+
+  const renderEmpty = () => {
     return (
       <div>
         <PageHeader
@@ -215,25 +579,36 @@ export default function ChannelsPage() {
             </Button>
           }
         />
-        <Content className="mt-0 h-[664px] flex justify-center items-center">
-          <Empty
-            title="No Channels Found"
-            subTitle="You don't have any open channels yet. Create a channel to start using Lightning Network."
-            action={
-              <Button
-                variant="destructive"
-                size="lg"
-                className="rounded-full"
-                onClick={() => nav('/dashboard/channels/open')}
-              >
-                <IconPlus style={{width: '20px', height: '20px'}} />
-                <span>Open Channel</span>
-              </Button>
-            }
-          />
+        <Content className="mt-0 h-[664px] px-2 py-3 flex flex-col">
+          {renderTabs()}
+          <div className="flex-1 flex justify-center items-center">
+            <Empty
+              title="No Channels Found"
+              subTitle="You don't have any open channels yet. Create a channel to start using Lightning Network."
+              action={
+                <Button
+                  variant="destructive"
+                  size="lg"
+                  className="rounded-full"
+                  onClick={() => nav('/dashboard/channels/open')}
+                >
+                  <IconPlus style={{width: '20px', height: '20px'}} />
+                  <span>Open Channel</span>
+                </Button>
+              }
+            />
+          </div>
         </Content>
       </div>
     )
+  }
+
+  const list = channelsQuery.data ?? []
+  if (!activeNodeId) {
+    return null
+  }
+  if(tab === 'Channels' && list.length === 0) {
+    return renderEmpty()
   }
 
   return (
@@ -270,236 +645,10 @@ export default function ChannelsPage() {
       />
 
       {/* Channel detail */}
-      {showDetail && selectedChannel ? (
-        <ContentWrapper className="w-full">
-          <ContentHeader title="" onBack={() => setShowDetail(false)} />
-
-          <Content className="grid grid-cols-2 gap-10">
-            <div>
-              <h4 className="text-base">Channel Detail</h4>
-              <div className="mt-6 space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Counterparty Node ID</label>
-                  <div className="mt-1 break-all text-sm text-secondary-foreground">
-                    {selectedChannel.counterparty_node_id}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">User Channel ID</label>
-                  <div className="mt-1 break-all text-sm text-secondary-foreground">
-                    {selectedChannel.user_channel_id}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Channel Point</label>
-                  <div className="mt-1 break-all text-sm text-secondary-foreground">
-                    {selectedChannel.channel_point ?? "-"}
-                  </div>
-                </div>
-                <pre className="max-h-[200px] overflow-auto p-2 text-sm">
-                  {JSON.stringify(selectedChannel, null, 2)}
-                </pre>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="text-base">Overview</h4>
-              <div className="mt-6 text-sm space-y-4">
-                <div className="flex items-center justify-between">
-                  <span>Type</span>
-                  <span className="font-medium">
-                    {getChannelTypeLabel(selectedChannel)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Ready</span>
-                  <span className="font-medium">
-                    {String(selectedChannel.is_channel_ready)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Usable</span>
-                  <span className="font-medium">
-                    {String(selectedChannel.is_usable)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Value</span>
-                  <span className="font-medium">
-                    {selectedChannel.channel_value_sats.toString()} sats
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Outbound</span>
-                  <span className="font-medium">
-                    {selectedChannel.outbound_capacity_msat.toString()} msat
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Inbound</span>
-                  <span className="font-medium">
-                    {selectedChannel.inbound_capacity_msat.toString()} msat
-                  </span>
-                </div>
-                <div className="mt-3">
-                  <Button
-                    variant="destructive"
-                    size="lg"
-                    className="rounded-full w-full"
-                    onClick={() => {
-                      setSelectedUserChannelId(selectedChannel.user_channel_id)
-                      setConfirmAction("close")
-                    }}
-                  >Close Channel</Button>
-                </div>
-                {selectedChannelRgbBalance ? (
-                  <>
-                    <div className="h-px-30 my-1" />
-                    <div className="flex items-center justify-between">
-                      <span className="ui-muted">RGB Contract ID</span>
-                      <span className="font-mono text-xs">
-                        {truncateMiddle(
-                          selectedChannelRgbBalance.contractId,
-                          12,
-                          12
-                        )}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="ui-muted">RGB Local</span>
-                      <span className="font-medium text-xs">
-                        {selectedChannelRgbDisplay
-                          ? `${selectedChannelRgbDisplay.localAmount} ${selectedChannelRgbDisplay.ticker}`
-                          : selectedChannelRgbBalance.localAmount}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="ui-muted">RGB Remote</span>
-                      <span className="font-medium text-xs">
-                        {selectedChannelRgbDisplay
-                          ? `${selectedChannelRgbDisplay.remoteAmount} ${selectedChannelRgbDisplay.ticker}`
-                          : selectedChannelRgbBalance.remoteAmount}
-                      </span>
-                    </div>
-                  </>
-                ) : null}
-
-                {selectedEvents.length ? (
-                  <div className="pt-2">
-                    <div className="pb-1 text-xs font-semibold">
-                      Recent events
-                    </div>
-                    <div className="space-y-1">
-                      {selectedEvents.map((ev, idx) => (
-                        <div
-                          key={`${ev.received_at_ms}-${idx}`}
-                          className="rounded-md border ui-border p-2 text-xs"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="font-semibold">{ev.event.type}</div>
-                            <div className="font-mono text-[11px]">
-                              {ev.received_at_ms}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </Content>
-        </ContentWrapper>
-      ) : (
-        <Content className="mt-0 px-2 py-3">
-          <Table style={{minWidth: 'max-content'}}>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead>NODE / TYPE</TableHead>
-                <TableHead>STATUS</TableHead>
-                <TableHead>CAPACITY</TableHead>
-                <TableHead>OUTBOUND / BALANCE</TableHead>
-                <TableHead>RGB LOCAL / RGB REMOTE</TableHead>
-                <TableHead className="text-right"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {list.map((v) => {
-                  return (
-                    <TableRow
-                      key={v.user_channel_id}
-                      className="h-14 cursor-pointer"
-                      onClick={() => {
-                        setSelectedUserChannelId(v.user_channel_id)
-                        setShowDetail(true)
-                      }}
-                    >
-                      <TableCell>
-                        <div>
-                          <CopyTextInline
-                            length={12}
-                            text={v.user_channel_id}
-                            buttonClassName="text-secondary-foreground"
-                          />
-                          <div className="mt-1">
-                            {v.rgb_balance
-                              ? <Badge variant="secondary">BTC/RGB</Badge>
-                              : <Badge variant="secondary">BTC</Badge>
-                            }
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {v.is_channel_ready
-                          ? <Badge variant="success">READY</Badge>
-                          : <Badge variant="destructive">PENDING</Badge>}
-                      </TableCell>
-                      <TableCell>{v.channel_value_sats} sats</TableCell>
-                      <TableCell>
-                        <div>{formatNumber(v.outbound_capacity_msat, 3)} sats</div>
-                        <div>{formatNumber(v.local_balance_msat ?? 0, 3)} sats</div>
-                      </TableCell>
-                      <TableCell>
-                        {
-                          v.rgb_balance ? (
-                            <div>
-                              <div>{formatRgbBalance(v.rgb_balance.local_amount, v.rgb_balance.contract_id)}</div>
-                              <div>{formatRgbBalance(v.rgb_balance.remote_amount, v.rgb_balance.contract_id)}</div>
-                            </div>
-                          ) : (
-                            <span>--</span>
-                          )
-                        }
-                        <div></div>
-                      </TableCell>
-                      <TableCell>
-                        <DropMenu
-                          direaction="horizontal"
-                          variant="ghost"
-                          list={[
-                            {
-                              label: <span className="text-error">Close Channel</span>,
-                              icon: <IconDelete className="text-error" />,
-                              data: v.user_channel_id,
-                              onClick: (id: string) => {
-                                console.log("close channel", id)
-                                setSelectedUserChannelId(id)
-                                setConfirmAction("close")
-                              }
-                            }
-                          ]}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              }
-            </TableBody>
-          </Table>
-        </Content>
-      )}
-
+      {showDetail && selectedChannel
+        ? renderDetail(selectedChannel)
+        : renderList()
+      }
 
       {/* close channel */}
       <Dialog
@@ -643,15 +792,15 @@ export default function ChannelsPage() {
               }
               onClick={() => {
                 if (!selectedChannel || !confirmAction) return;
-                      closeChannelMutation.mutate({
-                        nodeId: activeNodeId,
-                        request: {
-                          user_channel_id: selectedChannel.user_channel_id,
-                          counterparty_node_id:
-                            selectedChannel.counterparty_node_id,
-                        },
-                        force: confirmAction === "force",
-                      });
+                closeChannelMutation.mutate({
+                  nodeId: activeNodeId,
+                  request: {
+                    user_channel_id: selectedChannel.user_channel_id,
+                    counterparty_node_id:
+                      selectedChannel.counterparty_node_id,
+                  },
+                  force: confirmAction === "force",
+                });
                 setShowDetail(false);
                 setConfirmAction(null);
               }}

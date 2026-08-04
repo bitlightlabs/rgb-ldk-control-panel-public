@@ -33,7 +33,7 @@ export default function Local(props: IProps) {
         <div className="mt-12 flex flex-col gap-3">
           <Button
             size="xl"
-            className="px-5 bg-background-3 hover:bg-background-2 border border-background-2"
+            className="px-5 bg-background-3 hover:bg-background-2 border border-background-3"
             onClick={() => nav('/create-wallet')}
           >
             <div className="w-full flex items-center justify-between">
@@ -55,7 +55,7 @@ export default function Local(props: IProps) {
           </Button>
           <Button
             size="xl"
-            className="px-5 bg-background-3 hover:bg-background-2 border border-background-2"
+            className="px-5 bg-background-3 hover:bg-background-2 border border-background-3"
             onClick={() => nav('/import-wallet')}
           >
             <div className="w-full flex items-center justify-between">

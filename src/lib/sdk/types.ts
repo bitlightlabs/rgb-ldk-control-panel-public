@@ -515,19 +515,37 @@ export interface SignmessageResponse {
 
 
 export interface SwapInfo {
-  "asset_amount": string
-  "asset_id": string,
-  "btc_amount_msat": string,
-  "btc_carrier_amount_msat": string,
-  "channel_scid": string
-  "counterparty_node_id": string,
-  "created_at_unix_secs": string,
-  "expiry_secs": number,
-  "is_multihop": boolean,
-  "maker_gives_rgb": boolean,
-  "payment_hash": string,
-  "role": string,
-  /** `Offered | Accepted | Settled` */
-  "status": string
+  asset_amount: string
+  asset_id: string,
+  btc_amount_msat: string,
+  btc_carrier_amount_msat: string,
+  channel_scid: string
+  counterparty_node_id: string,
+  created_at_unix_secs: string,
+  expiry_secs: number,
+  is_multihop: boolean,
+  maker_gives_rgb: boolean,
+  payment_hash: string,
+  role: string,
+  /** `Offered | Accepted | InFlight | Settled | Failed` */
+  status: string
   contract_id: string
+}
+
+export interface ChannelClosing {
+  btc_balances: {
+    amount_sats: string;
+    kind: string;
+  }[];
+  channel_id: string;
+  close_source: string;
+  counterparty_node_id: string;
+  status: string;
+  sweeping_balances: any[];
+  rgb?: {
+    local_amount: string;
+    remote_amount: string;
+    contract_id: string;
+    sweep_status: 'parked' | 'in_flight' | 'done' | null;
+  }
 }

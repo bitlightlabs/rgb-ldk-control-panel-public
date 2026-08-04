@@ -2345,6 +2345,22 @@ pub async fn node_main_channels(
 }
 
 #[tauri::command]
+pub async fn node_main_channels_closing(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "main.channels_closing",
+        None,
+        rgbldkd_http::main_channels_closing(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
 pub async fn node_channel_open(
     state: State<'_, AppState>,
     node_id: String,

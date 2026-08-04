@@ -3506,7 +3506,7 @@ dependencies = [
 
 [[package]]
 name = "rgb-ldk-control-panel"
-version = "0.0.6"
+version = "0.0.7"
 dependencies = [
  "base64 0.22.1",
  "bip39",

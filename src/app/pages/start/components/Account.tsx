@@ -14,7 +14,7 @@ import IconStart from "@/app/icons/start";
 import { useNodeLockMutation } from "@/app/mutations";
 import { removeNodeScopedCache } from "@/app/queries";
 import { useQueryClient } from "@tanstack/react-query";
-import { LDK_IMAGE, LOCAL_IGNORE_NEW_IMAGE } from "@/app/config/constant";
+import { LDK_IMAGE } from "@/app/config/constant";
 import UpdateImage from "@/app/components/UpdateImage";
 
 interface IProps {
@@ -76,13 +76,7 @@ export default function Account(props: IProps) {
   }
 
   const checkUpdate = () => {
-    const nodeId = context.node_id
-    if(!nodeId) {
-      return
-    }
-
-    const ignore = globalThis.localStorage.getItem(LOCAL_IGNORE_NEW_IMAGE)
-    if(!ignore && context.image !== LDK_IMAGE) {
+    if(context.image !== LDK_IMAGE) {
       setShowUpdate(true)
       return;
     }
