@@ -419,7 +419,6 @@ export default function ChannelsPage() {
                         <span>--</span>
                       )
                     }
-                    <div></div>
                   </TableCell>
                   <TableCell>
                     <DropMenu
@@ -427,6 +426,7 @@ export default function ChannelsPage() {
                       variant="ghost"
                       list={[
                         {
+                          disabled: !v.is_channel_ready,
                           label: <span className="text-error">Close Channel</span>,
                           icon: <IconDelete className="text-error" />,
                           data: v.user_channel_id,

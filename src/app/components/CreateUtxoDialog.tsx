@@ -229,6 +229,7 @@ export default function CreateUtxoDialog(props: IProps) {
             size="lg"
             className="rounded-full flex-1"
             disabled={loading}
+            loading={loading}
             onClick={next}
           >
             Review

@@ -178,7 +178,7 @@ export default function RgbExportPage() {
       setStep(2);
     },
     onError: (e) => {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     },
   });
 
@@ -205,7 +205,7 @@ export default function RgbExportPage() {
       setStepOneMode("confirm");
     },
     onError: (e) => {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     },
   });
 
@@ -217,7 +217,7 @@ export default function RgbExportPage() {
   const downloadMutation = useDownloadConsignmentWithoutVerifyMutation({
     onSuccess: async (data) => {
       if (!data.archive_base64) {
-        toast.error((data as any).message || "Failed to download consignment");
+        toast.error("Failed to download consignment");
         return;
       }
 
@@ -239,11 +239,11 @@ export default function RgbExportPage() {
         toast.success("Consignment downloaded");
         setStep(3);
       } catch (e) {
-        toast.error((e as Error).message);
+        toast.error(errorToText(e));
       }
     },
     onError: (e) => {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     },
   });
 
@@ -258,11 +258,11 @@ export default function RgbExportPage() {
 
   const checkPaid = () => {
     if (!activeNodeId) {
-      toast.error("No active node selected");
+      toast.error("No active node");
       return;
     }
     if (!invoiceTrim) {
-      toast.error("RGB Onchain Invoice is required");
+      toast.error("Invalid invoice");
       return;
     }
     checkPaidMutation.mutate({ nodeId: activeNodeId, invoice: invoiceTrim });
@@ -270,11 +270,11 @@ export default function RgbExportPage() {
 
   const pay = () => {
     if (!activeNodeId) {
-      toast.error("No active node selected");
+      toast.error("No active node");
       return;
     }
     if (!invoiceTrim) {
-      toast.error("RGB Onchain Invoice is required");
+      toast.error("Invalid invoice");
       return;
     }
     payMutation.mutate({

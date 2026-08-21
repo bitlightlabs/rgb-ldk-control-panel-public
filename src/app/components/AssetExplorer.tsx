@@ -73,7 +73,9 @@ export function AssetExplorer() {
           <span className="font-medium">RGB Assets</span>
           <div>
             <Button
+              variant="ghost"
               size="sm"
+              className="rounded-full"
               onClick={() => setShowIssue(true)}
             >Issue Asset</Button>
           </div>

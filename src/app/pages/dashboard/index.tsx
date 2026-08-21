@@ -59,7 +59,6 @@ export function DashboardPage() {
           <div className="mt-6 h-[34px]">
             <span className="text-[28px] font-bold">
               {(balancesQuery.data?.btc.onchain_total_sats ?? 0) / 10 ** 8}
-              {}
             </span>
             <span className="pl-2 text-lg text-secondary-foreground font-medium">
               BTC

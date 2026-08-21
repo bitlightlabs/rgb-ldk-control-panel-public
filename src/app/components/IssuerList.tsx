@@ -56,7 +56,13 @@ export default function IssuerList(props: IProps) {
           <CardTitle className="flex justify-between">
             <span>RGB Issuers List</span>
             <div className="flex gap-3">
-              <Button disabled={issuerImportMutation.isPending} variant="secondary" size="sm" onClick={selectFile}>Import Issuers</Button>
+              <Button
+                disabled={issuerImportMutation.isPending}
+                variant="destructive"
+                size="sm"
+                className="rounded-full"
+                onClick={selectFile}
+              >Import Issuers</Button>
             </div>
           </CardTitle>
         </CardHeader>

@@ -8,6 +8,8 @@ import { useBolt12OfferSendMutation } from "@/app/mutations";
 import { useBolt12OfferDecodeQuery } from "@/app/queries";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 
 
 export default function SendBolt12OfferConfirm() {
@@ -32,6 +34,9 @@ export default function SendBolt12OfferConfirm() {
         + '&symbol=sats'
       )
     },
+    onError: (err) => {
+      toast.error(errorToText(err))
+    }
   });
 
   const offerDecodeQuery = useBolt12OfferDecodeQuery(activeNodeId, payload, {

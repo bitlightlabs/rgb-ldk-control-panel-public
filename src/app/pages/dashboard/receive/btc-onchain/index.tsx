@@ -1,11 +1,11 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
-import { useNodeWalletNewAddressMutation } from "@/app/mutations";
 import { Check, Copy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useNodeWalletAddressCurrentQuery } from "@/app/queries";
 
 
 export default function BtcOnchain() {
@@ -15,6 +15,11 @@ export default function BtcOnchain() {
   const [address, setAddress] = useState("");
   const activeNodeId = currentContext?.node_id;
 
+  const currentAddressQuery = useNodeWalletAddressCurrentQuery(
+    activeNodeId,
+    { retry: false },
+  );
+
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(address);
@@ -22,12 +27,6 @@ export default function BtcOnchain() {
       setTimeout(() => setCopied(false), 1200);
     } catch(e) {}
   }
-
-  const createMutation = useNodeWalletNewAddressMutation({
-    onSuccess: (resp) => {
-      setAddress(resp.address);
-    },
-  });
 
   const processColor = (str: string) => {
     const prefix = str.slice(0, 8);
@@ -44,10 +43,10 @@ export default function BtcOnchain() {
   }
 
   useEffect(() => {
-    if (activeNodeId) {
-      createMutation.mutate(activeNodeId);
+    if (currentAddressQuery.data?.address) {
+      setAddress(currentAddressQuery.data.address);
     }
-  }, [activeNodeId])
+  }, [currentAddressQuery.data?.address])
 
   if(!address) {
     return null;

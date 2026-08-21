@@ -8,15 +8,15 @@ import { Store } from '@tauri-apps/plugin-store'
 import { LOCAL_SWAP_STRING } from "@/app/config/constant"
 import { useEffect } from "react"
 import { useState } from "react"
-import { formatNumber } from "@/lib/number"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import Row from "../Row"
 import { CopyTextInline } from "../CopyText"
 import AssetAvatar from "../AssetAvatar"
 import { Button } from "@/components/ui/button"
+import { parseSwapInfo } from "@/lib/swap"
 
 export default function SwapDetailDialog(props: {
-  contract: RgbContractDto | undefined,
+  contract?: RgbContractDto | null,
   paymentHash: string,
   onClose: () => void
   onRefresh: () => void
@@ -75,22 +75,7 @@ export default function SwapDetailDialog(props: {
 
   const data = query.data
   const isMaker = data?.role === 'Maker'
-  const makerGivesRgb = data?.maker_gives_rgb
-  const precision = props.contract?.precision ?? 0
-
-  const sendAsset = isMaker && makerGivesRgb ?
-    props.contract?.name :
-    'BTC'
-  const sendAmount = sendAsset === 'BTC' ?
-    (BigInt(data?.btc_amount_msat || 0) / BigInt(1000)).toString() :
-    formatNumber(data?.asset_amount || 0, precision)
-  const sendUnit = sendAsset === 'BTC' ? 'sats' : props.contract?.name
-
-  const receiveAsset = sendAsset === 'BTC' ? props.contract?.name : 'BTC'
-  const receiveAmount = sendAsset === 'BTC' ?
-    formatNumber(data?.asset_amount || 0, precision) :
-    (BigInt(data?.btc_amount_msat || 0) / BigInt(1000)).toString()
-  const receiveUnit = receiveAsset === 'BTC' ? 'sats' : props.contract?.name
+  const detail = parseSwapInfo(data, props.contract)
 
   return (
     <Dialog
@@ -105,14 +90,14 @@ export default function SwapDetailDialog(props: {
           <div>
             <label className="text-xs text-secondary-foreground">Send</label>
             <div className="mt-2 leading-10">
-              <span className="text-[34px] font-bold">{sendAmount}</span>
-              <span className="text-xl font-bold ml-1">{sendUnit}</span>
+              <span className="text-[34px] font-bold">{detail.fromAssetAmount}</span>
+              <span className="text-xl font-bold ml-1">{detail.fromAssetUnit}</span>
             </div>
           </div>
           <div>
             <AssetAvatar
               className="w-10 h-10"
-              name={sendAsset ?? ''}
+              name={detail.fromAssetName ?? ''}
             />
           </div>
         </div>
@@ -120,14 +105,14 @@ export default function SwapDetailDialog(props: {
           <div>
             <label className="text-xs text-secondary-foreground">Receive</label>
             <div className="mt-2 leading-10">
-              <span className="text-[34px] font-bold">{receiveAmount}</span>
-              <span className="text-xl font-bold ml-1">{receiveUnit}</span>
+              <span className="text-[34px] font-bold">{detail.toAssetAmount}</span>
+              <span className="text-xl font-bold ml-1">{detail.toAssetUnit}</span>
             </div>
           </div>
           <div>
             <AssetAvatar
               className="w-10 h-10"
-              name={receiveAsset ?? ''}
+              name={detail.toAssetName ?? ''}
             />
           </div>
         </div>

@@ -75,6 +75,8 @@ export const queryKeys = {
     ["rgb_onchain_invoice_decode", nodeId, payload] as const,
   rgbInvoiceEstimateCarrier: (nodeId: string) =>
     ["rgb_invoice_estimate_carrier", nodeId] as const,
+  rgbUtxosMergeStatus: (nodeId: string) =>
+    ["rgb_utxos_merge_status", nodeId] as const,
 
   // ---- swap ----
   nodeSwapOffers: (nodeId: string) => ["node_swap_offers", nodeId] as const,

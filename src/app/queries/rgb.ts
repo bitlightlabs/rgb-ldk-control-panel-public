@@ -9,6 +9,7 @@ import {
   nodeRgbLnInvoiceDecode,
   nodeRgbUtxos,
   nodeRgbLnInvoiceEstimateCarrier,
+  nodeRgbUtxosMergeStatus,
 } from "@/lib/commands";
 import type { NodeHttpProxyResponse } from "@/lib/domain";
 import type {
@@ -16,6 +17,7 @@ import type {
   RgbContractsResponse,
   RgbIssuersResponse,
   RgbOnchainPaymentsResponse,
+  RgbUtxosMergeStatusResponse,
 } from "@/lib/sdk/types";
 import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
 import { queryKeys } from "./queryKeys";
@@ -159,6 +161,18 @@ export function useRgbInvoiceEstimateCarrierQuery(
     queryKey: queryKeys.rgbInvoiceEstimateCarrier(nodeId ?? ""),
     queryFn: () =>
       nodeRgbLnInvoiceEstimateCarrier(nodeId!),
+    ...mergeNodeOptions(nodeId, options),
+  });
+}
+
+export function useRgbUtxosMergeStatusQuery(
+  nodeId: string | null | undefined,
+  options?: NodeOptions<RgbUtxosMergeStatusResponse>,
+) {
+  return useQuery({
+    queryKey: queryKeys.rgbUtxosMergeStatus(nodeId ?? ""),
+    queryFn: () =>
+      nodeRgbUtxosMergeStatus(nodeId!),
     ...mergeNodeOptions(nodeId, options),
   });
 }

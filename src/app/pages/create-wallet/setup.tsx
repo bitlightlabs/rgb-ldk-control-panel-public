@@ -92,7 +92,7 @@ export default function Setup() {
       return;
     }
     if (!passwordHash || !accountName || !mnemonic) {
-      toast.error("Missing required parameters.");
+      toast.error("Invalid parameters.");
       return;
     }
 

@@ -198,7 +198,7 @@ function BackupDetail(props: {
         try {
           await unlockMutation.mutateAsync(currentContext.node_id);
         } catch (e) {
-          toast.error(`Backup failed and unlock failed: ${errorToText(e)}`);
+          toast.error(errorToText(e));
         }
       }
       setDownloading(false);

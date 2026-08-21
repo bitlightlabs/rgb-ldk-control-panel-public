@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils"
 import BTCIcon from '@/assets/btc.png'
 
 export default function AssetAvatar({ name, className = '' }: { name: string, className?: string }) {
-  const first = (name.trim().charAt(0) || "?").toUpperCase();
+  const first = (name.trim().charAt(0) || "").toUpperCase();
   return (
     <span
       className={cn(

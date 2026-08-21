@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { errorToText } from "@/lib/errorToText";
 import { useRgbContractImportBundleMutation } from "@/app/mutations";
 import { toast } from "sonner";
 import { open } from '@tauri-apps/plugin-dialog';
@@ -49,15 +50,14 @@ export default function ImportLocalContract(props: IProps) {
       props.onClose()
       props.onSuccess()
     } catch(e) {
-      console.log(e)
-      toast.error((e as Error).message)
+      toast.error(errorToText(e));
     } finally {
       setPosting(false);
     }
   }
 
   return (
-    <Dialog modal={false} open onOpenChange={() => props.onClose()}>
+    <Dialog open onOpenChange={() => props.onClose()}>
       <DialogContent>
         <form className='flex flex-col gap-4'>
           <DialogHeader>

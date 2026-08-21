@@ -477,7 +477,7 @@ export function Bolt12RefundDialog({
               initiateMutation.mutate({
                 nodeId: payerNodeId,
                 request: {
-                  amount_msat: u64(amountMsat.trim()),
+                  amount_msat: amountMsat.trim(),
                   expiry_secs: Number(expirySecs.trim()),
                   quantity: null,
                   payer_note: payerNote.trim() ? payerNote.trim() : null,

@@ -5,9 +5,9 @@ import IconArrowRight from "@/app/icons/arrowright";
 import { useEffect, useRef, useState } from "react";
 import { useContextStore } from "@/app/stores/contextStore";
 import { useNodeSwapInfoQuery } from "@/app/queries/swap";
-import { formatNumber } from "@/lib/number";
 import { Badge } from "@/components/ui/badge";
 import SwapDetailDialog from "./SwapDetailDialog";
+import { parseSwapInfo } from "@/lib/swap";
 
 interface IProps {
   data: SwapInfo
@@ -31,23 +31,7 @@ export default function SwapItem(props: IProps) {
   })
 
   const contract = contracts.find((c) => c.contract_id === data.contract_id)
-  const isMaker = data.role === 'Maker'
-  const makerGivesRgb = data.maker_gives_rgb
-  const precision = contract?.precision ?? 0
-
-  const fromAsset = isMaker && makerGivesRgb ?
-    contract?.name :
-    'BTC'
-  const fromAmount = fromAsset === 'BTC' ?
-    (BigInt(data.btc_amount_msat) / BigInt(1000)).toString() :
-    formatNumber(data.asset_amount || 0, precision)
-  const fromUnit = fromAsset === 'BTC' ? 'sats' : contract?.name
-
-  const toAsset = fromAsset === 'BTC' ? contract?.name : 'BTC'
-  const toAmount = fromAsset === 'BTC' ?
-    formatNumber(data.asset_amount || 0, precision) :
-    (BigInt(data.btc_amount_msat) / BigInt(1000)).toString()
-  const toUnit = toAsset === 'BTC' ? 'sats' : contract?.name
+  const swapDetail = parseSwapInfo(data, contract)
 
   // Poll swap status
   const pollItem = async () => {
@@ -89,18 +73,18 @@ export default function SwapItem(props: IProps) {
           <div className="relative h-[42px] w-[42px]">
             <AssetAvatar
               className="absolute top-0 left-0 w-[30px] h-[30px] z-10"
-              name={fromAsset ?? ''}
+              name={swapDetail.fromAssetName ?? ''}
             />
             <AssetAvatar
               className="absolute right-0 bottom-0 w-[30px] h-[30px] z-20 border-1 border-background"
-              name={toAsset ?? ''}
+              name={swapDetail.toAssetName ?? ''}
             />
           </div>
           <div>
             <div className="text-base font-medium leading-5 flex items-center gap-1">
-              <span>{fromAsset ?? ''}</span>
+              <span>{swapDetail.fromAssetName ?? ''}</span>
               <IconArrowRight className="w-4 h-4 text-secondary-foreground" />
-              <span>{toAsset ?? ''}</span>
+              <span>{swapDetail.toAssetName ?? ''}</span>
               <Badge
                 className="py-0 px-1.5 h-5 ml-2 text-xs"
                 variant={swapStatus === 'Settled' ? 'success' : 'default'}
@@ -114,10 +98,10 @@ export default function SwapItem(props: IProps) {
         </div>
         <div className="text-right text-base">
           <div className="text-base leading-5 font-normal">
-            - {fromAmount} {fromUnit}
+            - {swapDetail.fromAssetAmount} {swapDetail.fromAssetUnit}
           </div>
           <div className="mt-1 text-success font-normal">
-            + {toAmount} {toUnit}
+            + {swapDetail.toAssetAmount} {swapDetail.toAssetUnit}
           </div>
         </div>
       </div>

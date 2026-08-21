@@ -237,6 +237,7 @@ export interface RgbOpenChannelRequest {
   contract_id: string;
   asset_amount: string;
   color_context_data: string; // e.g. file://...
+  funding_utxo_policy: string
 }
 
 export interface RgbNewAddressResponse {
@@ -347,7 +348,7 @@ export interface RgbLnPayRequest {
 
 export interface RgbOnchainInvoiceCreateRequest {
   contract_id: string;
-  amount: U64;
+  amount: string;
   use_witness_utxo?: boolean;
   nonce?: U64 | null;
   blinding_utxo: string;
@@ -419,7 +420,7 @@ export interface Bolt12OfferSendRequest {
 }
 
 export interface Bolt12RefundInitiateRequest {
-  amount_msat: U64;
+  amount_msat: string;
   expiry_secs: number;
   quantity?: U64 | null;
   payer_note?: string | null;
@@ -548,4 +549,22 @@ export interface ChannelClosing {
     contract_id: string;
     sweep_status: 'parked' | 'in_flight' | 'done' | null;
   }
+}
+
+export interface RgbUtxosMergeResponse {
+  "operation_id": string;
+  "txid": string;
+  "merged_inputs": string;
+  "total_amount": number;
+  "remaining_count": number; // >0 = 还有剩余，需再调一次
+  "status": string;
+}
+
+export interface RgbUtxosMergeStatusResponse {
+  merges: {
+    txid: string
+    released: boolean
+    destination_utxo: string
+    contract_id: string
+  }[]
 }

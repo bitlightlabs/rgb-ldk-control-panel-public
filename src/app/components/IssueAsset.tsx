@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useRgbContractIssueMutation } from "@/app/mutations";
 import { useNodeRgbIssuersQuery } from "@/app/queries";
 import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 import IssuerList from "./IssuerList";
 import RgbUtxoSelect from "./RgbUtxoSelect";
 import { useState } from "react";
@@ -26,9 +27,8 @@ export default function IssueAsset(props: IProps) {
       props.onSuccess();
       props.onClose();
     },
-    onError: (error) => {
-      console.error('Issue asset error ', error);
-      toast.error((error as Error).message || "Failed to issue asset");
+    onError: (e) => {
+      toast.error(errorToText(e));
     }
   });
 
@@ -65,16 +65,15 @@ export default function IssueAsset(props: IProps) {
 
       console.log('Issuing asset with data ', data);
       issueAsset.mutate({ nodeId: activeNodeId, request: data })
-    } catch (error) {
-      console.error('Issue asset error ', error);
-      toast.error((error as Error).message || "Failed to issue asset");
+    } catch (e) {
+      toast.error(errorToText(e));
     }
   };
 
   const issuerList = getIssuers.data?.issuers ?? [];
 
   return (
-    <Dialog modal={false} open onOpenChange={() => props.onClose()}>
+    <Dialog open onOpenChange={() => props.onClose()}>
       <DialogContent className="w-[600px]">
         <DialogHeader>
           <DialogTitle>Issue Asset</DialogTitle>
@@ -139,8 +138,8 @@ export default function IssueAsset(props: IProps) {
         <div className="mt-4">
           <Button
             disabled={issueAsset.isPending}
-            type="button"
-            className="w-full"
+            variant="white"
+            className="w-full rounded-full"
             onClick={submitIssue}
           >Issue Asset</Button>
         </div>

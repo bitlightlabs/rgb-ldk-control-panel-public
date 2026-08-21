@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { downloadTransferConsignmentFromLink } from "@/lib/commands";
+import { errorToText } from "@/lib/errorToText";
 import { base64ToUint8Array } from "@/lib/utils";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeFile } from "@tauri-apps/plugin-fs";
@@ -26,7 +27,7 @@ export default function DownloadTransferConsignmentBtn(props: {nodeId: string, n
       await writeFile(path, bytes);
 
     } catch(e) {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     }
   }
 

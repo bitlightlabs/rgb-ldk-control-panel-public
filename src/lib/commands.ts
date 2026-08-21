@@ -66,6 +66,7 @@ import type {
   SignmessageResponse,
   SwapInfo,
   ChannelClosing,
+  RgbUtxosMergeStatusResponse,
 } from "./sdk/types";
 import { tauriInvoke } from "./tauri";
 import type { RgbContractsExportBundle } from "./domain";
@@ -1001,4 +1002,17 @@ export async function nodeSwapDelete(nodeId: string, paymentHash: string): Promi
     nodeId,
     paymentHash,
   });
+}
+
+export async function nodeRgbUtxosMerge(
+  nodeId: string,
+  request: {contract_id: string, include_invoice_bound_utxos: boolean, destination_utxo: string, fee_rate_sats_per_vb: number}
+): Promise<any> {
+  return tauriInvoke("node_rgb_utxos_merge", { nodeId, request });
+}
+
+export async function nodeRgbUtxosMergeStatus(nodeId: string): Promise<RgbUtxosMergeStatusResponse> {
+  return tauriInvoke("node_rgb_utxos_merge_status", {
+    nodeId
+  })
 }

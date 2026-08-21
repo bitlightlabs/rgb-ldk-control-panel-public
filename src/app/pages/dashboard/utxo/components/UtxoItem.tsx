@@ -1,32 +1,50 @@
-import AssetAvatar from "./AssetAvatar";
-import CopyText from "./CopyText";
+import { useState } from "react";
+import AssetAvatar from "@/app/components/AssetAvatar";
+import CopyText from "@/app/components/CopyText";
 import { Button } from "@/components/ui/button";
 import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
 import { formatNumber } from "@/lib/number";
 import { formatAddress } from "@/lib/utils";
-import type { RgbContractDto } from "@/lib/sdk/types";
+import type { RgbContractDto, RgbUtxosMergeStatusResponse } from "@/lib/sdk/types";
 import { Badge } from "@/components/ui/badge";
-import IconDot from "../icons/dot";
-import UtxoAddBalanceDialog from "./UtxoAddBalanceDialog";
-import { useState } from "react";
-import UnlockUtxoDialog from "./UnlockUtxoDialog";
-import CustomTooltip from "./CustomTooltip";
+import IconDot from "@/app/icons/dot";
+import UtxoAddBalanceDialog from "@/app/components/UtxoAddBalanceDialog";
+import UnlockUtxoDialog from "@/app/components/UnlockUtxoDialog";
+import CustomTooltip from "@/app/components/CustomTooltip";
 import { Separator } from "@/components/ui/separator";
 
 interface IProps {
   utxo: RgbUtxoDto
   contracts: RgbContractDto[]
+  mergeStatusData?: RgbUtxosMergeStatusResponse
   onRefreshUtxoList: () => void
 }
 export default function UtxoItem(props: IProps) {
-  const { utxo, contracts } = props
+  const { utxo, contracts, mergeStatusData } = props
   const [showAddBalance, setShowAddBalance] = useState(false)
   const [showUnlockUtxo, setShowUnlockUtxo] = useState(false)
 
   const rgb = utxo.rgb || {};
   const allocations = rgb.allocations || []
-  const locked = utxo.lock.locked
-  const canUnlock = !locked && utxo.confirmation.status === 'confirmed' && allocations.length === 0
+  let locked = utxo.lock.locked
+  let canUnlock = !locked && utxo.confirmation.status === 'confirmed' && allocations.length === 0
+  // Can topup balance
+  let canTopup = true
+
+  // Check if the utxo is currently in a merge asset operation
+  if(mergeStatusData) {
+    const merges = mergeStatusData.merges || []
+    for(let i=0; i < merges.length; i++) {
+      if(merges[i].destination_utxo === utxo.outpoint) {
+        if(!merges[i].released) {
+          locked = true
+          canUnlock = false
+          canTopup = false
+          break
+        }
+      }
+    }
+  }
 
   return (
     <div className="relative p-5 bg-background-3 rounded-3xl">
@@ -97,6 +115,7 @@ export default function UtxoItem(props: IProps) {
              <Button
               variant="white"
               className="rounded-full w-full"
+              disabled={!canTopup}
               onClick={() => setShowAddBalance(true)}
             >Add UTXO Balance</Button>
           ) : null

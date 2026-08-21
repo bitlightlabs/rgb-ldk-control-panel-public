@@ -9,7 +9,7 @@ interface IProps {
 }
 
 /**
- * NOTE: Only return the largest UTXO balance
+ * NOTE: Only returns the largest UTXO balance of an Asset
  */
 export default function RgbUtxoBalance(props: IProps) {
   const [balance, setBalance] = useState('');

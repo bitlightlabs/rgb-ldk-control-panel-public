@@ -13,7 +13,7 @@ export default function AboutPage() {
       <div className="mt-3 text-base text-secondary-foreground">Info about your RGB LIghtning Node</div>
       <div className="mt-8 bg-background-4 rounded-2xl p-4 text-base">
         <label className="font-medium leading-5">RGB Lightning Node Version</label>
-        <div className="mt-2 text-secondary-foreground">v{JsonData.version}</div>
+        <div className="mt-2 text-secondary-foreground">V{JsonData.version}</div>
         <div className="h-[1px] bg-background-3 my-5"></div>
 
         <label className="font-medium leading-5">Lightning Node Backend</label>

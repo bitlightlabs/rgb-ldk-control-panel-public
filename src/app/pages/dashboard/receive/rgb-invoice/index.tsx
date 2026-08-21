@@ -54,11 +54,11 @@ export function RGBInvoice() {
   const createInvoice = async () => {
     try {
       if (!activeNodeId) {
-        toast.error("No active node selected");
+        toast.error("No active node");
         return;
       }
       if (!selectedContract) {
-        toast.error("No RGB contract selected");
+        toast.error("Invalid RGB contract");
         return;
       }
 

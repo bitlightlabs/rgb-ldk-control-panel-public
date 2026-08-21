@@ -99,7 +99,7 @@ export default function Start() {
                     size="lg"
                     className="hover:bg-background-3 w-full data-[state=open]:bg-background-3 rounded-2xl"
                   >
-                    v{JsonData.version}
+                    V{JsonData.version}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent
@@ -113,7 +113,7 @@ export default function Start() {
                     <DropdownMenuItem
                       className="h-11 px-3 gap-3"
                     >
-                      v{JsonData.version}
+                      V{JsonData.version}
                     </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator className="mx-3 my-2" />

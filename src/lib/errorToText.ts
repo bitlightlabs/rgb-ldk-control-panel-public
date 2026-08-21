@@ -2,21 +2,33 @@ export function errorToText(err: unknown): string {
   if (!err) return "Unknown error";
   if (typeof err === "string") return err;
   if (typeof err === "object") {
-    const maybe = err as { message?: unknown; hint?: unknown; error?: unknown; code?: unknown; status?: unknown };
-    if (typeof maybe.message === "string") {
-      if (typeof maybe.hint === "string" && maybe.hint.trim()) {
-        return `${maybe.message} (hint: ${maybe.hint})`;
+    const maybe = err as { message?: string; hint?: unknown; error?: unknown; code?: unknown; status?: unknown };
+
+    if (typeof maybe.hint === "string" && maybe.hint.startsWith("{")) {
+      try {
+        const obj = JSON.parse(maybe.hint);
+        let msg = "";
+        if (obj.error) {
+          msg += obj.error;
+        }
+        if(obj.hint) {
+          msg += `(${obj.hint})`;
+        }
+        return msg;
+      } catch {
+        // ignore JSON parse errors
       }
-      return maybe.message;
     }
+
+    if(typeof maybe.hint === "string") {
+      return maybe.hint;
+    }
+
     if (typeof maybe.error === "string") {
       return maybe.error;
     }
-    if (typeof maybe.code === "string") {
-      return `Error: ${maybe.code}`;
-    }
-    if (typeof maybe.status === "number") {
-      return `HTTP ${maybe.status}`;
+    if (maybe.message) {
+      return maybe.message;
     }
   }
   try {

@@ -11,8 +11,8 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { nodeSwapDecode } from "@/lib/commands";
 import { errorToText } from "@/lib/errorToText";
-import { formatNumber } from "@/lib/number";
 import type { RgbContractDto, SwapInfo } from "@/lib/sdk/types";
+import { parseSwapInfo } from "@/lib/swap";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -146,22 +146,7 @@ function AcceptDialog(props: {
   }
 
   const isMaker = data?.role === 'Maker'
-  const makerGivesRgb = data?.maker_gives_rgb
-  const precision = props.contract?.precision ?? 0
-
-  const sendAsset = isMaker && makerGivesRgb ?
-    props.contract?.name :
-    'BTC'
-  const sendAmount = sendAsset === 'BTC' ?
-    (BigInt(data?.btc_amount_msat || 0) / BigInt(1000)).toString() :
-    formatNumber(data?.asset_amount || 0, precision)
-  const sendUnit = sendAsset === 'BTC' ? 'sats' : props.contract?.name
-
-  const receiveAsset = sendAsset === 'BTC' ? props.contract?.name : 'BTC'
-  const receiveAmount = sendAsset === 'BTC' ?
-    formatNumber(data?.asset_amount || 0, precision) :
-    (BigInt(data?.btc_amount_msat || 0) / BigInt(1000)).toString()
-  const receiveUnit = receiveAsset === 'BTC' ? 'sats' : props.contract?.name
+  const swapDetail = parseSwapInfo(data, props.contract)
 
   return (
     <Dialog
@@ -176,14 +161,14 @@ function AcceptDialog(props: {
           <div>
             <label className="text-xs text-secondary-foreground">Send</label>
             <div className="mt-2 leading-10">
-              <span className="text-[34px] font-bold">{sendAmount}</span>
-              <span className="text-xl font-bold ml-1">{sendUnit}</span>
+              <span className="text-[34px] font-bold">{swapDetail.fromAssetAmount}</span>
+              <span className="text-xl font-bold ml-1">{swapDetail.fromAssetUnit}</span>
             </div>
           </div>
           <div>
             <AssetAvatar
               className="w-10 h-10"
-              name={sendAsset ?? ''}
+              name={swapDetail.fromAssetName ?? ''}
             />
           </div>
         </div>
@@ -191,14 +176,14 @@ function AcceptDialog(props: {
           <div>
             <label className="text-xs text-secondary-foreground">Receive</label>
             <div className="mt-2 leading-10">
-              <span className="text-[34px] font-bold">{receiveAmount}</span>
-              <span className="text-xl font-bold ml-1">{receiveUnit}</span>
+              <span className="text-[34px] font-bold">{swapDetail.toAssetAmount}</span>
+              <span className="text-xl font-bold ml-1">{swapDetail.toAssetUnit}</span>
             </div>
           </div>
           <div>
             <AssetAvatar
               className="w-10 h-10"
-              name={receiveAsset ?? ''}
+              name={swapDetail.toAssetName ?? ''}
             />
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
+import { errorToText } from "@/lib/errorToText";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -24,7 +25,7 @@ export function BtcBolt11Invoice() {
       )
     },
     onError: (err) => {
-      toast.error((err as Error).message)
+      toast.error(errorToText(err));
     }
   });
 
@@ -65,7 +66,7 @@ export function BtcBolt11Invoice() {
             disabled={amountSat === '' || createMutation.isPending}
             onClick={() => {
               if (!activeNodeId) {
-                toast.error("No active node selected");
+                toast.error("No active node");
                 return;
               }
               createMutation.mutate({

@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { nodeRgbUtxos } from "./commands";
-import { WalletUtxoDto } from "./sdk/generated-types";
+import { type RgbUtxoDto, type WalletUtxoDto } from "./sdk/generated-types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -175,4 +175,71 @@ export function selectUtxos(utxos: WalletUtxoDto[], valueSats: string | number) 
   }
 
   return selected;
+}
+
+export async function selectLargestAssetUtxo(nodeId: string, contractId: string) {
+  let biggestValue = '0';
+  let result: RgbUtxoDto | null = null;
+  try {
+    // 1. Fetch all RGB UTXOs
+    const all = await nodeRgbUtxos(nodeId);
+
+    all.utxos.forEach((v) => {
+      const rgb = v.rgb;
+      const asset = rgb.allocations?.[0]
+      if(asset && asset.contract_id === contractId) {
+        if(BigInt(asset.amount) > BigInt(biggestValue)) {
+          biggestValue = asset.amount;
+          result = v;
+        }
+      }
+    })
+  } catch(e) {}
+
+  return {
+    utxo: result,
+    amount: biggestValue,
+  };
+}
+
+/**
+ * One utxo can only bind the same asset
+ *
+ * `allocations` is an array, the assets in it are the same asset
+ */
+export function selectAssetUtxos(utxos: RgbUtxoDto[], contractId: string) {
+  const result: RgbUtxoDto[] = [];
+
+  for (const utxo of utxos) {
+    const assets = utxo.rgb?.allocations;
+    if (!assets || assets.length === 0) {
+      continue;
+    }
+
+    for(let i = 0; i < assets.length; i++) {
+      const asset = assets[i];
+      if (asset.contract_id === contractId) {
+        result.push(utxo);
+        break;
+      }
+    }
+  }
+
+  return result;
+}
+
+export function calculateUtxosAssetSum(selectedUtxo: RgbUtxoDto[], contractId: string) {
+  let totalSats = 0n
+  let assetAmount = 0n
+  for (const utxo of selectedUtxo) {
+    const list = utxo.rgb?.allocations ?? []
+
+    for(let i=0; i < list.length; i++) {
+      if(list[i].contract_id === contractId) {
+        assetAmount += BigInt(list[i].amount);
+        totalSats += BigInt(utxo.value_sats);
+      }
+    }
+  }
+  return { sats: totalSats, assets: assetAmount };
 }

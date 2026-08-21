@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { errorToText } from "@/lib/errorToText";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,21 +27,18 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
       props.onClose();
     },
     onError: (e) => {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     }
   })
 
   const acceptPayment = () => {
     if(!props.activeNodeId) {
-      toast.error("No active node selected");
+      toast.error("No active node");
       return;
     }
-    if(!invoice) {
-      toast.error("Invoice is required");
-      return;
-    }
+
     if(!consignmentLink || !consignmentLink.startsWith("http")) {
-      toast.error("Consignment link is invalid");
+      toast.error("Invalid consignment link");
       return;
     }
     acceptPaymentMutation.mutate({
@@ -51,7 +49,7 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
   }
 
   return (
-     <Dialog modal={false} open onOpenChange={() => props.onClose()}>
+     <Dialog open onOpenChange={() => props.onClose()}>
       <DialogContent>
         <form className='flex flex-col gap-4'>
           <DialogHeader>
@@ -69,7 +67,7 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
             <Input
               type="text"
               value={consignmentLink}
-              placeholder="Consignment download paht"
+              placeholder="Consignment download path"
               onChange={(e) => setConsignmentLink(e.target.value)}
             />
           </Field>
@@ -79,7 +77,7 @@ export default function AcceptOnChainPaymentDialog(props: IProps) {
             </DialogClose>
             <Button
               type="button"
-              disabled={!consignmentLink || acceptPaymentMutation.isPending}
+              disabled={!consignmentLink || !invoice || acceptPaymentMutation.isPending}
               onClick={acceptPayment}
             >
               {acceptPaymentMutation.isPending ? "Accepting..." : "Accept"}

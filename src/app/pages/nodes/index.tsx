@@ -1,4 +1,5 @@
 import { Content } from "@/app/components/ContentWrapper";
+import { errorToText } from "@/lib/errorToText";
 import { CopyTextInline } from "@/app/components/CopyText";
 import DropMenu from "@/app/components/DropMenu";
 import Empty from "@/app/components/Empty";
@@ -73,7 +74,7 @@ export default function PeersPage() {
     }
 
     if (!disconnectNode) {
-      toast.error("No node to disconnect");
+      toast.error("Invalid peer node");
       return;
     }
 
@@ -92,7 +93,7 @@ export default function PeersPage() {
       peersQuery.refetch();
     },
     onError: (err) => {
-      toast.error(`${err instanceof Error ? err.message : String(err)}`);
+      toast.error(errorToText(err));
     },
   });
 
@@ -227,8 +228,8 @@ export default function PeersPage() {
               type="button"
               size="lg"
               className="rounded-full flex-1"
-              disabled={channelsQuery.isPending || disConnectMutation.isPending}
-              loading={disConnectMutation.isPending}
+              disabled={disConnectMutation.isPending}
+              loading={channelsQuery.isFetching || disConnectMutation.isPending}
               onClick={checkAndDisconnect}
             >
               Remove

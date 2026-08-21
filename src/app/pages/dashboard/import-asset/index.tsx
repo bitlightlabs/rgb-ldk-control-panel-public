@@ -64,7 +64,7 @@ export default function RgbImportPage() {
       setStep(2);
     },
     onError: (e) => {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     },
   });
 
@@ -74,7 +74,7 @@ export default function RgbImportPage() {
       toast.success("RGB OnChain invoice created");
     },
     onError: (e) => {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     },
   });
 
@@ -85,7 +85,7 @@ export default function RgbImportPage() {
       setStep(4);
     },
     onError: (e) => {
-      toast.error((e as Error).message);
+      toast.error(errorToText(e));
     },
   });
 
@@ -114,12 +114,12 @@ export default function RgbImportPage() {
             }
             onNext={() => {
               if (!activeNodeId) {
-                toast.error("No active node selected");
+                toast.error("No active node");
                 return;
               }
               const contractId = contractIdInput.trim();
               if (!contractId) {
-                toast.error("Contract ID is required");
+                toast.error("Invalid contract id");
                 return;
               }
               importMutation.mutate({ nodeId: activeNodeId, contractId });
@@ -143,7 +143,7 @@ export default function RgbImportPage() {
                   }
                   onNext={() => {
                     if (!activeNodeId) {
-                      toast.error("No active node selected");
+                      toast.error("No active node");
                       return;
                     }
                     if (!selectedContract?.contract_id) {
@@ -155,16 +155,17 @@ export default function RgbImportPage() {
                       return;
                     }
                     if (!isDigits(amount) || amount.trim() === "0") {
-                      toast.error("Amount must be an integer greater than 0");
+                      toast.error("Invalid amount");
                       return;
                     }
 
                     const precision = selectedContract.precision ?? 0;
+                    const realAmount = BigInt(amount.trim()) * BigInt(10 ** precision);
                     createInvoiceMutation.mutate({
                       nodeId: activeNodeId,
                       request: {
                         contract_id: selectedContract.contract_id,
-                        amount: u64(Number(amount.trim()) * 10 ** precision),
+                        amount: realAmount.toString(),
                         use_witness_utxo: false,
                         blinding_utxo: utxo.trim(),
                       },
@@ -193,15 +194,15 @@ export default function RgbImportPage() {
               disabled={!consignmentLink || acceptPaymentMutation.isPending}
               onNext={() => {
                 if (!activeNodeId) {
-                  toast.error("No active node selected");
+                  toast.error("No active node");
                   return;
                 }
                 if (!createdInvoice.trim()) {
-                  toast.error("Invoice is required");
+                  toast.error("Invalid invoice");
                   return;
                 }
                 if (!consignmentLink.trim() || !consignmentLink.startsWith("http")) {
-                  toast.error("Consignment link is invalid");
+                  toast.error("Invalid consignment link");
                   return;
                 }
 

@@ -47,7 +47,7 @@ export default function Swap() {
       // Send rgb asset receive btc
       let precision = fromAsset?.precision ?? 0;
       let assetBalance = channel.rgb_balance?.local_amount ?? 0;
-      if(BigInt(fromAmount) * BigInt(10 ** precision) >= BigInt(assetBalance)) {
+      if(BigInt(fromAmount) * BigInt(10 ** precision) > BigInt(assetBalance)) {
         toast.error('Insufficient asset balance on the Lightning Network.');
         return;
       }
@@ -118,7 +118,6 @@ export default function Swap() {
 
       {/* Maker */}
       {/* <Maker /> */}
-
       <Content className="mt-0 border-background-3">
         <Field>
           <FieldLabel>Channel</FieldLabel>

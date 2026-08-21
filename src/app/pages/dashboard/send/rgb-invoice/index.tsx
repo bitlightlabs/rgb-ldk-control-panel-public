@@ -1,4 +1,5 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
+import { errorToText } from "@/lib/errorToText";
 import { CopyTextInline } from "@/app/components/CopyText";
 import IconHelp from "@/app/icons/help";
 import { useContextStore } from "@/app/stores/contextStore";
@@ -30,11 +31,11 @@ export default function SendLnRGBInvoiceConfirm() {
       )
     },
     onError: (err) => {
-      toast.error((err as Error).message)
+      toast.error(errorToText(err))
     }
   });
 
-   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId);
+  const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId);
 
   const rgbInvoiceDecodeQuery = useRgbLnInvoiceDecodeQuery(activeNodeId, payload);
 

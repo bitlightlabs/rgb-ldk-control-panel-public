@@ -104,7 +104,7 @@ export default function Fee(props: IProps) {
 
         <Button
           variant="secondary"
-          className={"flex-1 rounded-xl h-full border border-transparent hover:bg-background-2 " + (feeTitle === 'Custom' ? " border-background-2 bg-background-2" : "")}
+          className={"bg-background-4 flex-1 rounded-xl h-full border border-transparent hover:bg-background-2 " + (feeTitle === 'Custom' ? " border-background-2 bg-background-2" : "")}
           onClick={selectCustomFee}
         >
           <span className="text-foreground">Custom</span>

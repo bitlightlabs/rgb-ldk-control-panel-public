@@ -7,6 +7,7 @@ import { useBolt12OfferReceiveVarMutation } from "@/app/mutations";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 
 export default function BtcBolt12Offer() {
   const nav = useNavigate()
@@ -22,7 +23,7 @@ export default function BtcBolt12Offer() {
       )
     },
     onError: (err) => {
-      toast.error((err as Error).message)
+      toast.error(errorToText(err));
     }
   });
 
@@ -66,7 +67,7 @@ export default function BtcBolt12Offer() {
             disabled={createMutation.isPending}
             onClick={() => {
               if (!activeNodeId) {
-                toast.error("No active node selected");
+                toast.error("No active node");
                 return;
               }
               createMutation.mutate({

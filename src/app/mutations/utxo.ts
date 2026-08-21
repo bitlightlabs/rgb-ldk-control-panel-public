@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import {
   nodeRgbUtxosFund,
+  nodeRgbUtxosMerge,
   nodeRgbUtxoSweep,
   nodeRgbUtxoTopUp,
   nodeWalletL1Utxos,
@@ -19,6 +20,7 @@ import type {
   WalletUtxosResponse,
 } from "@/lib/sdk/generated-types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import type { RgbUtxosMergeResponse } from "@/lib/sdk/types";
 
 function invalidateUtxoState(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -100,5 +102,21 @@ export function useRgbUtxoTopUpMutation(
       onSuccess?.(...args);
     },
     ...rest,
+  });
+}
+
+export function useRgbUtxosMergeMutation(
+  options?: Omit<
+    UseMutationOptions<
+      RgbUtxosMergeResponse,
+      Error,
+      { nodeId: string; request: {contract_id: string, include_invoice_bound_utxos: boolean, destination_utxo: string, fee_rate_sats_per_vb: number} }
+    >,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    mutationFn: ({ nodeId, request }) => nodeRgbUtxosMerge(nodeId, request),
+    ...options,
   });
 }

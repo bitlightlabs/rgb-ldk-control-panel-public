@@ -7,6 +7,7 @@ import { useBolt11DecodeQuery, useNodeRgbContractsQuery } from "@/app/queries";
 import { formatNumber } from "@/lib/number";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 
 
 export default function SendLnInvoiceConfirm() {
@@ -26,11 +27,11 @@ export default function SendLnInvoiceConfirm() {
       )
     },
     onError: (err) => {
-      toast.error((err as Error).message)
+      toast.error(errorToText(err))
     }
   });
 
-   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId);
+  const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId);
 
   const invoiceDecodeQuery = useBolt11DecodeQuery(activeNodeId, payload, {
     retry: 1,

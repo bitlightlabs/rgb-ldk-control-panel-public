@@ -1,4 +1,5 @@
 import { useContextStore } from "@/app/stores/contextStore";
+import { errorToText } from "@/lib/errorToText";
 import logoDarkAnimation from "@/assets/logo_dark.json";
 import { Button } from "@/components/ui/button";
 import Lottie from "lottie-react";
@@ -89,7 +90,7 @@ export function UnlockPage() {
 
       nav("/dashboard");
     } catch (e) {
-      toast.error("Failed to unlock");
+      toast.error(errorToText(e));
     } finally {
       setLoading(false);
     }

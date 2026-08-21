@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useRgbContractImportFromPluginMutation } from "@/app/mutations";
 import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 
 interface IProps {
   activeNodeId: string;
@@ -32,15 +33,14 @@ export default function ImportOnchainAsset(props: IProps) {
       props.onClose()
       props.onSuccess()
     } catch(e) {
-      console.log(e)
-      toast.error((e as Error).message)
+      toast.error(errorToText(e));
     } finally {
       setPosting(false);
     }
   }
 
   return (
-    <Dialog modal={false} open onOpenChange={() => props.onClose()}>
+    <Dialog open onOpenChange={() => props.onClose()}>
       <DialogContent>
         <form className='flex flex-col gap-4'>
           <DialogHeader>

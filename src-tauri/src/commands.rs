@@ -3022,7 +3022,7 @@ pub async fn node_rgb_contract_issuers_import(
     name: String,
     format: Option<String>,
     archive_base64: String,
-) -> Result<String, CommandError> {
+) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     let fmt = format.unwrap_or_else(|| "raw".to_string());
     let bytes = general_purpose::STANDARD
@@ -5199,6 +5199,42 @@ pub async fn node_swap_delete(
         "rgb.swap.delete",
         None,
         rgbldkd_http::swap_delete(&state.http, &ctx, payment_hash),
+    )
+    .await
+}
+
+/// Merge RGB UTXOs into a single UTXO
+#[tauri::command]
+pub async fn node_rgb_utxos_merge(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+)-> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxos.merge",
+        None,
+        rgbldkd_http::rgb_utxos_merge(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+
+/// Get the status of a previously submitted RGB UTXO merge operation
+#[tauri::command]
+pub async fn node_rgb_utxos_merge_status(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxos.merge.status",
+        None,
+        rgbldkd_http::rgb_utxos_merge_status(&state.http, &ctx),
     )
     .await
 }

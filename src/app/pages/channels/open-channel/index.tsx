@@ -33,7 +33,7 @@ import {
 import { useNodeMainPeersQuery, useNodeRgbContractsQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
 import { OpenChannelRequest, PeerDetailsDto, RgbContractDto } from "@/lib/sdk/types";
-import { formatAddress } from "@/lib/utils";
+import { formatAddress, selectLargestAssetUtxo } from "@/lib/utils";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ import EmptyNodes from "@/app/components/EmptyNodes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import IconHelp from "@/app/icons/help";
 import { parseNumber } from "@/lib/number";
+import { nodeRgbUtxos } from "@/lib/commands";
 
 const MIN_RGB_CHANNEL_SATS = 2_000n;
 const MIN_CHANNEL_RESERVE = 2_000n;
@@ -154,12 +155,12 @@ function BtcForm(props: {peers: PeerDetailsDto[]}) {
 
   const submitOpen = () => {
     if (!activeNodeId) {
-      toast.error("No active node selected");
+      toast.error("No active node");
       return;
     }
 
     if (!peerNodeAddress || !peerNodePubkey) {
-      toast.error("Peer node info is invalid");
+      toast.error("Invalid peer node information.");
       return;
     }
 
@@ -351,6 +352,7 @@ function BtcForm(props: {peers: PeerDetailsDto[]}) {
 
 function RGBForm(props: {peers: PeerDetailsDto[]}) {
   const [review, setReview] = useState(false);
+  const [opening, setOpening] = useState(false);
   const [pushToCounterpartySats, setPushToCounterpartySats] = useState("0")
   const [channelAmountSats, setChannelAmountSats] = useState("")
   const [peerNodePubkey, setPeerNodePubkey] = useState("");
@@ -368,6 +370,8 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId, {
     refetchInterval: false,
   });
+
+  const openMutation = useChannelOpenMutation();
 
   const selectLocalPeer = async (pubKey: string) => {
     console.log("Selected peer:", pubKey);
@@ -409,52 +413,76 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
       channelReserve = MIN_CHANNEL_RESERVE;
     }
     if(remainingCapacity < channelReserve) {
-      toast.error(`Capacity is too small.`)
+      toast.error(`Insufficient capacity.`)
       return
     }
 
     setReview(true);
   }
 
-  const openMutation = useChannelOpenMutation({
-    onSuccess: () => {
-      nav(-1);
-    },
-  });
-
-  const submitOpen = () => {
+  const submitOpen = async () => {
     if (!activeNodeId) {
-      toast.error("No active node selected");
+      toast.error("No active node");
       return;
     }
 
     if (!peerNodeAddress || !peerNodePubkey) {
-      toast.error("Peer node info is invalid");
+      toast.error("Invalid peer node information.");
       return;
     }
 
     if(!selectedContract) {
-      toast.error("No RGB contract selected");
+      toast.error("Invalid RGB contract.");
       return;
     }
 
-    const precision = selectedContract.precision ?? 0;
-    const req: OpenChannelRequest = {
-      node_id: peerNodePubkey.trim(),
-      address: peerNodeAddress.trim(),
-      channel_amount_sats: channelAmountSats.trim(),
-      announce: announce === "1",
-      push_to_counterparty_msat: pushToCounterpartySats
-        ? (BigInt(pushToCounterpartySats) * 1000n).toString()
-        : '0',
-      rgb: {
-        contract_id: selectedContract.contract_id,
-        asset_amount: parseNumber(rgbAssetAmount, precision),
-        color_context_data: defaultRgbContextData(currentContext),
+    try {
+      setOpening(true);
+
+      // First, check if a single UTXO has enough RGB assets. If it does, use the strategy: single-rgb-anchor.
+      // If not, use the strategy: merge-rgb-anchors-with-btc-support.
+      const utxo = await selectLargestAssetUtxo(activeNodeId, selectedContract.contract_id);
+      console.log("Selected UTXO:", utxo);
+      if(!utxo.utxo) {
+        throw new Error("No UTXO found for the selected RGB contract.");
       }
-    };
-    console.log("Open Channel Data:", req);
-    openMutation.mutate({ nodeId: activeNodeId, request: req });
+
+      let policy = '';
+      const precision = selectedContract.precision ?? 0;
+      const realAmount = parseNumber(rgbAssetAmount, precision);
+      if(BigInt(utxo.amount) > BigInt(realAmount)) {
+        policy = 'single-rgb-anchor';
+      } else {
+        policy = 'merge-rgb-anchors-with-btc-support';
+      }
+
+      const req: OpenChannelRequest = {
+        node_id: peerNodePubkey.trim(),
+        address: peerNodeAddress.trim(),
+        channel_amount_sats: channelAmountSats.trim(),
+        announce: announce === "1",
+        push_to_counterparty_msat: pushToCounterpartySats
+          ? (BigInt(pushToCounterpartySats) * 1000n).toString()
+          : '0',
+        rgb: {
+          contract_id: selectedContract.contract_id,
+          asset_amount: parseNumber(rgbAssetAmount, precision),
+          color_context_data: defaultRgbContextData(currentContext),
+          funding_utxo_policy: policy
+        }
+      };
+      console.log("Open Channel Data:", req);
+
+      await openMutation.mutateAsync({ nodeId: activeNodeId, request: req });
+
+      // Wait a moment for the channel to be created before navigating back
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      nav(-1);
+    } catch(e) {
+      toast.error(errorToText(e));
+    } finally {
+      setOpening(false);
+    }
   };
 
   const setMin = () => {
@@ -474,6 +502,7 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
             onChange={setSelectedContract}
           />
         </Field>
+        {/* Asset Amount */}
         <Field className="mt-3">
           <ComplexInput
             className="bg-background-4"
@@ -499,6 +528,7 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
             onChange={(e) => setRgbAssetAmount(e.currentTarget.value)}
           />
         </Field>
+        {/* Capacity */}
         <Field className="mt-8">
           <FieldLabel>Increase Receiving Capacity</FieldLabel>
           <ComplexInput
@@ -660,8 +690,8 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
                   size="lg"
                   type="button"
                   className="flex-1 rounded-full"
-                  disabled={openMutation.isPending}
-                  loading={openMutation.isPending}
+                  disabled={opening}
+                  loading={opening}
                   onClick={submitOpen}
                 >
                   Open Channel

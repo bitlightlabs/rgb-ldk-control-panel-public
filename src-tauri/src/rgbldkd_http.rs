@@ -777,20 +777,6 @@ fn read_token_file(path: &Path) -> Result<String, CommandError> {
 	Ok(token)
 }
 
-fn extract_error_and_hint(body: &str) -> (Option<String>, Option<String>) {
-	let Ok(v) = serde_json::from_str::<serde_json::Value>(body) else {
-		return (None, None);
-	};
-	let err = v
-		.get("error")
-		.and_then(|x| x.as_str())
-		.map(|s| s.to_string());
-	let hint = v
-		.get("hint")
-		.and_then(|x| x.as_str())
-		.map(|s| s.to_string());
-	(err, hint)
-}
 
 pub async fn classify_non_success(
 	service: &'static str,
@@ -798,44 +784,35 @@ pub async fn classify_non_success(
 ) -> Result<CommandError, CommandError> {
 	let status = resp.status().as_u16();
 	let body = resp.text().await.unwrap_or_default();
-	let (err, hint) = extract_error_and_hint(&body);
-
-	let err = err.or_else(|| {
-		if body.trim().is_empty() {
-			None
-		} else {
-			Some(body.trim().to_string())
-		}
-	});
 
 	let e = match status {
 		400 => CommandError::BadRequest {
 			service,
-			message: err,
-			hint,
+			message: Some("BadRequest".to_string()),
+			hint: Some(body),
 		},
 		408 => CommandError::RequestTimeout {
 			service,
-			message: err,
-			hint: hint.or_else(|| Some("Try again, or use payment wait + events to observe progress.".to_string())),
+			message: Some("RequestTimeout".to_string()),
+			hint: Some(body),
 		},
 		401 => CommandError::Unauthorized {
 			service,
-			message: err,
-			hint: hint.or_else(|| Some("Verify the bearer token is configured and correct.".to_string())),
+			message: Some("Unauthorized".to_string()),
+			hint: Some(body),
 		},
 		403 => CommandError::Forbidden {
 			service,
-			message: err,
-			hint,
+			message: Some("Forbidden".to_string()),
+			hint: Some(body),
 		},
 		503 => CommandError::ServiceUnavailable {
 			service,
-			message: err,
-			hint: hint.or_else(|| Some("Check the daemon is running and ready.".to_string())),
+			message: Some("ServiceUnavailable".to_string()),
+			hint: Some(body),
 		},
 		423 => CommandError::NodeLocked,
-		_ => CommandError::UnexpectedHttpStatus { service, status },
+		_ => CommandError::UnexpectedHttpStatus { service, status, hint: Some(body) },
 	};
 	Ok(e)
 }
@@ -1497,7 +1474,7 @@ pub async fn rgb_issuers_import(
     name: &str,
     format: &str,
     archive: &[u8],
-) -> Result<String, CommandError> {
+) -> Result<Value, CommandError> {
     let base = parse_base_url(&ctx.main_api_base_url)?;
     let url = base
         .join(&format!(
@@ -1520,14 +1497,11 @@ pub async fn rgb_issuers_import(
         .send()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)?;
-    // if !resp.status().is_success() {
-    //     return Err(classify_non_success("main", resp).await?);
-    // }
+    if !resp.status().is_success() {
+        return Err(classify_non_success("main", resp).await?);
+    }
 
-    // resp.json::<Value>()
-    //     .await
-    //     .map_err(|_| CommandError::HttpRequestFailed)
-		resp.text()
+    resp.json::<Value>()
         .await
         .map_err(|_| CommandError::HttpRequestFailed)
 }
@@ -1766,4 +1740,19 @@ pub async fn swap_delete(
 	payment_hash: String
 ) -> Result<Value, CommandError> {
 	main_delete_json(client, ctx, &format!("api/v1/swap/{payment_hash}")).await
+}
+
+pub async fn rgb_utxos_merge(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_post_json_raw(client, ctx, "api/v1/rgb/utxos/merge", request).await
+}
+
+pub async fn rgb_utxos_merge_status(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, "api/v1/rgb/utxos/merge/status").await
 }

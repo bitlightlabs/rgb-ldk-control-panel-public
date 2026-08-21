@@ -2,7 +2,7 @@
 set -euo pipefail
 
 export VITE_REGTEST_API=http://host.docker.internal:3003
-COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose-local.yml}"
+COMPOSE_FILE_NAME="${COMPOSE_FILE_NAME:-docker-compose.yml}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_FILE="$ROOT/$COMPOSE_FILE_NAME"
 

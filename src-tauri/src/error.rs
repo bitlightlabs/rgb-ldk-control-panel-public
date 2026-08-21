@@ -54,7 +54,11 @@ pub enum CommandError {
 	},
 
 	#[error("unexpected http status: {status}")]
-	UnexpectedHttpStatus { service: &'static str, status: u16 },
+	UnexpectedHttpStatus {
+		service: &'static str,
+		status: u16,
+		hint: Option<String>,
+	},
 
 	#[error("request timeout")]
 	RequestTimeout {
@@ -199,10 +203,10 @@ impl serde::Serialize for CommandError {
 					.unwrap_or_else(|| format!("{service} api bad request (400)")),
 				hint.as_deref(),
 			),
-			CommandError::UnexpectedHttpStatus { service, status } => (
+			CommandError::UnexpectedHttpStatus { service, status, hint } => (
 				"unexpected_http_status",
 				format!("{service} api returned unexpected status: {status}"),
-				None,
+				hint.as_deref(),
 			),
 			CommandError::RequestTimeout {
 				service,
