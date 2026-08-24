@@ -129,7 +129,7 @@ export default function Swap() {
       <Content className="mt-4 relative space-y-1 border-background-3">
         <button
           type="button"
-          className="group absolute z-50 left-[calc(50%-16px)] top-[130px] flex items-center justify-center px-0 py-0 w-8 h-8 bg-background-solid rounded-full border border-background-solid-3"
+          className="group absolute z-10 left-[calc(50%-16px)] top-[130px] flex items-center justify-center px-0 py-0 w-8 h-8 bg-background-solid rounded-full border border-background-solid-3"
           onClick={switchAsset}
         >
           <IconArrowDown className="block group-hover:hidden text-secondary-foreground" style={{width: '16px', height: '16px'}} />
@@ -253,7 +253,7 @@ export default function Swap() {
             variant="white"
             size="lg"
             className="w-full rounded-full"
-            disabled={!fromAsset || !toAsset || !fromAmount || !toAmount || !channel}
+            disabled={!fromAsset || !toAsset || !fromAmount || !toAmount || !channel || !btcCarrierSats}
             onClick={confirmSwap}
           >Swap</Button>
         </div>

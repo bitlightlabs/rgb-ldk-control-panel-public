@@ -471,7 +471,6 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
           funding_utxo_policy: policy
         }
       };
-      console.log("Open Channel Data:", req);
 
       await openMutation.mutateAsync({ nodeId: activeNodeId, request: req });
 

@@ -243,3 +243,13 @@ export function calculateUtxosAssetSum(selectedUtxo: RgbUtxoDto[], contractId: s
   }
   return { sats: totalSats, assets: assetAmount };
 }
+
+export function isBitcoinAddress(str: string) {
+  const s = str.trim();
+  if (s.length < 25 || s.length > 90) return false;
+
+  const base58Re = /^[13mn2][123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{24,33}$/;
+  const bechRe = /^(bcrt1|bc1|tb1)[a-z0-9]{38,88}$/;
+
+  return base58Re.test(s) || bechRe.test(s);
+}
