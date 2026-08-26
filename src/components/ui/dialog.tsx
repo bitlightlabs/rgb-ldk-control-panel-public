@@ -19,7 +19,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-49 bg-black/60 backdrop-blur data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-black/60 backdrop-blur data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className
     )}
     {...props}
@@ -36,8 +36,8 @@ const DialogContent = React.forwardRef<
       <DialogPrimitive.Content
         ref={ref}
         className={cn(
-          // "absolute left-[50%] top-[50%] z-50  grid w-full translate-x-[-50%] translate-y-[-50%] gap-8 border border-background-2 bg-background-1 px-5 py-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-3xl",
-          "relative z-50 grid w-full gap-8 border border-background-2 bg-background-1 px-5 py-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-3xl",
+          // "absolute left-[50%] top-[50%] z-52  grid w-full translate-x-[-50%] translate-y-[-50%] gap-8 border border-background-2 bg-background-1 px-5 py-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-3xl",
+          "relative z-52 grid w-full gap-8 border border-background-2 bg-background-1 px-5 py-5 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 rounded-3xl",
           className
         )}
         onPointerDownOutside={(e) => e.preventDefault()}

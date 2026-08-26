@@ -177,6 +177,15 @@ export const routesConfig = [
                   { title: 'Success', link: '#' }
                 ],
                 lazy: () => import("@/app/pages/dashboard/send/success").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'btc-onchain',
+                breadcrumb: [
+                  { title: 'Wallet', link: '/dashboard' },
+                  { title: 'Send', link: '/dashboard/send' },
+                  { title: 'Bitcoin On-chain', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/dashboard/send/btc-onchain/index").then((mod) => ({ Component: mod.default }))
               }
             ]
           },

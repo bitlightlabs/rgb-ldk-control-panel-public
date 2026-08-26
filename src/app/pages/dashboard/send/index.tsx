@@ -6,8 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useRgbLnInvoiceDecodeQuery } from "@/app/queries";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { isBitcoinAddress } from "@/lib/utils";
 
-type PayloadKind = "ln-invoice" | "ln-btc-offer" | "onchain_asset" | "unknown";
+type PayloadKind = "ln-invoice" | "ln-btc-offer" | "onchain_asset" | "onchain_btc" | "unknown";
 
 function detectPayloadKind(value: string): PayloadKind {
   const normalized = value.trim().toLowerCase();
@@ -15,14 +16,15 @@ function detectPayloadKind(value: string): PayloadKind {
   if (normalized.startsWith("contract:")) return "onchain_asset";
   if (normalized.startsWith("lno")) return "ln-btc-offer";
   if (normalized.startsWith("ln")) return "ln-invoice";
+  if (isBitcoinAddress(normalized)) return "onchain_btc";
   return "unknown";
 }
 
-function normalizeLightningPayload(value: string): string {
-  return value
-    .replace(/^lightning:/i, "")
-    .replace(/[\s\u200B-\u200D\uFEFF]+/g, "");
-}
+// function normalizeLightningPayload(value: string): string {
+//   return value
+//     .replace(/^lightning:/i, "")
+//     .replace(/[\s\u200B-\u200D\uFEFF]+/g, "");
+// }
 
 export default function Send() {
   const navigate = useNavigate();
@@ -71,6 +73,13 @@ export default function Send() {
       }
       return;
     }
+
+    // if(payloadKind === "onchain_btc") {
+    //   navigate(
+    //     '/dashboard/send/btc-onchain?payload=' + encodeURIComponent(payload)
+    //   );
+    //   return
+    // }
 
     setError(true);
   }

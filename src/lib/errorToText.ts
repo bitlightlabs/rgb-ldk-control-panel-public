@@ -12,7 +12,10 @@ export function errorToText(err: unknown): string {
           msg += obj.error;
         }
         if(obj.hint) {
-          msg += `(${obj.hint})`;
+          msg += ` (${obj.hint})`;
+        }
+        if(obj.message) {
+          msg += ` (${obj.message})`;
         }
         return msg;
       } catch {
