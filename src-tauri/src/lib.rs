@@ -198,6 +198,8 @@ pub fn run() {
 			commands::node_main_channels_closing,
 			commands::node_rgb_utxos_merge,
 			commands::node_rgb_utxos_merge_status,
+			commands::node_rgb_utxos_reserve,
+			commands::node_rgb_utxos_release,
 		])
 		.build(tauri::generate_context!())
 		.expect("error while running tauri application");

@@ -6,6 +6,8 @@ import {
 import {
   nodeRgbUtxosFund,
   nodeRgbUtxosMerge,
+  nodeRgbUtxosRelease,
+  nodeRgbUtxosReserve,
   nodeRgbUtxoSweep,
   nodeRgbUtxoTopUp,
   nodeWalletL1Utxos,
@@ -13,6 +15,10 @@ import {
 import type {
   RgbUtxosFundRequest,
   RgbUtxosFundResponse,
+  RgbUtxosReleaseRequest,
+  RgbUtxosReleaseResponse,
+  RgbUtxosReserveRequest,
+  RgbUtxosReserveResponse,
   RgbUtxosSweepRequest,
   RgbUtxosSweepResponse,
   RgbUtxosTopUpRequest,
@@ -117,6 +123,38 @@ export function useRgbUtxosMergeMutation(
 ) {
   return useMutation({
     mutationFn: ({ nodeId, request }) => nodeRgbUtxosMerge(nodeId, request),
+    ...options,
+  });
+}
+
+export function useRgbUtxosReserveMutation(
+  options?: Omit<
+    UseMutationOptions<
+      RgbUtxosReserveResponse,
+      Error,
+      { nodeId: string; request: RgbUtxosReserveRequest }
+    >,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    mutationFn: ({ nodeId, request }) => nodeRgbUtxosReserve(nodeId, request),
+    ...options,
+  });
+}
+
+export function useRgbUtxosReleaseMutation(
+  options?: Omit<
+    UseMutationOptions<
+      RgbUtxosReleaseResponse,
+      Error,
+      { nodeId: string; request: RgbUtxosReleaseRequest }
+    >,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    mutationFn: ({ nodeId, request }) => nodeRgbUtxosRelease(nodeId, request),
     ...options,
   });
 }

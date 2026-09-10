@@ -5238,3 +5238,40 @@ pub async fn node_rgb_utxos_merge_status(
     )
     .await
 }
+
+
+/// Reserve a rgb utxo for a specific purpose
+#[tauri::command]
+pub async fn node_rgb_utxos_reserve(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+)-> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxos.reserve",
+        None,
+        rgbldkd_http::rgb_utxos_reserve(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+/// Release a rgb utxo
+#[tauri::command]
+pub async fn node_rgb_utxos_release(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+)-> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "rgb.utxos.release",
+        None,
+        rgbldkd_http::rgb_utxos_release(&state.http, &ctx, &request),
+    )
+    .await
+}

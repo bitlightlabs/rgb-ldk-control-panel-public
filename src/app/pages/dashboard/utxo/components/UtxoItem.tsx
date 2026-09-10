@@ -12,6 +12,10 @@ import UtxoAddBalanceDialog from "@/app/components/UtxoAddBalanceDialog";
 import UnlockUtxoDialog from "@/app/components/UnlockUtxoDialog";
 import CustomTooltip from "@/app/components/CustomTooltip";
 import { Separator } from "@/components/ui/separator";
+import { useRgbUtxosReleaseMutation, useRgbUtxosReserveMutation } from "@/app/mutations/utxo";
+import { useContextStore } from "@/app/stores/contextStore";
+import { toast } from "sonner";
+import { errorToText } from "@/lib/errorToText";
 
 interface IProps {
   utxo: RgbUtxoDto
@@ -21,15 +25,50 @@ interface IProps {
 }
 export default function UtxoItem(props: IProps) {
   const { utxo, contracts, mergeStatusData } = props
+  const currentContext = useContextStore((s) => s.currentContext)
+  const activeNodeId = currentContext?.node_id
+
   const [showAddBalance, setShowAddBalance] = useState(false)
   const [showUnlockUtxo, setShowUnlockUtxo] = useState(false)
 
-  const rgb = utxo.rgb || {};
+  const reserveUtxoMutation = useRgbUtxosReserveMutation()
+  const releaseUtxoMutation = useRgbUtxosReleaseMutation()
+
+  const rgb = utxo.rgb || {}
   const allocations = rgb.allocations || []
   let locked = utxo.lock.locked
   let canUnlock = !locked && utxo.confirmation.status === 'confirmed' && allocations.length === 0
   // Can topup balance
   let canTopup = true
+
+  const reserveOrReleaseUtxo = async () => {
+    if(!activeNodeId) return
+
+    try {
+      const kind = utxo.lock.kind
+      if(!kind) return
+
+      if(kind === 'manual_reservation') {
+        await releaseUtxoMutation.mutateAsync({
+          nodeId: activeNodeId,
+          request: {
+            outpoint: utxo.outpoint,
+          }
+        })
+      } else {
+        await reserveUtxoMutation.mutateAsync({
+          nodeId: activeNodeId,
+          request: {
+            outpoint: utxo.outpoint,
+          }
+        })
+      }
+
+      toast.success(`UTXO ${kind === 'manual_reservation' ? 'released' : 'reserved'} successfully`)
+    } catch(e) {
+      toast.error(errorToText(e))
+    }
+  }
 
   // Check if the utxo is currently in a merge asset operation
   if(mergeStatusData) {
@@ -120,6 +159,15 @@ export default function UtxoItem(props: IProps) {
             >Add UTXO Balance</Button>
           ) : null
         }
+
+        {/* <Button
+          variant="white"
+          className="rounded-full w-full"
+          disabled={reserveUtxoMutation.isPending}
+          onClick={reserveOrReleaseUtxo}
+        >
+          {utxo.lock.kind === 'manual_reservation' ? "Release" : "Reserve"}
+        </Button> */}
       </div>
 
       {/* Unlock utxo */}

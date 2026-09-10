@@ -1756,3 +1756,19 @@ pub async fn rgb_utxos_merge_status(
 ) -> Result<Value, CommandError> {
 	main_get_json(client, ctx, "api/v1/rgb/utxos/merge/status").await
 }
+
+pub async fn rgb_utxos_reserve(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_post_json_raw(client, ctx, "api/v1/rgb/utxos/reserve", request).await
+}
+
+pub async fn rgb_utxos_release(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_post_json_raw(client, ctx, "api/v1/rgb/utxos/release", request).await
+}

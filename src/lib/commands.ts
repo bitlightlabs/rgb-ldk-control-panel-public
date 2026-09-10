@@ -71,7 +71,7 @@ import type {
 import { tauriInvoke } from "./tauri";
 import type { RgbContractsExportBundle } from "./domain";
 import { uint8ArrayToBase64 } from "./utils";
-import { RgbUtxoDto, RgbUtxosFundRequest, RgbUtxosFundResponse, RgbUtxosReleaseRequest, RgbUtxosReleaseResponse, RgbUtxosSweepRequest, RgbUtxosSweepResponse, RgbUtxosTopUpRequest, RgbUtxosTopUpResponse, WalletUtxosResponse } from "./sdk/generated-types";
+import type { RgbUtxoDto, RgbUtxosFundRequest, RgbUtxosFundResponse, RgbUtxosReleaseRequest, RgbUtxosReleaseResponse, RgbUtxosReserveRequest, RgbUtxosReserveResponse, RgbUtxosSweepRequest, RgbUtxosSweepResponse, RgbUtxosTopUpRequest, RgbUtxosTopUpResponse, WalletUtxosResponse } from "./sdk/generated-types";
 
 export type UiLogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
@@ -1014,5 +1014,19 @@ export async function nodeRgbUtxosMerge(
 export async function nodeRgbUtxosMergeStatus(nodeId: string): Promise<RgbUtxosMergeStatusResponse> {
   return tauriInvoke("node_rgb_utxos_merge_status", {
     nodeId
-  })
+  });
+}
+
+export async function nodeRgbUtxosReserve(nodeId: string, req: RgbUtxosReserveRequest): Promise<RgbUtxosReserveResponse> {
+  return tauriInvoke("node_rgb_utxos_reserve", {
+    nodeId,
+    request: req
+  });
+}
+
+export async function nodeRgbUtxosRelease(nodeId: string, req: RgbUtxosReleaseRequest): Promise<RgbUtxosReleaseResponse> {
+  return tauriInvoke("node_rgb_utxos_release", {
+    nodeId,
+    request: req
+  });
 }
