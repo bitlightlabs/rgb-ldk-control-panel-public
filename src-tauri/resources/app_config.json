@@ -1,0 +1,5 @@
+{
+  "core_domain_whitelist": [
+    "https://core-regtest-prod-rgb012rc3a.bitlightdev.info"
+  ]
+}

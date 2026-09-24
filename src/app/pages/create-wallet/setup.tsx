@@ -73,6 +73,7 @@ export default function Setup() {
   const passwordHash = useSetupStore((s) => s.passwordHash);
   const currentContext = useContextStore((s) => s.currentContext);
   const setCurrentContext = useContextStore((s) => s.setCurrentContext);
+  const isLsp = useSetupStore((s) => s.isLsp);
 
   const deleteNodeMutation = useContextsRemoveMutation();
   const prepareMutation = usePrepareNodeResourcesMutation();
@@ -109,6 +110,7 @@ export default function Setup() {
         nodeName: accountName,
         network,
         esploraUrl: option.esploraUrl,
+        isLsp,
       });
 
       // Stage 2: initializing keystore via temporary container

@@ -12,6 +12,8 @@ mod mem_cache;
 mod constant;
 mod ensure_image;
 mod ldk_types;
+mod config;
+// mod db;
 
 use context_store::ContextStore;
 use events_manager::EventsManager;
@@ -21,6 +23,7 @@ use tokio::sync::RwLock;
 use tauri::{
     AppHandle, Manager, menu::{Menu, MenuItem, PredefinedMenuItem}, tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 };
+use config::load_app_config;
 
 pub struct AppState {
 	pub(crate) store: ContextStore,
@@ -53,6 +56,9 @@ impl AppState {
 pub fn run() {
 	let mut builder = tauri::Builder::default()
 		.setup(|app| {
+				let config = load_app_config(&app.handle())?;
+				app.manage(config);
+
 				create_tray(app)?;
 				Ok(())
 		})
@@ -157,7 +163,7 @@ pub fn run() {
 			commands::rgb_onchain_payments,
 			commands::node_rgb_descriptor,
 			commands::node_rgb_sign_message,
-			commands::download_transfer_consignment_from_link_no_verify,
+			commands::download_transfer_consignment_from_local,
 			mem_cache::mem_cache_get,
 			mem_cache::mem_cache_set,
 			mem_cache::mem_cache_remove,
@@ -200,6 +206,20 @@ pub fn run() {
 			commands::node_rgb_utxos_merge_status,
 			commands::node_rgb_utxos_reserve,
 			commands::node_rgb_utxos_release,
+			commands::node_wallet_send,
+			commands::node_wallet_send_all,
+			commands::node_lsps1_lsp,
+			commands::node_lsps1_lsp_update,
+			commands::node_lsps1_info,
+			commands::node_lsps1_order,
+			commands::node_lsps1_rgb_order,
+			commands::node_lsps1_order_detail,
+			commands::node_lsps1_pricing,
+			commands::node_lsps1_pricing_update,
+			commands::node_lsps1_orders,
+			commands::node_lsps1_orders_detail,
+			commands::node_lsps1_options_query,
+			commands::node_lsps1_options_update,
 		])
 		.build(tauri::generate_context!())
 		.expect("error while running tauri application");

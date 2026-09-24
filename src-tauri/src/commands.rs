@@ -1,5 +1,5 @@
 use crate::{
-    AppState, app_dirs, constant, context_store::{ContextStore, NodeContext}, error::CommandError, events_manager::{EventsStatus, StoredEvent}, ldk_types, logger::{LogEntry, LogLevel, now_ms}, rgbldkd_http::{self, ControlStatusDto, MainStatusResponse, OkResponse}, util::{encode_uri_component, get_current_timestamp, sort_http_params, str_to_hex}, wallet
+    AppState, app_dirs, config::AppConfig, constant, context_store::{ContextStore, NodeContext}, error::CommandError, events_manager::{EventsStatus, StoredEvent}, ldk_types, logger::{LogEntry, LogLevel, now_ms}, rgbldkd_http::{self, ControlStatusDto, MainStatusResponse, OkResponse}, util::{encode_uri_component, get_current_timestamp, sort_http_params, str_to_hex}, wallet
 };
 use base64::{engine::general_purpose, Engine as _};
 use hex;
@@ -708,6 +708,12 @@ fn ensure_parent_dir(path: &std::path::Path) -> Result<(), CommandError> {
 
 fn make_secret_file(path: &std::path::Path, min_len: usize) -> Result<(), CommandError> {
     ensure_parent_dir(path)?;
+
+    if min_len == 0 {
+        std::fs::write(path, "").map_err(|_| CommandError::Io)?;
+        return Ok(());
+    }
+
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| CommandError::Io)?
@@ -735,6 +741,16 @@ fn ensure_secret_file(path: &std::path::Path, min_len: usize) -> Result<(), Comm
         }
     }
     make_secret_file(path, min_len)
+}
+
+fn ensure_json_file(path: &std::path::Path, content: &str) -> Result<(), CommandError> {
+    if path.exists() {
+        return Ok(());
+    }
+
+    std::fs::write(path, content).map_err(|_| CommandError::Io)?;
+
+    Ok(())
 }
 
 fn is_not_found_error(msg: &str) -> bool {
@@ -1224,6 +1240,8 @@ struct NodeRunSpec<'a> {
     main_port: u16,
     control_port: u16,
     p2p_port: u16,
+    is_lsp: bool,
+    lsps1_service_config: &'a Path,
 }
 
 /// Idempotently start a long-running rgbldkd daemon container.
@@ -1275,8 +1293,17 @@ async fn spawn_node_run_container(
         ContainerState::Absent => {},
     }
 
+
+    // let lsp_mount = vec![
+    //     "--mount".to_string(),
+    //     format!(
+    //         "type=bind,src={},dst=/run/secrets/lsps1_service_config.json,readonly",
+    //         spec.lsps1_service_config.display()
+    //     )
+    // ];
+
     // Container does not exist: create + start it fresh.
-    let run_args = vec![
+    let mut run_args = vec![
         "run".to_string(),
         "-d".to_string(),
         "--name".to_string(),
@@ -1307,6 +1334,11 @@ async fn spawn_node_run_container(
         format!(
             "type=bind,src={},dst=/run/secrets/rgbldk_keystore_passphrase,readonly",
             spec.keystore_passphrase_host.display()
+        ),
+        "--mount".to_string(),
+        format!(
+            "type=bind,src={},dst=/run/secrets/lsps1_service_config.json,readonly",
+            spec.lsps1_service_config.display()
         ),
         spec.image.to_string(),
         "rgbldkd".to_string(),
@@ -1340,6 +1372,11 @@ async fn spawn_node_run_container(
         "--log-level".to_string(),
         "trace".to_string(),
     ];
+
+    if spec.is_lsp {
+        run_args.push("--lsps1-service-config".to_string());
+        run_args.push("/run/secrets/lsps1_service_config.json".to_string());
+    }
 
     let _ = state
         .logger
@@ -1397,6 +1434,7 @@ async fn prepare_node_resources_inner(
     main_api_port: Option<u16>,
     control_api_port: Option<u16>,
     p2p_port: Option<u16>,
+    is_lsp: Option<bool>,
 ) -> Result<NodeContext, CommandError> {
     let env = docker_environment().await?;
     if !env.installed {
@@ -1526,10 +1564,23 @@ async fn prepare_node_resources_inner(
     let control_http_token = secrets_dir.join("control-http.token");
     let keystore_passphrase = secrets_dir.join("keystore.passphrase");
     let data_volume_name = format!("rgbldk_node_data_{}", dir_key.replace('-', "_"));
+    let lsps1_service_config = secrets_dir.join("lsps1_service_config.json");
 
     ensure_secret_file(&http_token, 16)?;
     ensure_secret_file(&control_http_token, 16)?;
     ensure_secret_file(&keystore_passphrase, 16)?;
+    ensure_json_file(
+        &lsps1_service_config,
+        &serde_json::to_string_pretty(&serde_json::json!({
+            "min_initial_lsp_balance_sat": 100000,
+            "max_initial_lsp_balance_sat": 10000000,
+            "min_channel_balance_sat": 100000,
+            "max_channel_balance_sat": 10000000,
+            "default_btc_capacity_ppm_per_year": 30000,
+            "default_onchain_cost_sat": 10000,
+            "default_min_fee_sat": 1000
+        })).map_err(|_| CommandError::Io)?,
+    )?;
 
     let main_api_base_url = format!("http://127.0.0.1:{resolved_main_port}/");
     let control_api_base_url = format!("http://127.0.0.1:{resolved_control_port}/");
@@ -1556,6 +1607,7 @@ async fn prepare_node_resources_inner(
         allow_non_loopback: false,
         image: Some(image),
         esplora_url: Some(resolved_esplora_url),
+        is_lsp: is_lsp.unwrap_or(false),
     })
 }
 
@@ -1588,6 +1640,7 @@ pub async fn prepare_node_resources(
     main_api_port: Option<u16>,
     control_api_port: Option<u16>,
     p2p_port: Option<u16>,
+    is_lsp: Option<bool>,
 ) -> Result<NodeContext, CommandError> {
     let context = prepare_node_resources_inner(
         &state,
@@ -1599,6 +1652,7 @@ pub async fn prepare_node_resources(
         main_api_port,
         control_api_port,
         p2p_port,
+        is_lsp,
     )
     .await?;
     state.store.upsert(context.clone()).await?;
@@ -1725,6 +1779,8 @@ async fn bootstrap_local_node_after_prepare(
     let resolved_main_port = extract_port_from_url(&context.main_api_base_url).expect(
         "prepare_node_resources_inner always wrote a parseable main_api_base_url",
     );
+    let lsps1_service_config = secrets_dir.join("lsps1_service_config.json");
+
     let resolved_control_port = context
         .control_api_base_url
         .as_deref()
@@ -1763,6 +1819,8 @@ async fn bootstrap_local_node_after_prepare(
         main_port: resolved_main_port,
         control_port: resolved_control_port,
         p2p_port: resolved_p2p_port,
+        is_lsp: context.is_lsp,
+        lsps1_service_config: &lsps1_service_config,
     };
 
     if container_state(&container_name) == ContainerState::Absent {
@@ -2799,11 +2857,20 @@ pub async fn node_lock(
 #[tauri::command]
 pub async fn plugin_wallet_asset_export(
     state: State<'_, AppState>,
+    cfg: State<'_, AppConfig>,
     node_id: String,
     core_rpc: String,
     contract_id: String,
     descriptor: String,
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
+    if !wallet::validate_url(&core_rpc, &cfg.core_domain_whitelist) {
+        return Err(CommandError::BadRequest {
+            service: "plugin_wallet_asset_export",
+            message: Some("request not allowed".to_string()),
+            hint: None,
+        });
+    }
+
     // params
     let param_contract_id = encode_uri_component(&contract_id);
     let param_timestamp = get_current_timestamp().to_string();
@@ -2854,11 +2921,19 @@ pub async fn plugin_wallet_asset_export(
 #[tauri::command]
 pub async fn plugin_wallet_transfer_consignment_export(
     _state: State<'_, AppState>,
+    cfg: State<'_, AppConfig>,
     payment_id: String,
     rpc: String
 ) -> Result<rgbldkd_http::RgbContractsExportBundle, CommandError> {
-    let bytes = wallet::plugin_wallet_transfer_consignment_export(&payment_id, &rpc).await?;
+    if !wallet::validate_url(&rpc, &cfg.core_domain_whitelist) {
+        return Err(CommandError::BadRequest {
+            service: "plugin_wallet_transfer_consignment_export",
+            message: Some("request not allowed".to_string()),
+            hint: None,
+        });
+    }
 
+    let bytes = wallet::plugin_wallet_transfer_consignment_export(&payment_id, &rpc).await?;
     let archive_base64 = general_purpose::STANDARD.encode(bytes);
     Ok(rgbldkd_http::RgbContractsExportBundle {
         contract_id: "".to_string(),
@@ -2871,11 +2946,20 @@ pub async fn plugin_wallet_transfer_consignment_export(
 #[tauri::command]
 pub async fn download_transfer_consignment_from_link(
     state: State<'_, AppState>,
+    cfg: State<'_, AppConfig>,
     node_id: String,
     link: String,
     payment_id: String,
     descriptor: String,
 ) -> Result<rgbldkd_http::TransferConsignment, CommandError> {
+    if !wallet::validate_url(&link, &cfg.core_domain_whitelist) {
+        return Err(CommandError::BadRequest {
+            service: "download_transfer_consignment_from_link",
+            message: Some("request not allowed".to_string()),
+            hint: None,
+        });
+    }
+
     // params
     let param_payment_id = encode_uri_component(&payment_id);
     let param_timestamp = get_current_timestamp().to_string();
@@ -2912,12 +2996,24 @@ pub async fn download_transfer_consignment_from_link(
 
 
 #[tauri::command]
-pub async fn download_transfer_consignment_from_link_no_verify(
+pub async fn download_transfer_consignment_from_local(
     state: State<'_, AppState>,
+    node_id: String,
     link: String,
 ) -> Result<rgbldkd_http::TransferConsignment, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    let main_api = vec![ctx.main_api_base_url.clone()];
+
+    if !wallet::validate_url(&link, &main_api) {
+        return Err(CommandError::BadRequest {
+            service: "download_transfer_consignment_from_local",
+            message: Some("request not allowed".to_string()),
+            hint: None,
+        });
+    }
+
     // query
-    let bytes = wallet::download_transfer_consignment_from_link_no_verify(
+    let bytes = wallet::download_transfer_consignment_from_local(
         &link,
     ).await?;
 
@@ -3109,9 +3205,18 @@ pub async fn node_rgb_onchain_send(
 #[tauri::command]
 pub async fn plugin_wallet_transfer_consignment_accept(
     _state: State<'_, AppState>,
+    cfg: State<'_, AppConfig>,
     consignment_base64: String,
     rpc: String,
 ) -> Result<String, CommandError> {
+    if !wallet::validate_url(&rpc, &cfg.core_domain_whitelist) {
+        return Err(CommandError::BadRequest {
+            service: "plugin_wallet_transfer_consignment_accept",
+            message: Some("request not allowed".to_string()),
+            hint: None,
+        });
+    }
+
     let bytes = general_purpose::STANDARD
         .decode(consignment_base64.as_bytes())
         .map_err(|_| CommandError::BadRequest {
@@ -3398,11 +3503,13 @@ pub async fn node_run_cli(
     let http_token = secrets_dir.join("http.token");
     let control_http_token = secrets_dir.join("control-http.token");
     let keystore_passphrase = secrets_dir.join("keystore.passphrase");
+    let lsps1_service_config = secrets_dir.join("lsps1_service_config.json");
 
     for (label, path) in [
         ("http.token", &http_token),
         ("control-http.token", &control_http_token),
         ("keystore.passphrase", &keystore_passphrase),
+        ("lsps1_service_config.json", &lsps1_service_config),
     ] {
         if !path.exists() {
             return Err(CommandError::BadRequest {
@@ -3464,6 +3571,8 @@ pub async fn node_run_cli(
             main_port,
             control_port,
             p2p_port,
+            is_lsp: ctx.is_lsp,
+            lsps1_service_config: &lsps1_service_config,
         },
     )
     .await?;
@@ -5272,6 +5381,240 @@ pub async fn node_rgb_utxos_release(
         "rgb.utxos.release",
         None,
         rgbldkd_http::rgb_utxos_release(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_wallet_send(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "wallet.send",
+        None,
+        rgbldkd_http::wallet_send(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_wallet_send_all(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "wallet.send_all",
+        None,
+        rgbldkd_http::wallet_send_all(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+
+#[tauri::command]
+pub async fn node_lsps1_lsp(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.lsp",
+        None,
+        rgbldkd_http::lsps1_lsp(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_lsp_update(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.lsp.update",
+        None,
+        rgbldkd_http::lsps1_lsp_update(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_info(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.info",
+        None,
+        rgbldkd_http::lsps1_info(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_order(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.order",
+        None,
+        rgbldkd_http::lsps1_order(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_rgb_order(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.rgb_order",
+        None,
+        rgbldkd_http::lsps1_rgb_order(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_order_detail(
+    state: State<'_, AppState>,
+    node_id: String,
+    order_id: String
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.order_detail",
+        None,
+        rgbldkd_http::lsps1_order_detail(&state.http, &ctx, &order_id),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_pricing(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.pricing",
+        None,
+        rgbldkd_http::lsps1_pricing(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_pricing_update(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.pricing.update",
+        None,
+        rgbldkd_http::lsps1_pricing_update(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_orders(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.orders",
+        None,
+        rgbldkd_http::lsps1_orders(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_orders_detail(
+    state: State<'_, AppState>,
+    node_id: String,
+    order_id: String
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.orders.detail",
+        None,
+        rgbldkd_http::lsps1_orders_detail(&state.http, &ctx, &order_id),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_options_query(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.options",
+        None,
+        rgbldkd_http::lsps1_options(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_options_update(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.options.update",
+        None,
+        rgbldkd_http::lsps1_options_update(&state.http, &ctx, &request),
     )
     .await
 }

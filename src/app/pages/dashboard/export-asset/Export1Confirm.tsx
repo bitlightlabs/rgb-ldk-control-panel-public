@@ -1,7 +1,6 @@
 import AssetAvatar from "@/app/components/AssetAvatar";
 import CopyText from "@/app/components/CopyText";
 import ImportStep from "@/app/components/ImportStep";
-import IconAlert from "@/app/icons/alert";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type { RgbContractDto } from "@/lib/sdk/types";
@@ -71,6 +70,7 @@ export default function Export1Confirm(props: IProps) {
           variant="white"
           className="w-full rounded-full"
           disabled={props.disabled}
+          loading={props.disabled}
           onClick={props.onNext}
         >Confirm & Send</Button>
       </div>

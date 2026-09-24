@@ -3,6 +3,7 @@ import {
   type UseMutationOptions,
   useQueryClient,
 } from "@tanstack/react-query";
+import { nodeWalletSend, nodeWalletSendAll } from "@/lib/commands";
 import {
   nodeRgbNewAddress,
   nodeRgbSync,
@@ -12,6 +13,7 @@ import {
 import type { WalletNewAddressResponse } from "@/lib/domain";
 import type { OkResponse } from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import type { WalletSendAllRequest, WalletSendRequest, WalletSendResponse } from "@/lib/sdk/generated-types";
 
 /**
  * Wallet sync that also resyncs RGB state. Mirrors what the dashboard's sync
@@ -85,5 +87,30 @@ export function useNodeWalletSyncMutation(
       onSuccess?.(...args);
     },
     ...rest,
+  });
+}
+
+
+export function useNodeWalletSendMutation(
+  options?: Omit<
+    UseMutationOptions<WalletSendResponse, Error, { nodeId: string; request: WalletSendRequest }>,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    mutationFn: ({ nodeId, request }) => nodeWalletSend(nodeId, request),
+    ...options,
+  });
+}
+
+export function useNodeWalletSendAllMutation(
+  options?: Omit<
+    UseMutationOptions<WalletSendResponse, Error, { nodeId: string; request: WalletSendAllRequest }>,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    mutationFn: ({ nodeId, request }) => nodeWalletSendAll(nodeId, request),
+    ...options,
   });
 }

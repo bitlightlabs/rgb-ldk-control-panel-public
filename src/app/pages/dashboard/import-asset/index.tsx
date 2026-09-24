@@ -74,7 +74,12 @@ export default function RgbImportPage() {
       toast.success("RGB OnChain invoice created");
     },
     onError: (e) => {
-      toast.error(errorToText(e));
+      const msg = errorToText(e);
+      if(msg === 'blinding utxo unavailable') {
+        toast.error('Invoice is still active. Please select a different UTXO.');
+      } else {
+        toast.error(msg);
+      }
     },
   });
 
@@ -168,6 +173,7 @@ export default function RgbImportPage() {
                         amount: realAmount.toString(),
                         use_witness_utxo: false,
                         blinding_utxo: utxo.trim(),
+                        expiry_secs: '1800',
                       },
                     });
                   }}

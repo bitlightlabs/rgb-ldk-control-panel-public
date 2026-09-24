@@ -34,7 +34,7 @@ export default function Export1(props: IProps) {
         <Textarea
           value={props.invoice}
           onChange={(e) => props.onChangeInvoice(e.currentTarget.value)}
-          placeholder="Paste the consignment link here..."
+          placeholder="Paste the invoice here..."
           className="rounded-2xl min-h-[90px] pr-20"
           slot={
             <Button

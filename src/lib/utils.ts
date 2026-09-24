@@ -2,9 +2,31 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import { nodeRgbUtxos } from "./commands";
 import { type RgbUtxoDto, type WalletUtxoDto } from "./sdk/generated-types";
+import type { UserContext } from "@/app/stores/contextStore";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+function buildConsignmentTemplate(base: string): string {
+  const trimmed = base.trim();
+  if (!trimmed) return "";
+  if (trimmed.includes("{txid}")) return trimmed;
+  if (trimmed.startsWith("file://")) {
+    const path = trimmed.slice("file://".length);
+    const clean = path.endsWith("/") ? path.slice(0, -1) : path;
+    return `file://${clean}/{txid}`;
+  }
+  const clean = trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+  return `${clean}/{txid}?format=zip`;
+}
+
+export function defaultRgbContextData(source: UserContext | null): string {
+  if (!source) return "";
+  if (source.rgb_consignment_base_url) {
+    return buildConsignmentTemplate(source.rgb_consignment_base_url);
+  }
+  return "";
 }
 
 function getRandomColor(str: string) {
@@ -131,9 +153,9 @@ export async function classifyUtxos(nodeId: string) {
     // 2. Occupied and available (unused & confirmed) UTXOs
     all.utxos.forEach(item => {
       const outpoint = item.outpoint;
-      const assets = item.rgb.allocations
+      const assets = item.rgb.allocations;
       if (assets && assets.length > 0) {
-        used[outpoint] = item.value_sats
+        used[outpoint] = item.value_sats;
 
       } else {
         const confirmed = item.confirmation && item.confirmation.status === 'confirmed';
@@ -165,7 +187,7 @@ export function selectUtxos(utxos: WalletUtxoDto[], valueSats: string | number) 
     selected.push(item);
     total += BigInt(item.value_sats);
 
-    if (total >= value) {
+    if (total > value) {
       break;
     }
   }

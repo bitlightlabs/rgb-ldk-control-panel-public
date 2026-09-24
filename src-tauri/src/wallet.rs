@@ -1,151 +1,25 @@
 use serde_json::Value;
 use tauri::State;
-
+use url::Url;
 use crate::{AppState, error::CommandError, rgbldkd_http};
-// use base64::{engine::general_purpose, Engine as _};
-// use std::time::{SystemTime, UNIX_EPOCH};
-// use std::{fs::File, io::Write, path::Path};
-// use serde::{Deserialize, Serialize};
-// use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct RpcRequest {
-//     jsonrpc: String,
-//     id: String,
-//     method: String,
-//     params: Vec<serde_json::Value>,
-// }
-
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// pub struct RpcResponse {
-//     result: Option<String>,
-//     error: Option<serde_json::Value>,
-//     id: String,
-// }
-
-// async fn call_bitcoin_rpc(
-//     client: &reqwest::Client,
-//     url: &str,
-//     headers: &HeaderMap,
-//     method: &str,
-//     params: Vec<Value>,
-// ) -> Result<Value, CommandError> {
-//     let request = RpcRequest {
-//         jsonrpc: "1.0".to_string(),
-//         id: "rust-client".to_string(),
-//         method: method.to_string(),
-//         params,
-//     };
-
-//     let response = client
-//         .post(url)
-//         .headers(headers.clone())
-//         .json(&request)
-//         .send()
-//         .await
-//         .map_err(|e| CommandError::HttpRequestFailed)?;
-
-//     response.json::<Value>().await.map_err(|_| CommandError::HttpRequestFailed)
-// }
-
-
-// pub async fn btc_deposit(
-//     address: &str,
-//     amount: f32
-// ) -> Result<RpcResponse, CommandError> {
-//     let rpc_url = "http://127.0.0.1:18443";
-//     let rpc_user = "btcuser";
-//     let rpc_password = "btcpass";
-
-//     let auth = format!("{}:{}", rpc_user, rpc_password);
-//     let auth_base64 = base64::encode(auth);
-
-//     let mut headers = HeaderMap::new();
-//     headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/plain"));
-//     headers.insert(
-//         AUTHORIZATION,
-//         HeaderValue::from_str(&format!("Basic {}", auth_base64)).unwrap(),
-//     );
-
-//     let request_body = RpcRequest {
-//         jsonrpc: "1.0".to_string(),
-//         id: "rust-client".to_string(),
-//         method: "sendtoaddress".to_string(),
-//         params: vec![
-//             json!(address),
-//             json!(amount),
-//             json!("comment text"),
-//         ],
-//     };
-
-//     let client = reqwest::Client::new();
-//     let response = client
-//         .post(rpc_url)
-//         .headers(headers)
-//         .json(&request_body)
-//         .send()
-//         .await
-//         .map_err(|_| CommandError::HttpRequestFailed)?;
-
-//     response.json::<RpcResponse>().await.map_err(|_| CommandError::HttpRequestFailed)
-// }
-
-// pub async fn btc_mine() -> Result<Value, CommandError> {
-//     let rpc_url = "http://127.0.0.1:18443";
-//     let rpc_user = "btcuser";
-//     let rpc_password = "btcpass";
-
-//     let client = reqwest::Client::new();
-//     let auth = format!("{}:{}", rpc_user, rpc_password);
-//     let auth_base64 = base64::encode(auth);
-
-//     let mut headers = HeaderMap::new();
-//     headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/plain"));
-//     headers.insert(
-//         AUTHORIZATION,
-//         HeaderValue::from_str(&format!("Basic {}", auth_base64)).unwrap(),
-//     );
-
-//     let address_value = call_bitcoin_rpc(
-//         &client,
-//         rpc_url,
-//         &headers,
-//         "getnewaddress",
-//         vec![json!("mining_label"), json!("bech32")]
-//     ).await?;
-
-//     let address = address_value.get("result")
-//         .and_then(|v| v.as_str())
-//         .ok_or(CommandError::HttpRequestFailed)?;
-
-//     call_bitcoin_rpc(
-//         &client,
-//         rpc_url,
-//         &headers,
-//         "generatetoaddress",
-//         vec![json!(6), json!(address)]
-//     ).await.map_err(|_| CommandError::HttpRequestFailed)
-// }
-
-// fn get_timestamp() -> u64 {
-//     let start = SystemTime::now();
-//     let since_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
-//     since_epoch.as_secs()
-// }
-
-// pub fn sort_http_params(
-//     params: &[(&str, &str)],
-// ) -> String {
-//     let mut map = std::collections::BTreeMap::new();
-
-//     for (key, value) in params {
-//         map.insert(*key, value.trim());
-//     }
-
-//     map.into_iter().map(|(key, value)| format!("{key}={value}"))
-//         .collect::<Vec<_>>()
-//         .join("&")
-// }
+// Validate a URL against a whitelist
+pub fn validate_url(user_input_url: &str, white_list: &Vec<String>) -> bool {
+    let user_url = match Url::parse(user_input_url) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+    let user_origin = match user_url.origin() {
+        url::Origin::Opaque(_) => return false,
+        url::Origin::Tuple(scheme, host, _port) => {
+            format!("{}://{}", scheme, host)
+        }
+    };
+    let is_valid = white_list.iter().any(|allowed_origin| allowed_origin.starts_with(&user_origin));
+    // println!("user_origin: {}", user_origin);
+    // println!("white_list: {:?}, is_valid: {}", white_list, is_valid);
+    is_valid
+}
 
 // Download a contract from plugin wallet
 pub async fn plugin_wallet_asset_export(
@@ -232,7 +106,7 @@ pub async fn download_transfer_consignment_from_link(
 }
 
 // Download a transfer consignment from an endpoint
-pub async fn download_transfer_consignment_from_link_no_verify(
+pub async fn download_transfer_consignment_from_local(
    link: &str,
 ) -> Result<Vec<u8>, CommandError> {
     let client = reqwest::Client::new();

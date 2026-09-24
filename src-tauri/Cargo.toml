@@ -1,6 +1,6 @@
 [package]
 name = "rgb-ldk-control-panel"
-version = "0.0.8"
+version = "0.0.9"
 description = "Desktop control plane for local rgbldkd nodes"
 authors = ["rgbldk"]
 edition = "2021"
@@ -38,3 +38,6 @@ hex = "0.4"
 pbkdf2 = "0.12"
 rand = { version = "0.8", features = ["getrandom"] }
 bip39 = "2"
+url = "2.5"
+rusqlite = { version = "0.40", features = ["bundled"] }
+

@@ -72,17 +72,17 @@ export default function ActivitiesPage() {
     <ContentWrapper className="w-full">
       <ContentHeader title="Activities" onBack={() => nav('/dashboard')} />
       <Content className="px-2 h-[618px] overflow-y-auto">
-        <div className="px-3 flex justify-between">
+        <div className="h-10 px-3 flex justify-between">
           <Tabs value={tab} onValueChange={changeTab}>
             <TabsList className="h-10 flex items-center justify-start w-auto rounded-full bg-background gap-1">
               <TabsTrigger
-                className="h-8 px-4 rounded-full text-base font-medium data-[state=active]:bg-background-2 hover:bg-background-2"
+                className="h-8 px-4 rounded-full"
                 value="Swap"
               >
                 Swap
               </TabsTrigger>
               <TabsTrigger
-                className="h-8 px-4 rounded-full text-base font-medium data-[state=active]:bg-background-2 hover:bg-background-2"
+                className="h-8 px-4 rounded-full"
                 value="Onchain"
               >
                 On-chain

@@ -7,10 +7,12 @@ type SetupState = {
     accountName: string;
     mnemonic: string;
     passwordHash: string;
+    isLsp: boolean;
     setNetwork: (network: Net) => void;
     setAccountName: (name: string) => void;
     setMnemonic: (mnemonic: string) => void;
     setPasswordHash: (hash: string) => void;
+    setIsLsp: (isLsp: boolean) => void;
     resetSetup: () => void;
 };
 
@@ -22,9 +24,11 @@ export const useSetupStore = create<SetupState>()((set) => ({
     accountName: "",
     mnemonic: "",
     passwordHash: "",
+    isLsp: false,
+    setIsLsp: (isLsp) => set({ isLsp }),
     setNetwork: (network) => set({ network }),
     setAccountName: (name) => set({ accountName: name }),
     setMnemonic: (mnemonic) => set({ mnemonic }),
     setPasswordHash: (hash) => set({ passwordHash: hash }),
-    resetSetup: () => set({ network: "regtest", accountName: "", mnemonic: "", passwordHash: "" }),
+    resetSetup: () => set({ network: "regtest", accountName: "", mnemonic: "", passwordHash: "", isLsp: false }),
 }));

@@ -1,6 +1,7 @@
 import IconPlus from "@/app/icons/IconPlus"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
+import IconBuy from "../icons/buy"
 
 export default function EmptyChannel() {
   const nav = useNavigate()
@@ -9,13 +10,17 @@ export default function EmptyChannel() {
     nav('/dashboard/channels')
   }
 
+  const buyChannel = () => {
+    nav('/dashboard/channels/buy')
+  }
+
   return (
     <div className="rounded-2xl px-5 py-5">
       <div className="text-base leading-5 text-center">No channels available.</div>
       <div className="text-xs text-secondary-foreground mt-2 text-center">
         Open a channel to start swapping assets.
       </div>
-      <div className="mt-4 flex justify-center">
+      <div className="mt-4 flex justify-center gap-2.5">
         <Button
           size="lg"
           variant="destructive"
@@ -24,6 +29,15 @@ export default function EmptyChannel() {
         >
           <IconPlus />
           <span>Open Channel</span>
+        </Button>
+        <Button
+          size="lg"
+          variant="destructive"
+          className="rounded-full"
+          onClick={buyChannel}
+        >
+          <IconBuy />
+          <span>Buy Channel</span>
         </Button>
       </div>
     </div>

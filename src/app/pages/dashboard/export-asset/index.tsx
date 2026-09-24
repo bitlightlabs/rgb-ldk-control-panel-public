@@ -111,18 +111,11 @@ export default function RgbExportPage() {
   const decodedInvoice = useMemo((): RawRgbOnchainInvoiceDecodeResponse | null => {
     const resp = onchainInvoiceDecodeQuery.data;
     if (!resp) return null;
-    if (!resp.ok) {
-      throw new Error(
-        `onchain decode failed: status=${resp.status} body=${resp.body.slice(
-          0,
-          200
-        )}`
-      );
-    }
+
     try {
       return JSON.parse(resp.body) as RawRgbOnchainInvoiceDecodeResponse;
     } catch {
-      throw new Error("onchain decode returned invalid JSON");
+      return null;
     }
   }, [onchainInvoiceDecodeQuery.data]);
 
@@ -172,9 +165,9 @@ export default function RgbExportPage() {
   const payMutation = useRgbOnchainSendMutation({
     onSuccess: (resp) => {
       toast.success("Paid successfully");
-      setTxid(resp.txid);
       setConsignmentLink("");
       setStepOneMode("form");
+      setTxid(resp.txid);
       setStep(2);
     },
     onError: (e) => {
@@ -208,11 +201,6 @@ export default function RgbExportPage() {
       toast.error(errorToText(e));
     },
   });
-
-  const stepItems = [
-    { id: 1, label: "Pay RGB OnChain Invoice" },
-    { id: 2, label: "Consignment Download" },
-  ] as const;
 
   const downloadMutation = useDownloadConsignmentWithoutVerifyMutation({
     onSuccess: async (data) => {
@@ -253,7 +241,10 @@ export default function RgbExportPage() {
         return;
       }
 
-      downloadMutation.mutate(buildFormattedLink(consignmentLink, downloadFormat));
+      downloadMutation.mutate({
+        nodeId: activeNodeId,
+        fullLink: buildFormattedLink(consignmentLink, downloadFormat)
+      });
   };
 
   const checkPaid = () => {
@@ -299,7 +290,7 @@ export default function RgbExportPage() {
         }}
       />
 
-     <Content>
+     <Content className="mb-10">
         {/* Check & pay */}
         {step === 1 ? (
           <div>
@@ -320,6 +311,7 @@ export default function RgbExportPage() {
                   amount={decodedAmountDisplay ?? ''}
                   decodedContract={decodedContract}
                   disabled={
+                    !decodedContract ||
                     payMutation.isPending ||
                     onchainInvoiceDecodeQuery.isFetching ||
                     onchainInvoiceDecodeQuery.isError

@@ -21,7 +21,6 @@ export default function RgbUtxoSelect(props: {onChangeUtxo: (utxo: string) => vo
       setLoading(true)
 
       const data = await classifyUtxos(activeNodeId)
-      console.log('classifyUtxos', data)
       if(!data) {
         return
       }

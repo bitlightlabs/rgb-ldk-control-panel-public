@@ -24,6 +24,7 @@ export type NodeContext = {
    */
   image?: string | null;
   esplora_url: string;
+  is_lsp: boolean;
 };
 
 export type ControlStatusDto = {
@@ -66,6 +67,7 @@ export type BootstrapLocalNodeRequest = {
   p2pPort?: number;
   network?: BitcoinNetwork;
   esploraUrl?: string;
+  isLsp?: boolean;
 };
 
 export type BootstrapLocalEnvironmentNode = {

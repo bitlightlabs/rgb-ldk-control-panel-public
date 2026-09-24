@@ -74,6 +74,15 @@ export function SwapList(props: {filterType: string, list: SwapInfo[], contracts
     )
   }
 
+  if(elements.length === 0) {
+    return (
+      <div className="min-h-[500px] flex flex-col items-center justify-center h-full gap-2">
+        <div className="leading-5 text-base">No {props.filterType} Swaps.</div>
+        <div className="text-xs text-secondary-foreground">There are no {props.filterType.toLowerCase()} swap transactions to display.</div>
+      </div>
+    )
+  }
+
   return elements;
 }
 

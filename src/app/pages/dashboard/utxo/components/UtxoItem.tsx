@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AssetAvatar from "@/app/components/AssetAvatar";
-import CopyText from "@/app/components/CopyText";
+import CopyText, { CopyTextInline } from "@/app/components/CopyText";
 import { Button } from "@/components/ui/button";
 import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
 import { formatNumber } from "@/lib/number";
@@ -108,9 +108,12 @@ export default function UtxoItem(props: IProps) {
       <Separator className="bg-background-solid my-5" />
       <div>
         <div className="leading-[18px] text-xs text-secondary-foreground">Output ID</div>
-        <div className="mt-2 leading-5 text-base flex items-center gap-2">
-          <span>{formatAddress(utxo.outpoint, 16)}</span>
-          <CopyText className="text-secondary-foreground" text={utxo.outpoint} />
+        <div className="mt-2">
+          <CopyTextInline
+            text={utxo.outpoint}
+            length={16}
+            buttonClassName="text-secondary-foreground"
+          />
         </div>
       </div>
 

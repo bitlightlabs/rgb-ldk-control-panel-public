@@ -40,8 +40,8 @@ export default function AssetDetail() {
   return (
     <ContentWrapper className="w-full">
       <ContentHeader title={asset.name ?? ''} onBack={() => nav(-1)} />
-      <Content>
-        <div className="h-13 flex items-center gap-4">
+      <Content className="px-3 pt-5 pb-3">
+        <div className="pl-2 h-13 flex items-center gap-4">
           <AssetAvatar className="w-13 h-13 text-lg" name={asset.name ?? ''} />
           <div>
             <div className="text-xl font-bold leading-7">{asset.name}</div>
@@ -108,33 +108,33 @@ export default function AssetDetail() {
             <span>Export</span>
           </Button>
         </div>
+      </Content>
 
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div className="p-5 rounded-3xl bg-background-3/50">
-            <h4 className="text-lg font-medium">About {asset.name}</h4>
-            <div className="mt-6 flex gap-3">
-              <div className="w-[132px]">
-                <label className="text-sm text-secondary-foreground">RGB20 Ticker</label>
-                <div className="text-base mt-1">{asset.ticker}</div>
-              </div>
-              <div className="">
-                <label className="text-sm text-secondary-foreground">Token Name</label>
-                <div className="text-base mt-1">{asset.name}</div>
-              </div>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Content className="mt-0 px-5 py-5">
+          <h4 className="text-lg font-medium">About {asset.name}</h4>
+          <div className="mt-6 flex gap-3">
+            <div className="w-[132px]">
+              <label className="text-sm text-secondary-foreground">RGB20 Ticker</label>
+              <div className="text-base mt-1">{asset.ticker}</div>
             </div>
-            <div className="mt-6 flex gap-3">
-              <div className="w-[132px]">
-                <label className="text-sm text-secondary-foreground">Total Apply</label>
-                <div className="text-base mt-1">{u64(asset.issued_supply ?? 0).div(10 ** (asset.precision ?? 0)).toString()}</div>
-              </div>
-              <div className="">
-                <label className="text-sm text-secondary-foreground">Precision</label>
-                <div className="text-base mt-1">{asset.precision}</div>
-              </div>
+            <div className="">
+              <label className="text-sm text-secondary-foreground">Token Name</label>
+              <div className="text-base mt-1">{asset.name}</div>
             </div>
           </div>
-        </div>
-      </Content>
+          <div className="mt-6 flex gap-3">
+            <div className="w-[132px]">
+              <label className="text-sm text-secondary-foreground">Total Apply</label>
+              <div className="text-base mt-1">{u64(asset.issued_supply ?? 0).div(10 ** (asset.precision ?? 0)).toString()}</div>
+            </div>
+            <div className="">
+              <label className="text-sm text-secondary-foreground">Precision</label>
+              <div className="text-base mt-1">{asset.precision}</div>
+            </div>
+          </div>
+        </Content>
+      </div>
     </ContentWrapper>
   )
 }

@@ -13,6 +13,7 @@ export type UserContext = Pick<NodeContext,
   | 'network'
   | 'image'
   | 'esplora_url'
+  | 'is_lsp'
 >;
 
 // This store is new and will replace nodeStore in the future
@@ -35,6 +36,7 @@ function filterContext(context: NodeContext | null): UserContext | null {
     network: context.network,
     image: context.image,
     esplora_url: context.esplora_url,
+    is_lsp: context.is_lsp
   }
 }
 

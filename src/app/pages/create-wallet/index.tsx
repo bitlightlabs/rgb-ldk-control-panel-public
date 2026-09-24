@@ -12,6 +12,7 @@ import { ensureDockerImage } from "@/lib/docker";
 import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
 import { useContextsQuery } from "@/app/queries";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function CreateWallet() {
   const nav = useNavigate()
@@ -20,6 +21,9 @@ export function CreateWallet() {
   const accountName = useSetupStore((s) => s.accountName)
   const setNetwork = useSetupStore((s) => s.setNetwork)
   const setAccountName = useSetupStore((s) => s.setAccountName)
+  const isLsp = useSetupStore((s) => s.isLsp)
+  const setIsLsp = useSetupStore((s) => s.setIsLsp)
+
   const contextsQuery = useContextsQuery({
     refetchInterval: false,
   });
@@ -43,7 +47,7 @@ export function CreateWallet() {
   useEffect(() => {
     if (!contextsQuery.data) return;
     setAccountName(`Node ${contextsQuery.data.length + 1}`);
-  }, [accountName, contextsQuery.data, setAccountName])
+  }, [contextsQuery.data])
 
   return (
     <Wrapper onBack={() => nav(-1)}>
@@ -70,6 +74,18 @@ export function CreateWallet() {
           value={network}
           onSelect={setNetwork}
         />
+      </Field>
+
+      <Field className="mt-8" orientation="horizontal">
+        <Checkbox
+          id="is-lsp"
+          name="is-lsp"
+          checked={isLsp}
+          onCheckedChange={(checked) => setIsLsp(!!checked)}
+        />
+        <FieldLabel htmlFor="is-lsp">
+          Is Lightning Service Provider
+        </FieldLabel>
       </Field>
 
       <Field className="mt-8">

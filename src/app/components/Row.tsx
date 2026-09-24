@@ -1,8 +1,10 @@
-export default function Row(props: {label: any, value: any}) {
+import { cn } from "@/lib/utils"
+
+export default function Row(props: {label: any, value: any, className?: string}) {
   return (
-    <div className="h-5 flex items-center justify-between">
-      <div className="text-base text-secondary-foreground">{props.label}</div>
-      <div className="h-full flex items-center gap-2 text-base">
+    <div className={cn("h-5 flex items-center justify-between text-base", props.className)}>
+      <div className="text-secondary-foreground">{props.label}</div>
+      <div className="h-full flex items-center gap-2">
         {props.value}
       </div>
     </div>

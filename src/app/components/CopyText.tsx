@@ -19,7 +19,7 @@ export default function CopyText(props: { text: string, className?: string }) {
   return (
     <Button
       className={
-        cn("w-4 h-4 px-0 hover:[&_svg]:text-foreground", className)
+        cn("w-4 h-4 px-0 text-secondary-foreground hover:[&_svg]:text-foreground", className)
       }
       variant="ghost"
       onClick={copy}
@@ -60,13 +60,13 @@ export function CopyTextInline(
       >{formatAddress(props.text, length)}</span>
       <Button
         className={
-          cn("w-4 h-4 px-0 hover:[&_svg]:text-foreground", buttonClassName)
+          cn("w-4 h-4 px-0 text-secondary-foreground hover:bg-transparent hover:[&_svg]:text-foreground", buttonClassName)
         }
         variant="ghost"
         onClick={copy}
         onKeyDown={(e) => e.stopPropagation()}
       >
-        <Copy />
+        <Copy width={14} height={14} />
       </Button>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { useSetupStore } from "@/app/stores/setupStore";
 import Wrapper from "../start/components/Wrapper";
 import { Field } from "@/components/ui/field";
@@ -10,10 +11,17 @@ import IconFileLock from "@/app/icons/filelock";
 export function CreateResult() {
   const nav = useNavigate();
   const mnemonic = useSetupStore((s) => s.mnemonic);
+  const resetSetup = useSetupStore((s) => s.resetSetup);
 
   const next = () => {
     nav("/dashboard", { replace: true });
   };
+
+  useEffect(() => {
+    return () => {
+      resetSetup();
+    };
+  }, [resetSetup]);
 
   const split = mnemonic.trim().split(" ");
 

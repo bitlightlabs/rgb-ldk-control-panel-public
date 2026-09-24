@@ -196,7 +196,8 @@ body {
 ::-webkit-scrollbar {
   position: relative;
   width: 0;
-  /* height: 8px; */
+  height: 6px;
+  scrollbar-width: thin;
 }
 ::-webkit-scrollbar-thumb {
   background-color: var(--background-muted);

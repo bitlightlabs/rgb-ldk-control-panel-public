@@ -86,6 +86,22 @@ export const queryKeys = {
   nodeSwapAccept: (nodeId: string, swapString: string) =>
     ["node_swap_accept", nodeId, swapString] as const,
   nodeSwapExecute: (nodeId: string) => ["node_swap_execute", nodeId] as const,
+
+  // ---- lsp ----
+  nodeCurrentLspPricing: (nodeId: string) =>
+    ["node_current_lsp_pricing", nodeId] as const,
+  nodeLspQuery: (nodeId: string) =>
+    ["node_lsp_query", nodeId] as const,
+  nodeQueryLspQuote: (nodeId: string) =>
+    ["node_lsp_quote", nodeId] as const,
+  nodeCurrentLspOrders: (nodeId: string) =>
+    ["node_current_lsp_orders", nodeId] as const,
+  nodeBuyChannelDetail: (nodeId: string, orderId: string) =>
+    ["node_buy_channel_detail", nodeId, orderId] as const,
+  nodeCurrentLspOrdersDetail: (nodeId: string, orderId: string) =>
+    ["node_current_lsp_orders_detail", nodeId, orderId] as const,
+  nodeLspOptions: (nodeId: string) =>
+    ["node_lsp_options", nodeId] as const,
 } as const;
 
 export type QueryKey = ReturnType<

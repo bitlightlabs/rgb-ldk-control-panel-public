@@ -67,11 +67,17 @@ import type {
   SwapInfo,
   ChannelClosing,
   RgbUtxosMergeStatusResponse,
+  LspPricing,
+  LspConnectionInfo,
+  LspQuoteData,
+  LspOrderItem,
+  LspOrdersResponse,
+  LspOptions,
 } from "./sdk/types";
 import { tauriInvoke } from "./tauri";
 import type { RgbContractsExportBundle } from "./domain";
 import { uint8ArrayToBase64 } from "./utils";
-import type { RgbUtxoDto, RgbUtxosFundRequest, RgbUtxosFundResponse, RgbUtxosReleaseRequest, RgbUtxosReleaseResponse, RgbUtxosReserveRequest, RgbUtxosReserveResponse, RgbUtxosSweepRequest, RgbUtxosSweepResponse, RgbUtxosTopUpRequest, RgbUtxosTopUpResponse, WalletUtxosResponse } from "./sdk/generated-types";
+import type { RgbUtxoDto, RgbUtxosFundRequest, RgbUtxosFundResponse, RgbUtxosReleaseRequest, RgbUtxosReleaseResponse, RgbUtxosReserveRequest, RgbUtxosReserveResponse, RgbUtxosSweepRequest, RgbUtxosSweepResponse, RgbUtxosTopUpRequest, RgbUtxosTopUpResponse, WalletSendAllRequest, WalletSendRequest, WalletSendResponse, WalletUtxosResponse } from "./sdk/generated-types";
 
 export type UiLogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
@@ -151,6 +157,7 @@ export async function prepareNodeResources(
     p2pPort: request?.p2pPort ?? null,
     network: request?.network ?? null,
     esploraUrl: request?.esploraUrl ?? null,
+    isLsp: request?.isLsp ?? false,
   });
 }
 
@@ -486,8 +493,9 @@ export async function pluginWalletTransferConsignmentExport(paymentId: string): 
   return tauriInvoke("plugin_wallet_transfer_consignment_export", { paymentId });
 }
 
-export async function downloadTransferConsignmentFromLinkWithoutVerify(fullLink: string): Promise<RgbContractsExportBundle> {
-  return tauriInvoke("download_transfer_consignment_from_link_no_verify", {
+export async function downloadTransferConsignmentFromLinkWithoutVerify(nodeId: string, fullLink: string): Promise<RgbContractsExportBundle> {
+  return tauriInvoke("download_transfer_consignment_from_local", {
+    nodeId,
     link: fullLink
   });
 }
@@ -1029,4 +1037,53 @@ export async function nodeRgbUtxosRelease(nodeId: string, req: RgbUtxosReleaseRe
     nodeId,
     request: req
   });
+}
+
+export async function nodeWalletSend(nodeId: string, request: WalletSendRequest): Promise<WalletSendResponse> {
+  return tauriInvoke("node_wallet_send", { nodeId, request });
+}
+
+export async function nodeWalletSendAll(nodeId: string, request: WalletSendAllRequest): Promise<WalletSendResponse> {
+  // `true` keeps the Anchor-channel reserve;
+  // `false` also spends reserves (dangerous with open Anchor channels)
+  request.retain_reserves = true
+  return tauriInvoke("node_wallet_send_all", { nodeId, request });
+}
+
+export async function nodeCurrentLsp(nodeId: string): Promise<LspConnectionInfo> {
+  return tauriInvoke("node_lsps1_lsp", { nodeId });
+}
+export async function nodeUpdateCurrentLsp(nodeId: string, request: LspConnectionInfo) {
+  return tauriInvoke("node_lsps1_lsp_update", { nodeId, request });
+}
+export async function nodeQueryLspQuote(nodeId: string): Promise<LspQuoteData> {
+  return tauriInvoke("node_lsps1_info", { nodeId });
+}
+export async function nodeBuyBtcChannel(nodeId: string, request: any): Promise<LspOrdersResponse> {
+  return tauriInvoke("node_lsps1_order", { nodeId, request });
+}
+export async function nodeBuyRGBChannel(nodeId: string, request: any): Promise<LspOrdersResponse> {
+  return tauriInvoke("node_lsps1_rgb_order", { nodeId, request });
+}
+export async function nodeBuyChannelDetail(nodeId: string, orderId: string): Promise<LspOrdersResponse> {
+  return tauriInvoke("node_lsps1_order_detail", { nodeId, orderId });
+}
+export async function nodeCurrentLspPricing(nodeId: string): Promise<LspPricing> {
+  return tauriInvoke("node_lsps1_pricing", { nodeId });
+}
+export async function nodeUpdateCurrentLspPricing(nodeId: string, request: any) {
+  return tauriInvoke("node_lsps1_pricing_update", { nodeId, request });
+}
+export async function nodeCurrentLspOrders(nodeId: string): Promise<{orders: LspOrderItem[]}> {
+  return tauriInvoke("node_lsps1_orders", { nodeId });
+}
+export async function nodeCurrentLspOrdersDetail(nodeId: string, orderId: string) {
+  return tauriInvoke("node_lsps1_orders_detail", { nodeId, orderId });
+}
+
+export async function nodeLspOptions(nodeId: string): Promise<LspOptions> {
+  return tauriInvoke("node_lsps1_options_query", { nodeId });
+}
+export async function nodeLspOptionsUpdate(nodeId: string, request: LspOptions): Promise<any> {
+  return tauriInvoke("node_lsps1_options_update", { nodeId, request });
 }

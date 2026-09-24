@@ -3,7 +3,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import AssetAvatar from "./AssetAvatar";
 import type { RgbContractDto } from "@/lib/sdk/types";
@@ -13,9 +12,6 @@ import { useContextStore } from "../stores/contextStore";
 interface IProps {
   selectedContractId: string;
   onChange?: (contract: RgbContractDto) => void;
-  // setContractId?: (id: string) => void;
-  contracts?: RgbContractDto[];
-  // reset?: () => void;
 }
 
 export default function AssetSelect(props: IProps) {
@@ -23,9 +19,8 @@ export default function AssetSelect(props: IProps) {
   const activeNodeId = currentContext?.node_id;
 
   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId, {
-    staleTime: 30_000,
+    enabled: !!activeNodeId,
   });
-
   const contracts = rgbContractsQuery.data?.contracts ?? [];
 
   const changeContract = (contractId: string) => {
@@ -35,14 +30,21 @@ export default function AssetSelect(props: IProps) {
     props.onChange && props.onChange(selected);
   };
 
-  // const selected = contracts?.find(
-  //   (c) => c.contract_id === props.selectedContractId
-  // );
+  const find = contracts.find((c) => c.contract_id === props.selectedContractId);
 
   return (
     <Select value={props.selectedContractId} onValueChange={changeContract}>
       <SelectTrigger className="bg-background-4">
-        <SelectValue placeholder="Select Asset" />
+        {
+          find ? (
+            <div className="h-7 flex gap-3 items-center">
+              <AssetAvatar className="w-7 h-7" name={find.name ?? ""} />
+              <span>{find.name}</span>
+            </div>
+          ) : (
+            <span>Select Asset</span>
+          )
+        }
       </SelectTrigger>
       <SelectContent>
         {contracts?.map((c) => (

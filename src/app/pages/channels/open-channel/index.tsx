@@ -33,7 +33,7 @@ import {
 import { useNodeMainPeersQuery, useNodeRgbContractsQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
 import { OpenChannelRequest, PeerDetailsDto, RgbContractDto } from "@/lib/sdk/types";
-import { formatAddress, selectLargestAssetUtxo } from "@/lib/utils";
+import { defaultRgbContextData, formatAddress, selectLargestAssetUtxo } from "@/lib/utils";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -41,31 +41,11 @@ import EmptyNodes from "@/app/components/EmptyNodes";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import IconHelp from "@/app/icons/help";
 import { parseNumber } from "@/lib/number";
-import { nodeRgbUtxos } from "@/lib/commands";
 
 const MIN_RGB_CHANNEL_SATS = 2_000n;
 const MIN_CHANNEL_RESERVE = 2_000n;
 
-function buildConsignmentTemplate(base: string): string {
-  const trimmed = base.trim();
-  if (!trimmed) return "";
-  if (trimmed.includes("{txid}")) return trimmed;
-  if (trimmed.startsWith("file://")) {
-    const path = trimmed.slice("file://".length);
-    const clean = path.endsWith("/") ? path.slice(0, -1) : path;
-    return `file://${clean}/{txid}`;
-  }
-  const clean = trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
-  return `${clean}/{txid}?format=zip`;
-}
 
-function defaultRgbContextData(source: UserContext | null): string {
-  if (!source) return "";
-  if (source.rgb_consignment_base_url) {
-    return buildConsignmentTemplate(source.rgb_consignment_base_url);
-  }
-  return "";
-}
 
 export default function OpenChannel() {
   const nav = useNavigate();
@@ -496,7 +476,6 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
             Transfer RGB Assets Into the Channel
           </FieldLabel>
           <AssetSelect
-            contracts={rgbContractsQuery.data?.contracts ?? []}
             selectedContractId={selectedContract?.contract_id ?? ""}
             onChange={setSelectedContract}
           />
@@ -527,6 +506,7 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
             onChange={(e) => setRgbAssetAmount(e.currentTarget.value)}
           />
         </Field>
+
         {/* Capacity */}
         <Field className="mt-8">
           <FieldLabel>Increase Receiving Capacity</FieldLabel>
@@ -560,7 +540,6 @@ function RGBForm(props: {peers: PeerDetailsDto[]}) {
             onChange={(e) => setChannelAmountSats(e.currentTarget.value)}
           />
         </Field>
-
 
         <Field className="mt-8">
           <FieldLabel>Choose Channel Peer</FieldLabel>

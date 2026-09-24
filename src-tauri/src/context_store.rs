@@ -34,6 +34,8 @@ pub struct NodeContext {
 	/// can only be (re-)started via a path that supplies the URL explicitly.
 	#[serde(default)]
 	pub esplora_url: Option<String>,
+	#[serde(default)]
+	pub is_lsp: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

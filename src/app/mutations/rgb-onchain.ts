@@ -124,13 +124,13 @@ export function useRgbOnchainTransferConsignmentAcceptMutation(
  */
 export function useDownloadConsignmentWithoutVerifyMutation(
   options?: Omit<
-    UseMutationOptions<RgbContractsExportBundle, Error, string>,
+    UseMutationOptions<RgbContractsExportBundle, Error, {nodeId: string; fullLink: string}>,
     "mutationFn"
   >,
 ) {
   return useMutation({
-    mutationFn: (fullLink: string) =>
-      downloadTransferConsignmentFromLinkWithoutVerify(fullLink),
+    mutationFn: ({nodeId, fullLink}) =>
+      downloadTransferConsignmentFromLinkWithoutVerify(nodeId, fullLink),
     ...options,
   });
 }

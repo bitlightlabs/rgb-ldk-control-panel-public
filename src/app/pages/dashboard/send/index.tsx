@@ -74,12 +74,12 @@ export default function Send() {
       return;
     }
 
-    // if(payloadKind === "onchain_btc") {
-    //   navigate(
-    //     '/dashboard/send/btc-onchain?payload=' + encodeURIComponent(payload)
-    //   );
-    //   return
-    // }
+    if(payloadKind === "onchain_btc") {
+      navigate(
+        '/dashboard/send/btc-onchain?payload=' + encodeURIComponent(payload)
+      );
+      return
+    }
 
     setError(true);
   }

@@ -27,9 +27,6 @@ export function errorToText(err: unknown): string {
       return maybe.hint;
     }
 
-    if (typeof maybe.error === "string") {
-      return maybe.error;
-    }
     if (maybe.message) {
       return maybe.message;
     }

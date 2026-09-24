@@ -74,6 +74,8 @@ pub struct RgbOnchainInvoiceCreateRequest {
 	pub contract_id: String,
 	#[serde(with = "serde_u64_decimal_string")]
 	pub amount: u64,
+	#[serde(default, with = "serde_opt_u64_decimal_string")]
+	pub expiry_secs: Option<u64>,
 	#[serde(default)]
 	pub use_witness_utxo: bool,
 	#[serde(default, with = "serde_opt_u64_decimal_string")]
@@ -875,6 +877,24 @@ where
 {
 	let url = main_url(ctx, path)?;
 	let req = with_optional_main_bearer(ctx, client.post(url).json(body))?;
+	let resp = send_checked("main", req).await?;
+	resp.json::<T>()
+		.await
+		.map_err(|_| CommandError::HttpRequestFailed)
+}
+
+async fn main_put_json<B, T>(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	path: &str,
+	body: &B,
+) -> Result<T, CommandError>
+where
+	B: Serialize + ?Sized,
+	T: DeserializeOwned,
+{
+	let url = main_url(ctx, path)?;
+	let req = with_optional_main_bearer(ctx, client.put(url).json(body))?;
 	let resp = send_checked("main", req).await?;
 	resp.json::<T>()
 		.await
@@ -1771,4 +1791,138 @@ pub async fn rgb_utxos_release(
 	request: &Value
 ) -> Result<Value, CommandError> {
 	main_post_json_raw(client, ctx, "api/v1/rgb/utxos/release", request).await
+}
+
+pub async fn wallet_send(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_post_json_raw(client, ctx, "api/v1/wallet/send", request).await
+}
+
+pub async fn wallet_send_all(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_post_json_raw(client, ctx, "api/v1/wallet/send_all", request).await
+}
+
+
+/// Currently used LSP
+/// GET /lsps1/lsp
+pub async fn lsps1_lsp(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, "api/v1/lsps1/lsp").await
+}
+
+/// Edit current LSP
+/// PUT /lsps1/lsp
+pub async fn lsps1_lsp_update(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_put_json(client, ctx, "api/v1/lsps1/lsp", request).await
+}
+
+/// Request a quote
+/// GET /lsps1/info
+pub async fn lsps1_info(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, "api/v1/lsps1/info").await
+}
+
+/// Buy BTC channel
+/// POST /lsps1/order
+pub async fn lsps1_order(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_post_json(client, ctx, "api/v1/lsps1/order", request).await
+}
+
+/// Buy RGB channel
+/// POST /lsps1/rgb_order
+pub async fn lsps1_rgb_order(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_post_json(client, ctx, "api/v1/lsps1/rgb_order", request).await
+}
+
+/// Customer Order information
+/// GET /lsps1/order/{order_id}
+pub async fn lsps1_order_detail(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	order_id: &str
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, &format!("api/v1/lsps1/order/{order_id}")).await
+}
+
+
+/// LSP pricing information
+/// GET /lsps1/pricing
+pub async fn lsps1_pricing(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, "api/v1/lsps1/pricing").await
+}
+
+/// LSP pricing update
+/// PUT /lsps1/pricing
+pub async fn lsps1_pricing_update(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_put_json(client, ctx, "api/v1/lsps1/pricing", request).await
+}
+
+/// LSP side orders
+/// GET /lsps1/orders
+pub async fn lsps1_orders(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, "api/v1/lsps1/orders").await
+}
+
+/// LSP side order information
+/// GET /lsps1/orders/{order_id}
+pub async fn lsps1_orders_detail(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	order_id: &str
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, &format!("api/v1/lsps1/orders/{order_id}")).await
+}
+
+
+/// LSP side query channel settings
+/// GET /lsps1/options
+pub async fn lsps1_options(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+) -> Result<Value, CommandError> {
+	main_get_json(client, ctx, "api/v1/lsps1/options").await
+}
+
+/// LSP side update channel settings
+/// PUT /lsps1/options
+pub async fn lsps1_options_update(
+	client: &reqwest::Client,
+	ctx: &NodeContext,
+	request: &Value
+) -> Result<Value, CommandError> {
+	main_put_json(client, ctx, "api/v1/lsps1/options", request).await
 }

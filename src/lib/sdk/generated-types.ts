@@ -179,6 +179,9 @@ export interface ChannelDetailsExtendedDto {
   user_channel_id: string;
   counterparty_node_id: string;
   channel_point?: string;
+  short_channel_id?: U64String;
+  outbound_scid_alias?: U64String;
+  inbound_scid_alias?: U64String;
   channel_value_sats: U64String;
   outbound_capacity_msat: U64String;
   inbound_capacity_msat: U64String;
@@ -205,6 +208,33 @@ export interface ChannelUpdateInfoDto {
 export interface CloseChannelRequest {
   user_channel_id: string;
   counterparty_node_id: string;
+}
+
+export interface ClosingBtcBalanceDto {
+  kind: string;
+  amount_sats: U64String;
+  maturity_height?: number;
+  blocks_remaining?: number;
+}
+
+export interface ClosingChannelDto {
+  channel_id: string;
+  counterparty_node_id: string;
+  user_channel_id?: string;
+  status: ClosingChannelStatusDto;
+  close_source: ClosingSourceDto;
+  closing_txid?: string;
+  btc_balances: ClosingBtcBalanceDto[];
+  sweeping_balances: ClosingBtcBalanceDto[];
+  rgb?: ClosingRgbDto;
+}
+
+export interface ClosingRgbDto {
+  contract_id: string;
+  local_amount: U64String;
+  remote_amount: U64String;
+  sweep_status?: RgbSweepStatusDto;
+  sweep_txid?: string;
 }
 
 export interface ControlLockRequest {
@@ -314,6 +344,8 @@ export interface PaymentDetailsDto {
   status: string;
   amount_msat?: U64String;
   kind: string;
+  payment_hash?: string;
+  htlc_locked: boolean;
   fee_paid_msat?: U64String;
   kind_details?: unknown;
 }
@@ -439,6 +471,12 @@ export interface RgbDescriptorResponse {
   derived_descriptors?: RgbDerivedDescriptorDto[];
 }
 
+export interface RgbFundingUtxoDto {
+  txid: string;
+  vout: number;
+  role: RgbFundingUtxoRoleDto;
+}
+
 export interface RgbInvalidIssuerDto {
   name: string;
   error: string;
@@ -471,13 +509,55 @@ export interface RgbL2BalanceDto {
   remote_amount: U64String;
 }
 
+export interface RgbLnCarrierEstimateChannelDto {
+  channel_id: string;
+  user_channel_id: string;
+  is_usable: boolean;
+  inbound_capacity_msat: U64String;
+  inbound_htlc_minimum_msat: U64String;
+  inbound_htlc_maximum_msat?: U64String;
+  local_balance_output_sats: U64String;
+  has_holder_reserve: boolean;
+  receive_available: boolean;
+  can_receive_rgb_invoice?: boolean;
+  blocking_reason?: string;
+  required_carrier_msat?: U64String;
+  required_carrier_reason?: string;
+  available_inbound_capacity_msat?: U64String;
+  suggested_action?: string;
+  minimum_viable_carrier_amount_msat?: U64String;
+  minimum_viable_reason?: string;
+  default_create_carrier_amount_msat?: U64String;
+  default_create_reason?: string;
+}
+
+export interface RgbLnCarrierEstimateResponse {
+  receive_available: boolean;
+  can_create_rgb_invoice?: boolean;
+  blocking_reason?: string;
+  required_carrier_msat?: U64String;
+  required_carrier_reason?: string;
+  available_inbound_capacity_msat?: U64String;
+  suggested_action?: string;
+  minimum_viable_carrier_amount_msat: U64String;
+  minimum_viable_reason: string;
+  default_create_carrier_amount_msat: U64String;
+  default_create_reason: string;
+  carrier_admission_threshold_msat: U64String;
+  minimum_allowed_carrier_amount_msat: U64String;
+  holder_reserve_threshold_msat: U64String;
+  channels: RgbLnCarrierEstimateChannelDto[];
+  estimate_only: boolean;
+  warning: string;
+}
+
 export interface RgbLnInvoiceCreateForHashRequest {
   contract_id: string;
   asset_amount: U64String;
   payment_hash: string;
   description: string;
   expiry_secs?: number;
-  btc_carrier_amount_msat: U64String;
+  btc_carrier_amount_msat?: U64String;
 }
 
 export interface RgbLnInvoiceCreateRequest {
@@ -485,7 +565,7 @@ export interface RgbLnInvoiceCreateRequest {
   asset_amount: U64String;
   description: string;
   expiry_secs?: number;
-  btc_carrier_amount_msat: U64String;
+  btc_carrier_amount_msat?: U64String;
 }
 
 export interface RgbLnInvoiceDecodeRequest {
@@ -503,6 +583,7 @@ export interface RgbLnInvoiceDecodeResponse {
 
 export interface RgbLnInvoiceResponse {
   invoice: string;
+  btc_carrier_amount_msat: U64String;
 }
 
 export interface RgbLnPayRequest {
@@ -554,6 +635,7 @@ export interface RgbOnchainPaymentDto {
   txid?: string;
   consignment_key?: string;
   consignment_download_path?: string;
+  purpose?: string;
 }
 
 export interface RgbOnchainPaymentsResponse {
@@ -586,6 +668,8 @@ export interface RgbOpenChannelRequest {
   contract_id: string;
   asset_amount: U64String;
   color_context_data: string;
+  funding_utxo_policy?: RgbFundingUtxoPolicyDto;
+  funding_utxos?: RgbFundingUtxoDto[];
 }
 
 export interface RgbPaymentContextDto {
@@ -687,6 +771,36 @@ export interface RgbUtxosFundResponse {
   outputs: RgbUtxosFundCreatedOutputDto[];
   change?: RgbUtxosFundChangeDto;
   fee_sats: U64String;
+}
+
+export interface RgbUtxosMergeRequest {
+  contract_id: string;
+  destination_utxo: string;
+  include_invoice_bound_utxos?: boolean;
+  fee_rate_sats_per_vb?: number;
+}
+
+export interface RgbUtxosMergeResponse {
+  operation_id: string;
+  txid: string;
+  merged_inputs: string[];
+  total_amount: U64String;
+  remaining_count: number;
+  status: string;
+  consignment_key: string;
+}
+
+export interface RgbUtxosMergeStatusEntryDto {
+  txid: string;
+  destination_utxo: string;
+  contract_id?: string;
+  status: string;
+  confirmations: number;
+  released: boolean;
+}
+
+export interface RgbUtxosMergeStatusResponse {
+  merges: RgbUtxosMergeStatusEntryDto[];
 }
 
 export interface RgbUtxosReleaseRequest {
@@ -813,6 +927,72 @@ export interface StatusDto {
   best_block_height: number;
 }
 
+export interface SwapCreateMultihopOfferRequest {
+  rgb_path: SwapHopDto[];
+  btc_path: SwapHopDto[];
+  contract_id: string;
+  asset_amount: U64String;
+  btc_amount_msat: U64String;
+  btc_carrier_amount_msat: U64String;
+  maker_gives_rgb: boolean;
+  expiry_secs: number;
+}
+
+export interface SwapCreateOfferRequest {
+  counterparty_node_id: string;
+  channel_scid: U64String;
+  contract_id: string;
+  asset_amount: U64String;
+  btc_amount_msat: U64String;
+  btc_carrier_amount_msat: U64String;
+  maker_gives_rgb: boolean;
+  expiry_secs: number;
+}
+
+export interface SwapExecuteRequest {
+  swap_string?: string;
+  payment_hash?: string;
+  force?: boolean;
+}
+
+export interface SwapExecuteResponse {
+  ok: boolean;
+  payment_hash: string;
+  status: string;
+}
+
+export interface SwapHopDto {
+  node_id: string;
+  channel_scid: U64String;
+}
+
+export interface SwapInfoDto {
+  payment_hash: string;
+  role: string;
+  status: string;
+  counterparty_node_id: string;
+  channel_scid: U64String;
+  contract_id: string;
+  asset_amount: U64String;
+  btc_amount_msat: U64String;
+  btc_carrier_amount_msat: U64String;
+  maker_gives_rgb: boolean;
+  expiry_secs: number;
+  created_at_unix_secs: U64String;
+  is_multihop: boolean;
+  last_error?: string;
+}
+
+export interface SwapOfferResponse {
+  swap_string: string;
+  payment_hash: string;
+  info: SwapInfoDto;
+}
+
+export interface SwapStringRequest {
+  swap_string: string;
+}
+
 export interface VersionResponse {
   api_version: string;
   api_crate_version: string;
@@ -821,6 +1001,22 @@ export interface VersionResponse {
 
 export interface WalletNewAddressResponse {
   address: string;
+}
+
+export interface WalletSendAllRequest {
+  address: string;
+  retain_reserves: boolean;
+  fee_rate_sats_per_vb?: number;
+}
+
+export interface WalletSendRequest {
+  address: string;
+  amount_sats: U64String;
+  fee_rate_sats_per_vb?: number;
+}
+
+export interface WalletSendResponse {
+  txid: string;
 }
 
 export interface WalletUtxoConfirmationDto {
@@ -845,6 +1041,10 @@ export interface WalletUtxoLockDto {
 export interface WalletUtxosResponse {
   utxos: WalletUtxoDto[];
 }
+
+export type ClosingChannelStatusDto = "negotiating" | "broadcasting" | "confirming" | "contested" | "sweeping";
+
+export type ClosingSourceDto = "coop" | "holder_force" | "counterparty_force" | "unknown";
 
 export type EventDto =
   | { type: "PaymentSuccessful"; data: {
@@ -896,9 +1096,15 @@ export type MainStatusResponse =
   | LockedStatusDto
 ;
 
+export type RgbFundingUtxoPolicyDto = "SingleRgbAnchor" | "RgbAnchorWithBtcSupport" | "MergeRgbAnchorsWithBtcSupport";
+
+export type RgbFundingUtxoRoleDto = "RgbState" | "FeeSupport";
+
 export type RgbSignMessageAlgorithmDto = "bitcoin_signed_message" | "ecdsa";
 
 export type RgbSignMessageEncodingDto = "hex" | "base64";
+
+export type RgbSweepStatusDto = "parked" | "in_flight" | "done";
 
 export type RgbUtxoConfirmationStatusDto = "confirmed" | "mempool";
 

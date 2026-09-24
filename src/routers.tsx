@@ -268,6 +268,54 @@ export const routesConfig = [
                 ],
                 lazy: () => import("@/app/pages/channels/open-channel/index").then((mod) => ({ Component: mod.default }))
               },
+              {
+                path: 'detail',
+                breadcrumb: [
+                  { title: 'Channels', link: '/dashboard/channels' },
+                  { title: 'Channel Detail', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/channels/detail/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'buy',
+                breadcrumb: [
+                  { title: 'Channels', link: '/dashboard/channels' },
+                  { title: 'Buy Channel', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/channels/buy-channel/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'buy-pay',
+                breadcrumb: [
+                  { title: 'Channels', link: '/dashboard/channels' },
+                  { title: 'Buy Channel', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/channels/buy-channel/pay").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: 'buy-pay-result',
+                breadcrumb: [
+                  { title: 'Channels', link: '/dashboard/channels' },
+                  { title: 'Buy Channel', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/channels/buy-channel/pay-result").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: "lsp-settings",
+                breadcrumb: [
+                  { title: 'Channels', link: '/dashboard/channels' },
+                  { title: 'LSP Settings', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/channels/lsp-settings/index").then((mod) => ({ Component: mod.default }))
+              },
+              {
+                path: "lsp-connect",
+                breadcrumb: [
+                  { title: 'Channels', link: '/dashboard/channels' },
+                  { title: 'LSP Connect', link: '#' }
+                ],
+                lazy: () => import("@/app/pages/channels/lsp-connect/index").then((mod) => ({ Component: mod.default }))
+              }
             ],
           },
           {
