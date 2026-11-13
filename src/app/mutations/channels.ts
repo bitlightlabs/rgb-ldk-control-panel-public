@@ -12,13 +12,8 @@ import {
   nodeRgbContracts,
   nodeRgbSync,
 } from "@/lib/commands";
-import type {
-  CloseChannelRequest,
-  OkResponse,
-  OpenChannelRequest,
-  OpenChannelResponse,
-} from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import type { CloseChannelRequest, OkResponse, OpenChannelRequest, OpenChannelResponse } from "@/lib/sdk/generated-types";
 
 /** Open a BTC-only or RGB channel. Invalidates channels + peers of source. */
 export function useChannelOpenMutation(

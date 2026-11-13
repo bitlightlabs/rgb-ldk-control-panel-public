@@ -6,7 +6,7 @@ This document describes the signing inputs used by the current Tauri 2 release w
 
 The workflow currently:
 
-- builds on `macos-14`
+- builds on `macos-15`
 - adds both Apple targets inside the same job
 - signs macOS artifacts with a local `.p12` certificate
 - performs notarization in CI when Apple notarization secrets are provided

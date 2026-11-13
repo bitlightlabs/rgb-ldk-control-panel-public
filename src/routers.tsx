@@ -309,12 +309,12 @@ export const routesConfig = [
                 lazy: () => import("@/app/pages/channels/lsp-settings/index").then((mod) => ({ Component: mod.default }))
               },
               {
-                path: "lsp-connect",
+                path: "buy-lsps2",
                 breadcrumb: [
                   { title: 'Channels', link: '/dashboard/channels' },
-                  { title: 'LSP Connect', link: '#' }
+                  { title: 'Buy Channel', link: '#' }
                 ],
-                lazy: () => import("@/app/pages/channels/lsp-connect/index").then((mod) => ({ Component: mod.default }))
+                lazy: () => import("@/app/pages/channels/buy-channel-lsps2/index").then((mod) => ({ Component: mod.default }))
               }
             ],
           },

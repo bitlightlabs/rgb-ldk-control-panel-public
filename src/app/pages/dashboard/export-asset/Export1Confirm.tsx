@@ -3,7 +3,7 @@ import CopyText from "@/app/components/CopyText";
 import ImportStep from "@/app/components/ImportStep";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import type { RgbContractDto } from "@/lib/sdk/types";
+import type { RgbContractDto } from "@/lib/sdk/generated-types";
 import { formatAddress } from "@/lib/utils";
 
 interface IProps {

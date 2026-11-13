@@ -8,7 +8,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useEffect, useState } from "react";
-import { RgbOnchainPaymentDto } from "@/lib/sdk";
 import { formatAddress, trimChar } from "@/lib/utils";
 import CopyText from "./CopyText";
 import DownloadTransferConsignmentBtn from "./DownloadTransferConsignmentBtn";
@@ -18,6 +17,7 @@ import {
   useNodeRgbContractsQuery,
   useNodeRgbOnchainPaymentsQuery,
 } from "@/app/queries";
+import type { RgbOnchainPaymentDto } from "@/lib/sdk/generated-types";
 
 interface IProps {
   activeNodeId: string | null;
@@ -92,11 +92,11 @@ export default function RgbPaymentsList(props: IProps) {
                 {list.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>
-                      {formatAddress(item.invoice, 30)}
+                      {formatAddress(item.invoice ?? '', 30)}
                       <CopyText text={item.invoice ?? ""} />
                     </TableCell>
                     <TableCell>
-                      {calculateAmount(item.contract_id, item.amount)}
+                      {calculateAmount(item.contract_id ?? '', item.amount ?? '')}
                     </TableCell>
 
                     <TableCell>
@@ -122,7 +122,7 @@ export default function RgbPaymentsList(props: IProps) {
                       {item.consignment_download_path ? (
                         <DownloadTransferConsignmentBtn
                           nodeId={activeNodeId ?? ''}
-                          name={findName(item.contract_id)}
+                          name={findName(item.contract_id ?? '')}
                           link={makeLink(
                             currentContext,
                             item.consignment_download_path

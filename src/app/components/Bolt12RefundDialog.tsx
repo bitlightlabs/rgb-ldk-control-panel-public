@@ -31,7 +31,6 @@ import {
 import { useBolt12RefundDecodeQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
 import { useEffect, useMemo, useState } from "react";
-import { u64 } from "@/lib/sdk";
 
 function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s.trim());
@@ -479,8 +478,8 @@ export function Bolt12RefundDialog({
                 request: {
                   amount_msat: amountMsat.trim(),
                   expiry_secs: Number(expirySecs.trim()),
-                  quantity: null,
-                  payer_note: payerNote.trim() ? payerNote.trim() : null,
+                  quantity: '',
+                  payer_note: payerNote.trim(),
                 },
               });
             }}

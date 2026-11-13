@@ -11,9 +11,8 @@ import {
   nodeWalletSync,
 } from "@/lib/commands";
 import type { WalletNewAddressResponse } from "@/lib/domain";
-import type { OkResponse } from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
-import type { WalletSendAllRequest, WalletSendRequest, WalletSendResponse } from "@/lib/sdk/generated-types";
+import type { OkResponse, WalletSendAllRequest, WalletSendRequest, WalletSendResponse } from "@/lib/sdk/generated-types";
 
 /**
  * Wallet sync that also resyncs RGB state. Mirrors what the dashboard's sync

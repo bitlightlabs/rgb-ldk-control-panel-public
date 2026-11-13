@@ -9,7 +9,6 @@ import {
 } from "@/app/mutations";
 import { useNodeRgbContractsSyncedQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
-import { u64 } from "@/lib/sdk";
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
 import ImportStep from "@/app/components/ImportStep";
 import Import1 from "./Import1";

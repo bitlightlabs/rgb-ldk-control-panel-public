@@ -1,5 +1,5 @@
 import { formatNumber } from "./number"
-import type { RgbContractDto, SwapInfo } from "./sdk/types"
+import type { RgbContractDto, SwapInfoDto } from "./sdk/generated-types"
 
 export function ensureSendAsset(isMaker: boolean, makerGivesRgb: boolean, contract?: RgbContractDto | null) {
   let sendAsset = ''
@@ -21,7 +21,7 @@ export function ensureSendAsset(isMaker: boolean, makerGivesRgb: boolean, contra
   return sendAsset
 }
 
-export function parseSwapInfo(data: SwapInfo | undefined | null, contract: RgbContractDto | undefined | null) {
+export function parseSwapInfo(data: SwapInfoDto | undefined | null, contract: RgbContractDto | undefined | null) {
   if(!data) {
     return {}
   }

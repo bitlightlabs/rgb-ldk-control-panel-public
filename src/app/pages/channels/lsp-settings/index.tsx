@@ -1,6 +1,6 @@
 import { Content, ContentHeader, ContentWrapper } from "@/app/components/ContentWrapper";
-import { useLspOptionsUpdateMutation, useUpdateCurrentLspPricingMutation } from "@/app/mutations/lsp";
-import { useLspOptionsQuery, useNodeCurrentLspOrdersQuery, useNodeCurrentLspPricing } from "@/app/queries/lsp";
+import { useLspOptionsUpdateMutation, useNodeLsps2OptionsUpdateMutation, useUpdateCurrentLspPricingMutation } from "@/app/mutations/lsp";
+import { useLspOptionsQuery, useNodeCurrentLspOrdersQuery, useNodeCurrentLspPricing, useNodeLsps2OptionsQuery } from "@/app/queries/lsp";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -20,16 +20,16 @@ import { formatNumber } from "@/lib/number";
 import { formatAddress } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { useNodeRgbContractsQuery } from "@/app/queries/rgb";
-import type { RgbContractDto } from "@/lib/sdk/types";
 import AssetAvatar from "@/app/components/AssetAvatar";
 import { CopyTextInline } from "@/app/components/CopyText";
 import { BITCOIN_MONTH_BLOCKS } from "@/app/config/constant";
+import { Lsps2OptionsResponse, RgbContractDto } from "@/lib/sdk/generated-types";
 
 export default function LspSettingsPage() {
   const nav = useNavigate()
   const currentContext = useContextStore((s) => s.currentContext);
   const activeNodeId = currentContext?.node_id;
-  const [type, setType] = useState<'Base Settings' | 'Channel Settings' | 'Asset Settings' | 'Orders'>("Base Settings");
+  const [type, setType] = useState<'Base Settings' | 'Channel Settings' | 'Asset Settings' | 'Orders' | 'LSPS2 Settings'>("Base Settings");
 
   const rgbContractsQuery = useNodeRgbContractsQuery(activeNodeId, {
     enabled: !!activeNodeId
@@ -47,6 +47,7 @@ export default function LspSettingsPage() {
               <TabsCustomerTrigger page="Channel Settings" />
               <TabsCustomerTrigger page="Asset Settings" />
               <TabsCustomerTrigger page="Orders" />
+              <TabsCustomerTrigger page="LSPS2 Settings" />
             </TabsList>
           </Tabs>
 
@@ -57,7 +58,10 @@ export default function LspSettingsPage() {
                 ? <ChannelSettingsForm />
                 : (type === 'Asset Settings'
                     ? <AssetSettingsForm />
-                    : <Orders contracts={contracts} />
+                    : (type === 'Orders'
+                        ? <Orders contracts={contracts} />
+                        : <LSPS2SettingsForm />
+                      )
                   )
               )
           }
@@ -636,6 +640,125 @@ function Orders({contracts}: {contracts: RgbContractDto[]}) {
           })}
         </TableBody>
       </Table>
+    </>
+  )
+}
+
+function LSPS2SettingsForm() {
+  const [channel_opening_fee_ppm, setChannelOpeningFeePpm] = useState('');
+  const [min_channel_opening_fee_msat, setMinChannelOpeningFeeMsat] = useState('');
+  const [min_payment_size_msat, setMinPaymentSizeMsat] = useState('');
+  const [max_payment_size_msat, setMaxPaymentSizeMsat] = useState('');
+  const [oldOptions, setOldOptions] = useState<Lsps2OptionsResponse | null>(null);
+
+  const currentContext = useContextStore((s) => s.currentContext);
+  const activeNodeId = currentContext?.node_id;
+
+  const optionsQuery = useNodeLsps2OptionsQuery(activeNodeId, {
+    enabled: false
+  });
+  const optionsUpdate = useNodeLsps2OptionsUpdateMutation();
+
+  const initForm = async () => {
+    if(!activeNodeId) {
+      return;
+    }
+    try {
+      const result = await optionsQuery.refetch();
+      const data = result.data;
+      setOldOptions(data || null);
+      setChannelOpeningFeePpm(BigInt(data?.channel_opening_fee_ppm ?? '0').toString() ?? '');
+      setMinChannelOpeningFeeMsat(data?.min_channel_opening_fee_msat ?? '');
+      setMinPaymentSizeMsat(data?.min_payment_size_msat ?? '');
+      setMaxPaymentSizeMsat(data?.max_payment_size_msat ?? '');
+    } catch(e) {
+      toast.error(errorToText(e));
+    }
+  }
+
+  useEffect(() => {
+    initForm();
+  }, [activeNodeId])
+
+  const update = async () => {
+    if(!activeNodeId || !oldOptions) {
+      return;
+    }
+    try {
+      const payload = {
+        ...oldOptions,
+        channel_opening_fee_ppm: Number(channel_opening_fee_ppm),
+        min_channel_opening_fee_msat: min_channel_opening_fee_msat,
+        min_payment_size_msat: min_payment_size_msat,
+        max_payment_size_msat: max_payment_size_msat
+      };
+
+      await optionsUpdate.mutateAsync({
+        nodeId: activeNodeId,
+        request: payload
+      });
+
+      toast.success('Updated successfully');
+    } catch(e) {
+      toast.error(errorToText(e));
+    }
+  }
+
+  return (
+    <>
+      <div className="flex gap-5">
+        <Field>
+          <FieldLabel>Min Payment Size Msat</FieldLabel>
+          <Input
+            className="bg-background-4"
+            placeholder="10000000"
+            value={min_payment_size_msat}
+            onChange={(e) => setMinPaymentSizeMsat(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Max Payment Size Msat</FieldLabel>
+          <Input
+            className="bg-background-4"
+            placeholder="1000000000"
+            value={max_payment_size_msat}
+            onChange={(e) => setMaxPaymentSizeMsat(e.target.value)}
+          />
+        </Field>
+      </div>
+      <div className="flex gap-5">
+        <Field>
+          <FieldLabel>Channel Opening Fee Ppm</FieldLabel>
+          <Input
+            className="bg-background-4"
+            placeholder="10000"
+            value={channel_opening_fee_ppm}
+            onChange={(e) => setChannelOpeningFeePpm(e.target.value)}
+          />
+        </Field>
+        <Field>
+          <FieldLabel>Min Channel Opening Fee Msat</FieldLabel>
+          <Input
+            className="bg-background-4"
+            placeholder="2000000"
+            value={min_channel_opening_fee_msat}
+            onChange={(e) => setMinChannelOpeningFeeMsat(e.target.value)}
+          />
+        </Field>
+      </div>
+      <Button
+        type="button"
+        size="lg"
+        variant="white"
+        className="w-full rounded-full"
+        disabled={
+          !channel_opening_fee_ppm ||
+          !min_channel_opening_fee_msat ||
+          !min_payment_size_msat ||
+          !max_payment_size_msat
+        }
+        onClick={update}
+      >Save</Button>
     </>
   )
 }

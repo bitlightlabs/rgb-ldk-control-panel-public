@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Separator } from "@/components/ui/separator";
 import { errorToText } from "@/lib/errorToText";
 import { formatNumber } from "@/lib/number";
-import type { ChannelDetailsExtendedDto, RgbContractDto } from "@/lib/sdk/types";
+import type { ChannelDetailsExtendedDto, RgbContractDto } from "@/lib/sdk/generated-types";
 import { formatAddress } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";

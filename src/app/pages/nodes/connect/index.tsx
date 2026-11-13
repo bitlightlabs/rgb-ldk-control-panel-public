@@ -8,19 +8,37 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { usePeerConnectMutation } from "@/app/mutations";
-import type { PeerConnectRequest } from "@/lib/sdk/types";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useUpdateLspMutation } from "@/app/mutations/lsp";
 
 export default function PeerConnect() {
   const nav = useNavigate();
   const currentContext = useContextStore((s) => s.currentContext);
   const [pubKey, setPubKey] = useState("");
   const [address, setAddress] = useState("");
+  const [tab, setTab] = useState<string>('Peers'); // Peers or LSPs
 
   const activeNodeId = currentContext?.node_id ?? "";
+
+  const changeTab = (tab: string) => {
+    setPubKey("");
+    setAddress("");
+    setTab(tab);
+  }
+
+  const updateMutation = useUpdateLspMutation({
+    onSuccess: () => {
+      toast.success("Save successfully");
+      nav('/dashboard/peers')
+    },
+    onError: (e) => {
+      toast.error(errorToText(e));
+    },
+  })
 
   const connectMutation = usePeerConnectMutation({
     onSuccess: async () => {
@@ -32,11 +50,51 @@ export default function PeerConnect() {
     },
   });
 
+  const connectNode = async () => {
+    if (!activeNodeId) {
+      return;
+    }
+
+    if(tab === 'Peers') {
+      connectMutation.mutate({
+        nodeId: activeNodeId,
+        request: { node_id: pubKey, address }
+      });
+    } else {
+      updateMutation.mutate({
+        nodeId: activeNodeId,
+        request: {
+          pubkey: pubKey,
+          address: address,
+          // token: null,
+          trust_peer_0conf: true,
+          trust_peer_no_reserve: false
+        }
+      })
+    }
+  }
+
   return (
     <ContentWrapper>
       <ContentHeader title="Connect Node" onBack={() => nav(-1)} />
       <Content>
-        <div className="space-y-8">
+        <Tabs value={tab} onValueChange={changeTab}>
+          <TabsList className="h-10 inline-flex items-center justify-start w-auto rounded-full bg-background gap-1">
+            <TabsTrigger
+              className="h-8 px-4 rounded-full text-base"
+              value="Peers"
+            >
+              Peers
+            </TabsTrigger>
+            <TabsTrigger
+              className="h-8 px-4 rounded-full text-base"
+              value="LSPs"
+            >
+              LSPs
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="mt-4 space-y-8">
           <Field>
             <FieldLabel>Pubkey</FieldLabel>
             <Input
@@ -61,20 +119,9 @@ export default function PeerConnect() {
             type="button"
             size="lg"
             className="w-full rounded-full flex-1"
-            disabled={!pubKey || !address || connectMutation.isPending}
-            loading={connectMutation.isPending}
-            onClick={() => {
-              if (!activeNodeId) {
-                toast.error("No active node");
-                return;
-              }
-
-              const req: PeerConnectRequest = {
-                node_id: pubKey,
-                address,
-              };
-              connectMutation.mutate({ nodeId: activeNodeId, request: req });
-            }}
+            disabled={!pubKey || !address}
+            loading={connectMutation.isPending || updateMutation.isPending}
+            onClick={connectNode}
           >
             Connect
           </Button>

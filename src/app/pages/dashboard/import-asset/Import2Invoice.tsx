@@ -2,7 +2,7 @@ import AssetAvatar from "@/app/components/AssetAvatar";
 import CopyText from "@/app/components/CopyText";
 import ImportStep from "@/app/components/ImportStep";
 import { Button } from "@/components/ui/button";
-import type { RgbContractDto } from "@/lib/sdk/types";
+import type { RgbContractDto } from "@/lib/sdk/generated-types";
 import { formatAddress } from "@/lib/utils";
 import { Copy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";

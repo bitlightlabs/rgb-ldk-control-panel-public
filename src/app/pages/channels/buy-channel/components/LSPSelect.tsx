@@ -2,9 +2,10 @@ import { useNodeLspQuery } from "@/app/queries/lsp";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger } from "@/components/ui/select";
 import { LspConnectionInfo } from "@/lib/sdk/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface IProps {
+  value?: LspConnectionInfo | null;
   onChange: (lsp: LspConnectionInfo) => void;
 }
 export default function LSPSelect(props: IProps) {
@@ -15,11 +16,11 @@ export default function LSPSelect(props: IProps) {
   const lspQuery = useNodeLspQuery(activeNodeId, {
     enabled: !!activeNodeId,
   });
-  // Currently, we are only supporting one LSP per node
-  const lsp = lspQuery.data ? [lspQuery.data] : [];
+  
+  const lsps = lspQuery.data?.lsps || []
 
   const changeLsp = (value: string) => {
-    const selected = lsp.find((item) => item.pubkey === value);
+    const selected = lsps.find((item) => item.pubkey === value);
     if(!selected) {
       return
     }
@@ -27,6 +28,12 @@ export default function LSPSelect(props: IProps) {
     setSelectedLsp(selected);
     props.onChange(selected);
   };
+
+  useEffect(() => {
+    if(props.value !== undefined) {
+      setSelectedLsp(props.value);
+    }
+  }, [props.value]);
 
   return (
     <Select
@@ -40,7 +47,7 @@ export default function LSPSelect(props: IProps) {
         <SelectGroup className="space-y-2">
           <SelectLabel>Select LSP (Provider)</SelectLabel>
 
-          {lsp.map((item) => (
+          {lsps.map((item) => (
             <SelectItem className="h-14" value={item.pubkey} key={item.pubkey}>
               <div className="text-base leading-5">{item.address}</div>
               <div className="mt-1 text-2xs text-secondary-foreground flex gap-2 items-center">

@@ -11,7 +11,6 @@ import { ComplexInput, Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState } from "react";
 import ConfirmDialog from "./components/ConfirmDialog";
-import type { ChannelDetailsExtendedDto, RgbContractDto } from "@/lib/sdk/types";
 import ChannelSelect from "./components/ChannelSelect";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -20,6 +19,7 @@ import IconReceive from "@/app/icons/receive";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import IconHelp from "@/app/icons/help";
 import { BTC_CARRIER_TIP } from "@/app/config/constant";
+import type { ChannelDetailsExtendedDto, RgbContractDto } from "@/lib/sdk/generated-types";
 
 export default function Swap() {
   const nav = useNavigate();

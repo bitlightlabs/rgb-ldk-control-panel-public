@@ -1,4 +1,3 @@
-import type { RgbContractDto, SwapInfo } from "@/lib/sdk/types";
 import AssetAvatar from "../AssetAvatar";
 import { CopyTextInline } from "../CopyText";
 import IconArrowRight from "@/app/icons/arrowright";
@@ -8,9 +7,10 @@ import { useNodeSwapInfoQuery } from "@/app/queries/swap";
 import { Badge } from "@/components/ui/badge";
 import SwapDetailDialog from "./SwapDetailDialog";
 import { parseSwapInfo } from "@/lib/swap";
+import type { RgbContractDto, SwapInfoDto } from "@/lib/sdk/generated-types";
 
 interface IProps {
-  data: SwapInfo
+  data: SwapInfoDto
   contracts: RgbContractDto[]
   onRefresh: () => void
 }
@@ -26,7 +26,7 @@ export default function SwapItem(props: IProps) {
   const { currentContext } = useContextStore()
   const nodeId = currentContext?.node_id ?? ''
 
-  const infoQuery = useNodeSwapInfoQuery(nodeId, data.payment_hash, {
+  const infoQuery = useNodeSwapInfoQuery(nodeId, data.execution_id, {
     enabled: false
   })
 
@@ -91,8 +91,8 @@ export default function SwapItem(props: IProps) {
               >{swapStatus}</Badge>
             </div>
             <div className="mt-1 text-xs text-secondary-foreground flex gap-2 items-center">
-              <span>Payment Hash: </span>
-              <CopyTextInline text={data.payment_hash} />
+              <span>Execution ID: </span>
+              <CopyTextInline text={data.execution_id} />
             </div>
           </div>
         </div>
@@ -110,7 +110,7 @@ export default function SwapItem(props: IProps) {
         showDetail ? (
           <SwapDetailDialog
             contract={contract}
-            paymentHash={data.payment_hash}
+            executionId={data.execution_id}
             onClose={() => setShowDetail(false)}
             onRefresh={props.onRefresh}
           />

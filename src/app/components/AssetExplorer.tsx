@@ -1,5 +1,4 @@
 import AssetBalance from "./AssetBalance";
-import { RgbContractDto } from "@/lib/sdk/types";
 import AssetAvatar from "./AssetAvatar";
 import { useNavigate } from "react-router-dom";
 import { useContextStore } from "../stores/contextStore";
@@ -7,6 +6,7 @@ import { useNodeRgbContractsQuery } from "@/app/queries";
 import IssueAsset from "./IssueAsset";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import type { RgbContractDto } from "@/lib/sdk/generated-types";
 
 export type Asset = RgbContractDto;
 

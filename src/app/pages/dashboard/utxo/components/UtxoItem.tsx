@@ -1,11 +1,9 @@
 import { useState } from "react";
 import AssetAvatar from "@/app/components/AssetAvatar";
-import CopyText, { CopyTextInline } from "@/app/components/CopyText";
+import { CopyTextInline } from "@/app/components/CopyText";
 import { Button } from "@/components/ui/button";
-import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
+import type { RgbContractDto, RgbUtxoDto, RgbUtxosMergeStatusResponse } from "@/lib/sdk/generated-types";
 import { formatNumber } from "@/lib/number";
-import { formatAddress } from "@/lib/utils";
-import type { RgbContractDto, RgbUtxosMergeStatusResponse } from "@/lib/sdk/types";
 import { Badge } from "@/components/ui/badge";
 import IconDot from "@/app/icons/dot";
 import UtxoAddBalanceDialog from "@/app/components/UtxoAddBalanceDialog";

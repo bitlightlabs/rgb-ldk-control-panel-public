@@ -5,7 +5,7 @@ import RgbUtxoSelect from "@/app/components/RgbUtxoSelect";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import type { RgbContractDto } from "@/lib/sdk/types";
+import type { RgbContractDto } from "@/lib/sdk/generated-types";
 import { formatAddress } from "@/lib/utils";
 
 interface IProps {

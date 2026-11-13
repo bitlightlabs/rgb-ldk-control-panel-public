@@ -12,16 +12,8 @@ import {
   nodePaymentAbandon,
   nodePaymentWait,
 } from "@/lib/commands";
-import type {
-  Bolt11ReceiveRequest,
-  Bolt12OfferReceiveRequest,
-  Bolt12OfferReceiveVarRequest,
-  Bolt12OfferSendRequest,
-  OkResponse,
-  PaymentWaitRequest,
-  PaymentWaitResponse,
-} from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import type { Bolt11ReceiveRequest, Bolt12OfferReceiveRequest, Bolt12OfferReceiveVarRequest, Bolt12OfferSendRequest, OkResponse, PaymentWaitRequest, PaymentWaitResponse } from "@/lib/sdk/generated-types";
 
 /** Wait for a payment to reach a terminal state. */
 export function usePaymentWaitMutation(

@@ -208,7 +208,7 @@ pub fn run() {
 			commands::node_rgb_utxos_release,
 			commands::node_wallet_send,
 			commands::node_wallet_send_all,
-			commands::node_lsps1_lsp,
+			commands::node_lsps1_lsps,
 			commands::node_lsps1_lsp_update,
 			commands::node_lsps1_info,
 			commands::node_lsps1_order,
@@ -220,6 +220,13 @@ pub fn run() {
 			commands::node_lsps1_orders_detail,
 			commands::node_lsps1_options_query,
 			commands::node_lsps1_options_update,
+			commands::node_lsps1_lsp_delete,
+			commands::node_lsps2_quote,
+			commands::node_lsps2_invoice,
+			commands::node_lsps2_rgb_quote,
+			commands::node_lsps2_rgb_invoice,
+			commands::node_lsps2_options,
+			commands::node_lsps2_options_update
 		])
 		.build(tauri::generate_context!())
 		.expect("error while running tauri application");

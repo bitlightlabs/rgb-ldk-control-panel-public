@@ -15,21 +15,8 @@ import {
   nodeWalletNewAddress,
 } from "@/lib/commands";
 import type { WalletNewAddressResponse } from "@/lib/domain";
-import type {
-  Bolt11ReceiveRequest,
-  Bolt12OfferReceiveVarRequest,
-  Bolt12OfferSendRequest,
-  RgbLnInvoiceCreateRequest,
-  RgbLnPayRequest,
-  RgbOnchainInvoiceCreateRequest,
-  RgbOnchainInvoiceResponse,
-  RgbOnchainSendResponse,
-  RgbLnInvoiceResponse,
-  Bolt11ReceiveResponse,
-  Bolt12OfferResponse,
-  SendResponse,
-} from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import type { Bolt11ReceiveRequest, Bolt11ReceiveResponse, Bolt12OfferReceiveVarRequest, Bolt12OfferResponse, Bolt12OfferSendRequest, RgbLnInvoiceCreateRequest, RgbLnInvoiceResponse, RgbOnchainInvoiceCreateRequest, RgbOnchainInvoiceResponse, RgbOnchainSendResponse, SendResponse } from "@/lib/sdk/generated-types";
 
 /** What kind of payload the user pasted into the Send flow. */
 export type SendPayloadKind =
@@ -76,7 +63,7 @@ export function useSendPaymentMutation(
           return { kind, result } as SendPaymentResult;
         }
         case "rgb_invoice": {
-          const req: RgbLnPayRequest = { invoice: payload };
+          const req = { invoice: payload };
           const result = await nodeRgbLnPay(nodeId, req);
           return { kind, result } as SendPaymentResult;
         }
@@ -88,8 +75,8 @@ export function useSendPaymentMutation(
           const req: Bolt12OfferSendRequest = {
             offer: payload,
             amount_msat: amountMsat ?? "0",
-            quantity: null,
-            payer_note: null,
+            quantity: undefined,
+            payer_note: undefined,
           };
           const result = await nodeBolt12OfferSend(nodeId, req);
           return { kind, result } as SendPaymentResult;

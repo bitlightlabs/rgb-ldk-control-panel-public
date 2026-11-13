@@ -16,6 +16,7 @@ import { errorToText } from "@/lib/errorToText";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import CachedBtcAddress from "@/app/components/CachedBtcAddress";
+import { formatNumber } from "@/lib/number";
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -58,7 +59,7 @@ export function DashboardPage() {
           </div>
           <div className="mt-6 h-[34px]">
             <span className="text-[28px] font-bold">
-              {(balancesQuery.data?.btc.onchain_total_sats ?? 0) / 10 ** 8}
+              {formatNumber(balancesQuery.data?.btc.onchain_total_sats ?? 0, 8)}
             </span>
             <span className="pl-2 text-lg text-secondary-foreground font-medium">
               BTC
@@ -74,7 +75,7 @@ export function DashboardPage() {
           </div>
           <div className="mt-6 h-[34px]">
             <span className="text-[28px] font-bold">
-              {(balancesQuery.data?.btc.lightning_total_sats ?? 0) / 10 ** 8}
+              {formatNumber(balancesQuery.data?.btc.lightning_total_sats ?? 0, 8)}
             </span>
             <span className="pl-2 text-lg text-secondary-foreground font-medium">
               BTC

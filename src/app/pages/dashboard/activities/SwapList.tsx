@@ -1,11 +1,11 @@
-import type { SwapInfo } from "@/lib/sdk/types";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import SwapItem from "@/app/components/activities/Swap";
+import type { SwapInfoDto } from "@/lib/sdk/generated-types";
 
 
 const SWAP_PAGE_SIZE = 10
-const getDataByPageAndStatus = (list: SwapInfo[], page: number, pageSize: number, status: string) => {
+const getDataByPageAndStatus = (list: SwapInfoDto[], page: number, pageSize: number, status: string) => {
   const filteredList = status === 'All Status'
     ? list
     : list.filter((item) => item.status === status);
@@ -19,10 +19,10 @@ const getDataByPageAndStatus = (list: SwapInfo[], page: number, pageSize: number
   }
 }
 
-export function SwapList(props: {filterType: string, list: SwapInfo[], contracts: any[], onRefresh: () => void}) {
+export function SwapList(props: {filterType: string, list: SwapInfoDto[], contracts: any[], onRefresh: () => void}) {
   const { list, contracts } = props;
   const [page, setPage] = useState<number>(1);
-  const [pageList, setPageList] = useState<SwapInfo[]>([]);
+  const [pageList, setPageList] = useState<SwapInfoDto[]>([]);
   const [hasMore, setHasMore] = useState<boolean>(false);
 
   const loadPage = (page: number) => {
@@ -90,8 +90,8 @@ function SwapTime(props: {time: string}) {
   return <div className="h-4 my-4 px-3 text-secondary-foreground text-2xs">{props.time}</div>
 }
 
-const groupByDate = (list: SwapInfo[]) => {
-  const groups: { [t: string]: SwapInfo[] } = {};
+const groupByDate = (list: SwapInfoDto[]) => {
+  const groups: { [t: string]: SwapInfoDto[] } = {};
   list.forEach((item) => {
     const date = new Date(Number(item.created_at_unix_secs || '0') * 1000);
     const dateString = date.toLocaleDateString();

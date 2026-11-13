@@ -1,78 +1,49 @@
 import {
   useMutation,
   type UseMutationOptions,
-  useQueryClient,
 } from "@tanstack/react-query";
-import { queryKeys } from "@/app/queries/queryKeys";
 import { nodeSwapAccept, nodeSwapExecute, nodeSwapOffers } from "@/lib/commands";
-import { OkResponse, SwapInfo } from "@/lib/sdk";
-
+import type { SwapCreateOfferRequest, SwapExecuteRequest, SwapExecuteResponse, SwapInfoDto, SwapOfferResponse } from "@/lib/sdk/generated-types";
 
 export function useSwapOffersMutation(
   options?: Omit<
     UseMutationOptions<
-      {
-        swap_string: string
-        payment_hash: string
-        info: any
-      },
+      SwapOfferResponse,
       Error,
-      { nodeId: string; request: any }
+      { nodeId: string; request: SwapCreateOfferRequest }
     >,
     "mutationFn"
   >,
 ) {
-  const queryClient = useQueryClient();
-  const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     mutationFn: ({ nodeId, request }) =>
       nodeSwapOffers(nodeId, request),
-    onSuccess: (...args) => {
-      const { nodeId } = args[1];
-      queryClient.invalidateQueries({ queryKey: queryKeys.nodeSwapOffers(nodeId) });
-      onSuccess?.(...args);
-    },
-    ...rest,
+    ...options,
   });
 }
 
 export function useNodeSwapAcceptMutation(
-  nodeId: string | null | undefined,
-  swapString: string,
   options?: Omit<
-    UseMutationOptions<SwapInfo, Error, { nodeId: string; swapString: string }>,
+    UseMutationOptions<SwapInfoDto, Error, { nodeId: string; swapString: string }>,
     "mutationFn"
   >,
 ) {
-  const queryClient = useQueryClient();
-  const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     mutationFn: ({ nodeId, swapString }) =>
       nodeSwapAccept(nodeId!, swapString),
-    onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.nodeSwapAccept(nodeId ?? "", swapString) });
-      onSuccess?.(...args);
-    },
-    ...rest,
+    ...options
   });
 }
 
 export function useNodeSwapExecuteMutation(
   options?: Omit<
-    UseMutationOptions<OkResponse, Error, { nodeId: string; request: any }>,
+    UseMutationOptions<SwapExecuteResponse, Error, { nodeId: string; request: SwapExecuteRequest }>,
     "mutationFn"
   >,
 ) {
-  const queryClient = useQueryClient();
-  const { onSuccess, ...rest } = options ?? {};
   return useMutation({
     mutationFn: ({ nodeId, request }) =>
       nodeSwapExecute(nodeId!, request),
-    onSuccess: (...args) => {
-      const { nodeId } = args[1];
-      queryClient.invalidateQueries({ queryKey: queryKeys.nodeSwapExecute(nodeId) });
-      onSuccess?.(...args);
-    },
-    ...rest,
+    ...options
   });
 }

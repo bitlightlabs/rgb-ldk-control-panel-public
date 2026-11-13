@@ -2,7 +2,7 @@ import EmptyChannel from "@/app/components/EmptyChannel";
 import { useNodeMainChannelsQuery } from "@/app/queries";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { ChannelDetailsExtendedDto } from "@/lib/sdk";
+import type { ChannelDetailsExtendedDto } from "@/lib/sdk/generated-types";
 import { formatAddress } from "@/lib/utils";
 
 interface IProps {

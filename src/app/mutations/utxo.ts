@@ -15,6 +15,7 @@ import {
 import type {
   RgbUtxosFundRequest,
   RgbUtxosFundResponse,
+  RgbUtxosMergeResponse,
   RgbUtxosReleaseRequest,
   RgbUtxosReleaseResponse,
   RgbUtxosReserveRequest,
@@ -26,7 +27,6 @@ import type {
   WalletUtxosResponse,
 } from "@/lib/sdk/generated-types";
 import { queryKeys } from "@/app/queries/queryKeys";
-import type { RgbUtxosMergeResponse } from "@/lib/sdk/types";
 
 function invalidateUtxoState(
   queryClient: ReturnType<typeof useQueryClient>,

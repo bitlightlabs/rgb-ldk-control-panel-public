@@ -14,20 +14,10 @@ import {
   nodeRgbSync,
 } from "@/lib/commands";
 import type { BitcoinNetwork, RgbContractsExportBundle } from "@/lib/domain";
-import type {
-  OkResponse,
-  RgbContractBalanceResponse,
-  RgbContractsImportResponse,
-  RgbContractsIssueRequest,
-  RgbContractsIssueResponse,
-  RgbLnInvoiceCreateRequest,
-  RgbLnInvoiceResponse,
-  RgbLnPayRequest,
-  SendResponse,
-} from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
 import { getNetworkOption } from "@/app/config/networkOptions";
 import { contextsList } from "@/lib/commands";
+import { OkResponse, RgbContractBalanceResponse, RgbContractsImportResponse, RgbContractsIssueRequest, RgbContractsIssueResponse, RgbLnInvoiceCreateRequest, RgbLnInvoiceResponse, RgbLnPayRequest, SendResponse } from "@/lib/sdk/generated-types";
 
 function invalidateRgbAssetState(
   queryClient: ReturnType<typeof useQueryClient>,

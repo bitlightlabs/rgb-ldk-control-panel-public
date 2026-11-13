@@ -4,7 +4,7 @@ import ImportStep from "@/app/components/ImportStep";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
-import type { RgbContractDto } from "@/lib/sdk/types";
+import type { RgbContractDto } from "@/lib/sdk/generated-types";
 import { formatAddress } from "@/lib/utils";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
 

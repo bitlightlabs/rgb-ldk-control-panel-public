@@ -71,7 +71,7 @@ export default function SendLnInvoiceConfirm() {
           <div className="flex justify-between">
             <label className="text-base text-secondary-foreground">Description</label>
             <div className="text-base">
-              {invoiceDecodeQuery.data?.description ?? "-"}
+              {(invoiceDecodeQuery.data as any)?.description ?? "-"}
             </div>
           </div>
         </div>

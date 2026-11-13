@@ -4,8 +4,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { nodeMainPeersConnect, nodeMainPeersDisconnect } from "@/lib/commands";
-import type { OkResponse, PeerConnectRequest, PeerDisconnectRequest } from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import type { OkResponse, PeerConnectRequest, PeerDisconnectRequest } from "@/lib/sdk/generated-types";
 
 /** Connect to a peer; invalidates the peer list on success. */
 export function usePeerConnectMutation(

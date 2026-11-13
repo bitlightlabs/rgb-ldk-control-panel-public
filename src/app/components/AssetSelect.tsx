@@ -5,9 +5,9 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import AssetAvatar from "./AssetAvatar";
-import type { RgbContractDto } from "@/lib/sdk/types";
 import { useNodeRgbContractsQuery } from "@/app/queries";
 import { useContextStore } from "../stores/contextStore";
+import type { RgbContractDto } from "@/lib/sdk/generated-types";
 
 interface IProps {
   selectedContractId: string;

@@ -1242,6 +1242,7 @@ struct NodeRunSpec<'a> {
     p2p_port: u16,
     is_lsp: bool,
     lsps1_service_config: &'a Path,
+    lsps2_service_config: &'a Path,
 }
 
 /// Idempotently start a long-running rgbldkd daemon container.
@@ -1293,15 +1294,6 @@ async fn spawn_node_run_container(
         ContainerState::Absent => {},
     }
 
-
-    // let lsp_mount = vec![
-    //     "--mount".to_string(),
-    //     format!(
-    //         "type=bind,src={},dst=/run/secrets/lsps1_service_config.json,readonly",
-    //         spec.lsps1_service_config.display()
-    //     )
-    // ];
-
     // Container does not exist: create + start it fresh.
     let mut run_args = vec![
         "run".to_string(),
@@ -1340,6 +1332,11 @@ async fn spawn_node_run_container(
             "type=bind,src={},dst=/run/secrets/lsps1_service_config.json,readonly",
             spec.lsps1_service_config.display()
         ),
+        "--mount".to_string(),
+        format!(
+            "type=bind,src={},dst=/run/secrets/lsps2_service_config.json,readonly",
+            spec.lsps2_service_config.display()
+        ),
         spec.image.to_string(),
         "rgbldkd".to_string(),
         "run".to_string(),
@@ -1374,8 +1371,12 @@ async fn spawn_node_run_container(
     ];
 
     if spec.is_lsp {
+        // lsps1 service config
         run_args.push("--lsps1-service-config".to_string());
         run_args.push("/run/secrets/lsps1_service_config.json".to_string());
+        // lsps2 service config
+        run_args.push("--lsps2-service-config".to_string());
+        run_args.push("/run/secrets/lsps2_service_config.json".to_string());
     }
 
     let _ = state
@@ -1565,6 +1566,7 @@ async fn prepare_node_resources_inner(
     let keystore_passphrase = secrets_dir.join("keystore.passphrase");
     let data_volume_name = format!("rgbldk_node_data_{}", dir_key.replace('-', "_"));
     let lsps1_service_config = secrets_dir.join("lsps1_service_config.json");
+    let lsps2_service_config = secrets_dir.join("lsps2_service_config.json");
 
     ensure_secret_file(&http_token, 16)?;
     ensure_secret_file(&control_http_token, 16)?;
@@ -1579,6 +1581,17 @@ async fn prepare_node_resources_inner(
             "default_btc_capacity_ppm_per_year": 30000,
             "default_onchain_cost_sat": 10000,
             "default_min_fee_sat": 1000
+        })).map_err(|_| CommandError::Io)?,
+    )?;
+    ensure_json_file(
+        &lsps2_service_config,
+        &serde_json::to_string_pretty(&serde_json::json!({
+            "advertise_service": false,
+            "channel_opening_fee_ppm": 10000,
+            "min_channel_opening_fee_msat": 2000000,
+            "min_payment_size_msat": 10000000,
+            "max_payment_size_msat": 1000000000,
+            "unpaid_channel_close_secs": 86400
         })).map_err(|_| CommandError::Io)?,
     )?;
 
@@ -1780,6 +1793,7 @@ async fn bootstrap_local_node_after_prepare(
         "prepare_node_resources_inner always wrote a parseable main_api_base_url",
     );
     let lsps1_service_config = secrets_dir.join("lsps1_service_config.json");
+    let lsps2_service_config = secrets_dir.join("lsps2_service_config.json");
 
     let resolved_control_port = context
         .control_api_base_url
@@ -1821,6 +1835,7 @@ async fn bootstrap_local_node_after_prepare(
         p2p_port: resolved_p2p_port,
         is_lsp: context.is_lsp,
         lsps1_service_config: &lsps1_service_config,
+        lsps2_service_config: &lsps2_service_config,
     };
 
     if container_state(&container_name) == ContainerState::Absent {
@@ -3504,12 +3519,14 @@ pub async fn node_run_cli(
     let control_http_token = secrets_dir.join("control-http.token");
     let keystore_passphrase = secrets_dir.join("keystore.passphrase");
     let lsps1_service_config = secrets_dir.join("lsps1_service_config.json");
+    let lsps2_service_config = secrets_dir.join("lsps2_service_config.json");
 
     for (label, path) in [
         ("http.token", &http_token),
         ("control-http.token", &control_http_token),
         ("keystore.passphrase", &keystore_passphrase),
         ("lsps1_service_config.json", &lsps1_service_config),
+        ("lsps2_service_config.json", &lsps2_service_config),
     ] {
         if !path.exists() {
             return Err(CommandError::BadRequest {
@@ -3573,6 +3590,7 @@ pub async fn node_run_cli(
             p2p_port,
             is_lsp: ctx.is_lsp,
             lsps1_service_config: &lsps1_service_config,
+            lsps2_service_config: &lsps2_service_config,
         },
     )
     .await?;
@@ -5281,7 +5299,7 @@ pub async fn node_swap_list(
 pub async fn node_swap_info(
     state: State<'_, AppState>,
     node_id: String,
-    payment_hash: String
+    execution_id: String
 ) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     traced_node_call(
@@ -5289,7 +5307,7 @@ pub async fn node_swap_info(
         &node_id,
         "rgb.swap.info",
         None,
-        rgbldkd_http::swap_info(&state.http, &ctx, payment_hash),
+        rgbldkd_http::swap_info(&state.http, &ctx, execution_id),
     )
     .await
 }
@@ -5299,7 +5317,7 @@ pub async fn node_swap_info(
 pub async fn node_swap_delete(
     state: State<'_, AppState>,
     node_id: String,
-    payment_hash: String
+    execution_id: String
 ) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     traced_node_call(
@@ -5307,7 +5325,7 @@ pub async fn node_swap_delete(
         &node_id,
         "rgb.swap.delete",
         None,
-        rgbldkd_http::swap_delete(&state.http, &ctx, payment_hash),
+        rgbldkd_http::swap_delete(&state.http, &ctx, execution_id),
     )
     .await
 }
@@ -5421,7 +5439,7 @@ pub async fn node_wallet_send_all(
 
 
 #[tauri::command]
-pub async fn node_lsps1_lsp(
+pub async fn node_lsps1_lsps(
     state: State<'_, AppState>,
     node_id: String,
 ) -> Result<Value, CommandError> {
@@ -5429,9 +5447,9 @@ pub async fn node_lsps1_lsp(
     traced_node_call(
         &state,
         &node_id,
-        "lsps1.lsp",
+        "lsps",
         None,
-        rgbldkd_http::lsps1_lsp(&state.http, &ctx),
+        rgbldkd_http::lsps1_lsps(&state.http, &ctx),
     )
     .await
 }
@@ -5457,6 +5475,7 @@ pub async fn node_lsps1_lsp_update(
 pub async fn node_lsps1_info(
     state: State<'_, AppState>,
     node_id: String,
+    pubkey: String,
 ) -> Result<Value, CommandError> {
     let ctx = get_ctx(&state.store, &node_id).await?;
     traced_node_call(
@@ -5464,7 +5483,7 @@ pub async fn node_lsps1_info(
         &node_id,
         "lsps1.info",
         None,
-        rgbldkd_http::lsps1_info(&state.http, &ctx),
+        rgbldkd_http::lsps1_info(&state.http, &ctx, &pubkey),
     )
     .await
 }
@@ -5516,6 +5535,23 @@ pub async fn node_lsps1_order_detail(
         "lsps1.order_detail",
         None,
         rgbldkd_http::lsps1_order_detail(&state.http, &ctx, &order_id),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps1_lsp_delete(
+    state: State<'_, AppState>,
+    node_id: String,
+    lsp_pubkey: String
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps1.lsp.delete",
+        None,
+        rgbldkd_http::lsps1_lsp_delete(&state.http, &ctx, &lsp_pubkey),
     )
     .await
 }
@@ -5615,6 +5651,109 @@ pub async fn node_lsps1_options_update(
         "lsps1.options.update",
         None,
         rgbldkd_http::lsps1_options_update(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+
+
+#[tauri::command]
+pub async fn node_lsps2_quote(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps2.quote",
+        None,
+        rgbldkd_http::lsps2_quote(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps2_invoice(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps2.invoice",
+        None,
+        rgbldkd_http::lsps2_invoice(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps2_rgb_quote(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps2.rgb.quote",
+        None,
+        rgbldkd_http::lsps2_rgb_quote(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps2_rgb_invoice(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps2.rgb.invoice",
+        None,
+        rgbldkd_http::lsps2_rgb_invoice(&state.http, &ctx, &request),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps2_options(
+    state: State<'_, AppState>,
+    node_id: String,
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps2.options",
+        None,
+        rgbldkd_http::lsps2_options(&state.http, &ctx),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn node_lsps2_options_update(
+    state: State<'_, AppState>,
+    node_id: String,
+    request: Value
+) -> Result<Value, CommandError> {
+    let ctx = get_ctx(&state.store, &node_id).await?;
+    traced_node_call(
+        &state,
+        &node_id,
+        "lsps2.options.update",
+        None,
+        rgbldkd_http::lsps2_options_update(&state.http, &ctx, &request),
     )
     .await
 }

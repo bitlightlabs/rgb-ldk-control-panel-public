@@ -3,9 +3,8 @@ import { DialogContent, DialogHeader, DialogTitle, DialogFooter, Dialog } from "
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import AssetSelect from "@/app/components/AssetSelect";
-import type { RgbContractDto } from "@/lib/sdk";
 import MergeAssetUtxoSelect from "./MergeAssetUtxoSelect";
-import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
+import type { RgbContractDto, RgbUtxoDto } from "@/lib/sdk/generated-types";
 import Row from "@/app/components/Row";
 import { formatNumber } from "@/lib/number";
 import Fee from "@/app/components/Fee";

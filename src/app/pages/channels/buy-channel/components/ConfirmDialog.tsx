@@ -34,6 +34,7 @@ interface IProps {
     client_balance_sat: string;
     public_channel: boolean;
 
+    lsp_pubkey: string;
     lsp_address: string;
     expiry_blocks: number;
     asset_id: string;
@@ -71,6 +72,7 @@ export default function ConfirmDialog(props: IProps) {
     try {
       setLoading(true);
       const payload = {
+        lsp_node_id: data.lsp_pubkey,
         client_balance_sat: data.client_balance_sat,
         lsp_balance_sat: (BigInt(data.channel_capacity_sat) - BigInt(data.client_balance_sat)).toString(),
         channel_expiry_blocks: data.expiry_blocks,
@@ -110,6 +112,7 @@ export default function ConfirmDialog(props: IProps) {
         lsp_asset_balance: (BigInt(data.asset_amount) * BigInt(10 ** precision)).toString(),
         client_asset_balance: '0',
 
+        lsp_node_id: data.lsp_pubkey,
         client_balance_sat: data.client_balance_sat,
         lsp_balance_sat: (BigInt(data.channel_capacity_sat) - BigInt(data.client_balance_sat)).toString(),
         channel_expiry_blocks: data.expiry_blocks,

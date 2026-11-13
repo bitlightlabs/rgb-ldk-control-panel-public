@@ -7,13 +7,13 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRgbLnInvoiceCreateMutation } from "@/app/mutations";
-import type { RgbContractDto } from "@/lib/sdk/types";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useRgbInvoiceEstimateCarrierQuery } from "@/app/queries/rgb";
 import { errorToText } from "@/lib/errorToText";
 import { BTC_CARRIER_TIP } from "@/app/config/constant";
+import type { RgbContractDto } from "@/lib/sdk/generated-types";
 
 export function RGBInvoice() {
   const nav = useNavigate()

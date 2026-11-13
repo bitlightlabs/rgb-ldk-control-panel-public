@@ -30,7 +30,6 @@ import {
 import { useBolt12OfferDecodeQuery } from "@/app/queries";
 import { errorToText } from "@/lib/errorToText";
 import { useEffect, useMemo, useState } from "react";
-import { u64 } from "@/lib/sdk";
 
 function isDigits(s: string): boolean {
   return /^[0-9]+$/.test(s.trim());
@@ -478,16 +477,16 @@ export function Bolt12OfferDialog({
                       kind: "var" as const,
                       request: {
                         description: description.trim(),
-                        expiry_secs: expiryValue,
+                        expiry_secs: Number(expiryValue || 0),
                       },
                     }
                   : {
                       kind: "fixed" as const,
                       request: {
-                        amount_msat: u64(amountMsat.trim()),
+                        amount_msat: amountMsat.trim(),
                         description: description.trim(),
-                        expiry_secs: expiryValue,
-                        quantity: null,
+                        expiry_secs: Number(expiryValue || 0),
+                        quantity: '',
                       },
                     };
               createAndSendMutation.mutate({
@@ -496,10 +495,10 @@ export function Bolt12OfferDialog({
                 receive,
                 send: {
                   offer: "",
-                  payer_note: payerNote.trim() ? payerNote.trim() : null,
-                  quantity: null,
+                  payer_note: payerNote.trim() ? payerNote.trim() : '',
+                  quantity: '',
                   amount_msat:
-                    mode === "variable" ? u64(sendAmountMsat.trim()) : undefined,
+                    mode === "variable" ? sendAmountMsat.trim() : '',
                 },
               });
             }}

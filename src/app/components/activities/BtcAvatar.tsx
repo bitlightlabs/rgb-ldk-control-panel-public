@@ -2,7 +2,7 @@ import IconBtc from "@/app/icons/btc";
 import IconIn from "@/app/icons/in";
 import IconOut from "@/app/icons/out";
 
-export default function BtcAvatar(props: {type: "Inbound" | "Outbound"}) {
+export default function BtcAvatar(props: {type: string}) {
   return (
     <div className="relative w-10 h-10">
       <IconBtc width={40} height={40} />

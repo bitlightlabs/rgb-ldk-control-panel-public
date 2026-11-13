@@ -8,14 +8,12 @@ export function errorToText(err: unknown): string {
       try {
         const obj = JSON.parse(maybe.hint);
         let msg = "";
-        if (obj.error) {
-          msg += obj.error;
-        }
-        if(obj.hint) {
-          msg += ` (${obj.hint})`;
-        }
-        if(obj.message) {
-          msg += ` (${obj.message})`;
+        if (obj.message) {
+          msg = obj.message;
+        } else if (obj.error) {
+          msg = obj.error;
+        } else if(obj.hint) {
+          msg = obj.hint;
         }
         return msg;
       } catch {

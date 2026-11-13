@@ -25,11 +25,12 @@ import { useContextStore } from "@/app/stores/contextStore";
 import IconRefresh from "@/app/icons/refresh";
 import { formatNumber } from "@/lib/number";
 import DropMenu from "@/app/components/DropMenu";
-import { ChannelClosing, ChannelDetailsExtendedDto } from "@/lib/sdk/types";
+import { ChannelClosing } from "@/lib/sdk/types";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CloseDialog from "./CloseDialog";
 import IconBuy from "@/app/icons/buy";
 import IconSettings from "@/app/icons/settings";
+import type { ChannelDetailsExtendedDto } from "@/lib/sdk/generated-types";
 
 
 export default function ChannelsPage() {
@@ -319,13 +320,7 @@ export default function ChannelsPage() {
   }
 
   const lspSettings = () => {
-    if(currentContext?.is_lsp) {
-      // LSP side
-      nav('/dashboard/channels/lsp-settings')
-    } else {
-      // User side
-      nav('/dashboard/channels/lsp-connect')
-    }
+    nav('/dashboard/channels/lsp-settings')
   }
 
   if (!activeNodeId) {
@@ -353,24 +348,38 @@ export default function ChannelsPage() {
                 }
               />
             </Button>
-            <Button
-              variant="destructive"
-              className="w-[150px] rounded-full"
-              onClick={lspSettings}
-            >
-              <IconSettings style={{width: '20px', height: '20px'}} />
-              <span>LSP Settings</span>
-            </Button>
             {
-              currentContext?.is_lsp ? null : (
+              currentContext.is_lsp ? (
                 <Button
                   variant="destructive"
                   className="w-[150px] rounded-full"
-                  onClick={() => nav('/dashboard/channels/buy')}
+                  onClick={lspSettings}
                 >
-                  <IconBuy style={{width: '20px', height: '20px'}} />
-                  <span>Buy Channel</span>
+                  <IconSettings style={{width: '20px', height: '20px'}} />
+                  <span>LSP Settings</span>
                 </Button>
+              ) : null
+            }
+            {
+              currentContext?.is_lsp ? null : (
+                <>
+                  <Button
+                    variant="destructive"
+                    className="rounded-full"
+                    onClick={() => nav('/dashboard/channels/buy')}
+                  >
+                    <IconBuy style={{width: '20px', height: '20px'}} />
+                    <span>LSPS1 Channel</span>
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="rounded-full"
+                    onClick={() => nav('/dashboard/channels/buy-lsps2')}
+                  >
+                    <IconBuy style={{width: '20px', height: '20px'}} />
+                    <span>LSPS2 Channel</span>
+                  </Button>
+                </>
               )
             }
             <Button

@@ -10,9 +10,9 @@ import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useNodeRgbContractsQuery } from "@/app/queries";
-import { u64 } from "@/lib/sdk/u64";
 import { formatAddress } from "@/lib/utils";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { formatNumber } from "@/lib/number";
 
 export default function AssetDetail() {
   const nav = useNavigate()
@@ -126,7 +126,9 @@ export default function AssetDetail() {
           <div className="mt-6 flex gap-3">
             <div className="w-[132px]">
               <label className="text-sm text-secondary-foreground">Total Apply</label>
-              <div className="text-base mt-1">{u64(asset.issued_supply ?? 0).div(10 ** (asset.precision ?? 0)).toString()}</div>
+              <div className="text-base mt-1">
+                {formatNumber(asset.issued_supply ?? '0', asset.precision ?? 0)}
+              </div>
             </div>
             <div className="">
               <label className="text-sm text-secondary-foreground">Precision</label>

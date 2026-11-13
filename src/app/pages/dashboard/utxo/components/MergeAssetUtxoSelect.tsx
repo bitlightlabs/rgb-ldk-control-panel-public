@@ -3,8 +3,7 @@ import IconTriangleDown from "@/app/icons/triangle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { formatNumber } from "@/lib/number";
-import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
-import type { RgbContractDto } from "@/lib/sdk/types";
+import type { RgbContractDto, RgbUtxoDto } from "@/lib/sdk/generated-types";
 import { calculateUtxosAssetSum, formatAddress } from "@/lib/utils";
 
 interface IProps {

@@ -14,7 +14,7 @@ import SwitchButtons from "@/app/components/SwitchButtons";
 import type { LspConnectionInfo, LspPricingAsset, LspQuoteData } from "@/lib/sdk/types";
 import ConfirmDialog from "./components/ConfirmDialog";
 import TabsCustomerTrigger from "./components/TabTrigger";
-import { useNodeLspQuery, useNodeLspQuote } from "@/app/queries/lsp";
+import { useNodeLspQuery } from "@/app/queries/lsp";
 import { useContextStore } from "@/app/stores/contextStore";
 import { toast } from "sonner";
 import { errorToText } from "@/lib/errorToText";
@@ -24,6 +24,7 @@ import IconHelp from "@/app/icons/help";
 import { calculateIntersection, formatNumber } from "@/lib/number";
 import { BITCOIN_MONTH_BLOCKS, LSP_CLIENT_BALANCE_TIP } from "@/app/config/constant";
 import { Checkbox } from "@/components/ui/checkbox";
+import { nodeQueryLspQuote } from "@/lib/commands";
 
 export default function BuyChannelPage() {
   const nav = useNavigate()
@@ -66,29 +67,33 @@ function LSPForm() {
   const [rgbAmountError, setRgbAmountError] = useState<string>("");
   const [expiryList, setExpiryList] = useState<{label: string, value: string}[]>([]);
 
-  const quoteQuery = useNodeLspQuote(activeNodeId, {
-    enabled: false
-  });
 
   const changeLsp = async (lsp: LspConnectionInfo) => {
-    try {
-      const res = await quoteQuery.refetch();
-      if (res.data) {
-        const expiryMonth = BigInt(res.data.supported_options.max_channel_expiry_blocks)
-          / BigInt(BITCOIN_MONTH_BLOCKS);
-
-        const list = []
-        for(let i=0; i<expiryMonth && i<4n; i++) {
-          list.push({label: `${i+1} month`, value: `${i+1}`});
-        }
-        setExpiryList(list);
-
-        setLspQuoteData(res.data);
-        setSelectedLsp(lsp);
-      }
-    } catch(e) {
-      toast.error(errorToText(e));
+    if(!activeNodeId) {
+      return;
     }
+
+    try {
+      const res = await nodeQueryLspQuote(activeNodeId, lsp.pubkey);
+      const find = res.lsps[0];
+      if(!find) {
+        return;
+      }
+
+      const expiryMonth = BigInt(find.info.supported_options.max_channel_expiry_blocks)
+        / BigInt(BITCOIN_MONTH_BLOCKS);
+
+      const list = []
+      for(let i=0; i<expiryMonth && i<4n; i++) {
+        list.push({label: `${i+1} month`, value: `${i+1}`});
+      }
+      setExpiryList(list);
+      setLspQuoteData(find.info);
+      setSelectedLsp(lsp);
+    } catch(e) {
+      toast.error(errorToText(e))
+    }
+    
   }
 
   const changeExpiryBlocks = (value: string) => {
@@ -446,6 +451,7 @@ function LSPForm() {
               client_balance_sat: clientBalanceSat,
               public_channel: publicChannel,
 
+              lsp_pubkey: selectedLsp?.pubkey ?? '',
               lsp_address: selectedLsp?.address ?? '',
               expiry_blocks: expiryBlocks,
               asset_id: selectedContract?.asset_id ?? '',

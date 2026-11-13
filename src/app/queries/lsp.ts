@@ -1,8 +1,9 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { queryKeys } from "./queryKeys";
-import { nodeBuyChannelDetail, nodeCurrentLsp, nodeCurrentLspOrders, nodeCurrentLspOrdersDetail, nodeCurrentLspPricing, nodeLspOptions, nodeQueryLspQuote } from "@/lib/commands";
+import { nodeBuyChannelDetail, nodeCurrentLspOrders, nodeCurrentLspOrdersDetail, nodeCurrentLspPricing, nodeCurrentLsps, nodeLspOptions, nodeLsps2Options, nodeQueryLspQuote } from "@/lib/commands";
 import { mergeNodeOptions } from "./internal";
-import type { LspConnectionInfo, LspOptions, LspOrderItem, LspOrdersResponse, LspPricing, LspQuoteData } from "@/lib/sdk/types";
+import type { LspConnectionInfo, LspOptions, LspOrderItem, LspOrdersResponse, LspPricing, LspQuoteInfoResponse } from "@/lib/sdk/types";
+import { Lsps2OptionsResponse } from "@/lib/sdk/generated-types";
 
 type NodeOptions<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn"> & {
   enabled?: boolean;
@@ -21,22 +22,23 @@ export function useNodeCurrentLspPricing(
 
 export function useNodeLspQuery(
   nodeId: string | null | undefined,
-  options?: NodeOptions<LspConnectionInfo>,
+  options?: NodeOptions<{lsps: LspConnectionInfo[]}>,
 ) {
   return useQuery({
     queryKey: queryKeys.nodeLspQuery(nodeId!),
-    queryFn: () => nodeCurrentLsp(nodeId!),
+    queryFn: () => nodeCurrentLsps(nodeId!),
     ...mergeNodeOptions(nodeId, options),
   });
 }
 
 export function useNodeLspQuote(
   nodeId: string | null | undefined,
-  options?: NodeOptions<LspQuoteData>,
+  pubkey: string,
+  options?: NodeOptions<LspQuoteInfoResponse>,
 ) {
   return useQuery({
-    queryKey: queryKeys.nodeQueryLspQuote(nodeId!),
-    queryFn: () => nodeQueryLspQuote(nodeId!),
+    queryKey: queryKeys.nodeQueryLspQuote(nodeId!, pubkey),
+    queryFn: () => nodeQueryLspQuote(nodeId!, pubkey),
     ...mergeNodeOptions(nodeId, options),
   });
 }
@@ -86,6 +88,17 @@ export function useLspOptionsQuery(
   return useQuery({
     queryKey: queryKeys.nodeLspOptions(nodeId!),
     queryFn: () => nodeLspOptions(nodeId!),
+    ...mergeNodeOptions(nodeId, options),
+  });
+}
+
+export function useNodeLsps2OptionsQuery(
+  nodeId: string | null | undefined,
+  options?: NodeOptions<Lsps2OptionsResponse>,
+) {
+  return useQuery({
+    queryKey: queryKeys.nodeLsps2Options(nodeId!),
+    queryFn: () => nodeLsps2Options(nodeId!),
     ...mergeNodeOptions(nodeId, options),
   });
 }

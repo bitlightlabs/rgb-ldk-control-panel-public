@@ -1,6 +1,6 @@
-import type { PaymentDetailsDto } from "@/lib/sdk/types";
 import BtcAvatar from "./BtcAvatar";
 import { CopyTextInline } from "../CopyText";
+import type { PaymentDetailsDto } from "@/lib/sdk/generated-types";
 
 interface IProps {
   data: PaymentDetailsDto
@@ -20,7 +20,7 @@ export default function Btc(props: IProps) {
           <div className="text-base font-medium leading-5">{data.direction === 'Inbound' ? 'Received' : 'Sending'}</div>
           <div className="mt-1 text-sm text-secondary-foreground flex gap-1 items-center">
             <span>tx:</span>
-            <CopyTextInline text={data.kind_details?.txid} />
+            <CopyTextInline text={(data.kind_details as any)?.txid} />
           </div>
         </div>
       </div>

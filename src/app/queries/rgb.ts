@@ -12,14 +12,7 @@ import {
   nodeRgbUtxosMergeStatus,
 } from "@/lib/commands";
 import type { NodeHttpProxyResponse } from "@/lib/domain";
-import type {
-  RgbContractBalanceResponse,
-  RgbContractsResponse,
-  RgbIssuersResponse,
-  RgbOnchainPaymentsResponse,
-  RgbUtxosMergeStatusResponse,
-} from "@/lib/sdk/types";
-import type { RgbUtxoDto } from "@/lib/sdk/generated-types";
+import type { RgbContractBalanceResponse, RgbContractsResponse, RgbIssuersResponse, RgbOnchainPaymentsResponse, RgbUtxoDto, RgbUtxosMergeStatusResponse } from "@/lib/sdk/generated-types";
 import { queryKeys } from "./queryKeys";
 import { mergeNodeOptions } from "./internal";
 

@@ -32,10 +32,14 @@ import {
   useNodeMainNodeIdQuery,
   useNodeMainPeersQuery,
 } from "@/app/queries";
-import type { PeerDetailsDto } from "@/lib/sdk/types";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import type { PeerDetailsDto } from "@/lib/sdk/generated-types";
+import type { LspConnectionInfo } from "@/lib/sdk/types";
+import { useNodeLspQuery } from "@/app/queries/lsp";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useLspDeleteMutation } from "@/app/mutations/lsp";
 
 export default function PeersPage() {
   const currentContext = useContextStore((s) => s.currentContext);
@@ -43,8 +47,11 @@ export default function PeersPage() {
     null
   );
   const nav = useNavigate();
-
   const activeNodeId = currentContext?.node_id ?? "";
+  const [loading, setLoading] = useState<boolean>(false);
+  const [peers, setPeers] = useState<PeerDetailsDto[]>([]);
+  const [lsps, setLsps] = useState<LspConnectionInfo[]>([]);
+  const [tab, setTab] = useState<string>('Peers'); // Peers or LSPs
 
   const channelsQuery = useNodeMainChannelsQuery(activeNodeId, {
     refetchInterval: false,
@@ -52,6 +59,10 @@ export default function PeersPage() {
   });
 
   const checkAndDisconnect = async () => {
+    if (!activeNodeId) {
+      return;
+    }
+
     const channelData = await channelsQuery.refetch();
     const channels = channelData.data;
     if (!channels) {
@@ -68,11 +79,6 @@ export default function PeersPage() {
       return;
     }
 
-    if (!activeNodeId) {
-      toast.error("No active node");
-      return;
-    }
-
     if (!disconnectNode) {
       toast.error("Invalid peer node");
       return;
@@ -86,11 +92,32 @@ export default function PeersPage() {
     });
   };
 
+  const deleteLsp = async (lspPubkey: string) => {
+    if (!activeNodeId) {
+      return;
+    }
+
+    lspDeleteMutation.mutate({
+      nodeId: activeNodeId,
+      lspPubkey,
+    });
+  }
+
   const disConnectMutation = usePeerDisconnectMutation({
     onSuccess: async () => {
       setDisconnectNode(null);
-      toast.success(`Peer disconnected`);
-      peersQuery.refetch();
+      toast.success(`Peer disconnected successfully`);
+      fetchPeers();
+    },
+    onError: (err) => {
+      toast.error(errorToText(err));
+    },
+  });
+
+  const lspDeleteMutation = useLspDeleteMutation({
+    onSuccess: async () => {
+      toast.success(`LSP deleted successfully`);
+      fetchLsps();
     },
     onError: (err) => {
       toast.error(errorToText(err));
@@ -98,21 +125,169 @@ export default function PeersPage() {
   });
 
   const peersQuery = useNodeMainPeersQuery(activeNodeId, {
-    refetchInterval: false,
+    enabled: false
   });
-  const list = peersQuery.data ?? [];
+  const lspQuery = useNodeLspQuery(activeNodeId, {
+    enabled: false,
+  })
 
-  if (peersQuery.isPending) {
-    return null;
+  const fetchPeers = async () => {
+    try {
+      setLoading(true);
+      const data = await peersQuery.refetch();
+      setPeers(data.data ?? []);
+    } catch(e) {} finally {
+      setLoading(false);
+    }
   }
 
-  if (list.length === 0) {
-    return (
-      <>
-        <Header onCreateNode={() => nav("/dashboard/peers/connect")} />
-        <NodeInfo />
+  const fetchLsps = async () => {
+    try {
+      setLoading(true);
+      const res = await lspQuery.refetch();
+      if(res.data && res.data.lsps) {
+        setLsps(res.data.lsps || []);
+      }
+    } catch(e) {} finally {
+      setLoading(false);
+    }
+  }
 
-        <Content className="mt-4 h-[567px] flex justify-center items-center">
+  useEffect(() => {
+    fetchPeers();
+  }, [activeNodeId]);
+
+  const changeTab = (value: string) => {
+    setTab(value);
+    if(value === 'Peers') {
+      fetchPeers();
+    } else if(value === 'LSPs') {
+      fetchLsps();
+    }
+  }
+
+  const renderPeers = () => {
+    return (
+      <Table className="w-full text-sm mt-2">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>STATUS</TableHead>
+            <TableHead>PUBKEY</TableHead>
+            <TableHead>ADDRESS</TableHead>
+            <TableHead className="text-right"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {peers.map((item) => {
+            return (
+              <TableRow key={item.node_id} className="h-16">
+                <TableCell>
+                  {item.is_connected ? (
+                    <Badge variant="success">Connected</Badge>
+                  ) : (
+                    <Badge variant="secondary">Pending</Badge>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <CopyTextInline
+                    text={item.node_id}
+                    className="text-sm"
+                    buttonClassName="text-secondary-foreground"
+                  />
+                </TableCell>
+                <TableCell>
+                  <CopyTextInline
+                    text={item.address}
+                    className="text-sm"
+                    buttonClassName="text-secondary-foreground"
+                  />
+                </TableCell>
+                <TableCell>
+                  <DropMenu
+                    direaction="horizontal"
+                    variant="ghost"
+                    list={[
+                      {
+                        label: <span className="text-error">Disconnect</span>,
+                        icon: <IconDisconnect />,
+                        data: item,
+                        onClick: (data) => {
+                          setDisconnectNode(data);
+                        },
+                      },
+                    ]}
+                  />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    )
+  }
+
+  const renderLSPs = () => {
+    return (
+      <Table className="w-full mt-2 text-sm">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead>LSP PUBKEY</TableHead>
+            <TableHead>ADDRESS</TableHead>
+            <TableHead className="text-right"></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {lsps.map((item) => {
+            return (
+              <TableRow key={item.pubkey} className="h-16">
+                <TableCell>
+                  <CopyTextInline
+                    text={item.pubkey}
+                    className="text-sm"
+                    buttonClassName="text-secondary-foreground"
+                  />
+                </TableCell>
+                <TableCell>
+                  <CopyTextInline
+                    text={item.address}
+                    className="text-sm"
+                    buttonClassName="text-secondary-foreground"
+                  />
+                </TableCell>
+                <TableCell>
+                  <DropMenu
+                    direaction="horizontal"
+                    variant="ghost"
+                    list={[
+                      {
+                        label: <span className="text-error">Delete</span>,
+                        icon: <IconDisconnect />,
+                        data: item.pubkey,
+                        onClick: (pubkey) => {
+                          deleteLsp(pubkey);
+                        },
+                      },
+                    ]}
+                  />
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    )
+  }
+
+  const renderContent = () => {
+    if(loading) {
+      return null;
+    }
+
+    if((tab === 'Peers' && peers.length === 0)
+      || (tab === 'LSPs' && lsps.length === 0)
+    ) {
+      return (
+        <div className="pt-[160px]">
           <Empty
             title="No Nodes Connected"
             subTitle="You haven't connected to any peers yet. Connect to a node to start building your network."
@@ -128,9 +303,15 @@ export default function PeersPage() {
               </Button>
             }
           />
-        </Content>
-      </>
-    );
+        </div>
+      );
+    }
+
+    if(tab === 'Peers') {
+      return renderPeers();
+    }
+
+    return renderLSPs();
   }
 
   return (
@@ -138,64 +319,28 @@ export default function PeersPage() {
       <Header onCreateNode={() => nav("/dashboard/peers/connect")} />
       <NodeInfo />
 
-      <Content className="mt-4 px-2 py-3">
-        <Table className="w-full text-sm">
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead>STATUS</TableHead>
-              <TableHead>PUBKEY</TableHead>
-              <TableHead>ADDRESS</TableHead>
-              <TableHead className="text-right"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {list.map((item) => {
-              return (
-                <TableRow key={item.node_id} className="h-14">
-                  <TableCell>
-                    {item.is_connected ? (
-                      <Badge variant="success">Connected</Badge>
-                    ) : (
-                      <Badge variant="secondary">Pending</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <CopyTextInline
-                      text={item.node_id}
-                      className="text-sm"
-                      buttonClassName="text-secondary-foreground"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <CopyTextInline
-                      text={item.address}
-                      className="text-sm"
-                      buttonClassName="text-secondary-foreground"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <DropMenu
-                      direaction="horizontal"
-                      variant="ghost"
-                      list={[
-                        {
-                          label: <span className="text-error">Disconnect</span>,
-                          icon: <IconDisconnect />,
-                          data: item,
-                          onClick: (data) => {
-                            setDisconnectNode(data);
-                          },
-                        },
-                      ]}
-                    />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+      <Content className="mt-4 py-3 min-h-[567px]">
+        <Tabs value={tab} onValueChange={changeTab}>
+          <TabsList className="h-10 inline-flex items-center justify-start w-auto rounded-full bg-background gap-1">
+            <TabsTrigger
+              className="h-8 px-4 rounded-full text-base"
+              value="Peers"
+            >
+              Peers
+            </TabsTrigger>
+            <TabsTrigger
+              className="h-8 px-4 rounded-full text-base"
+              value="LSPs"
+            >
+              LSPs
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {renderContent()}
       </Content>
 
+      {/* Disconnect Dialog */}
       <Dialog
         open={!!disconnectNode}
         onOpenChange={() => setDisconnectNode(null)}

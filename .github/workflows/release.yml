@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-14
+          - platform: macos-15
             tauriBuildArgs: "--target universal-apple-darwin"
 
           - platform: ubuntu-22.04
@@ -51,7 +51,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Rust targets (macOS)
-        if: matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-15'
         run: |
           rustup target add x86_64-apple-darwin
           rustup target add aarch64-apple-darwin

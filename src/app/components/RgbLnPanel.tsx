@@ -29,14 +29,8 @@ import {
   useRgbLnPayMutation,
   useRgbSyncMutation,
 } from "@/app/mutations";
-import type {
-  RgbContractBalanceResponse,
-  RgbContractsIssueRequest,
-  RgbLnInvoiceCreateRequest,
-  RgbLnPayRequest,
-} from "@/lib/sdk/types";
-import { u64 } from "@/lib/sdk";
 import { errorToText } from "@/lib/errorToText";
+import { RgbContractBalanceResponse } from "@/lib/sdk/generated-types";
 
 function NodePicker({
   label,
@@ -233,13 +227,13 @@ export function RgbLnPanel({
 
   const issueAsset = () => {
     if (!issuerNodeId) return;
-    const req: RgbContractsIssueRequest = {
+    const req = {
       issuer_name: issuerName.trim(),
       contract_name: contractName.trim(),
-      ticker: ticker.trim() ? ticker.trim() : null,
-      precision: precision.trim() ? Number(precision.trim()) : null,
-      issued_supply: u64(issuedSupply.trim()).toString(),
-      utxo: null,
+      ticker: ticker.trim() ? ticker.trim() : '',
+      precision: precision.trim() ? Number(precision.trim()) : 0,
+      issued_supply: issuedSupply.trim(),
+      utxo: '',
     };
     issueMutation.mutate({ nodeId: issuerNodeId, request: req });
   };
@@ -265,22 +259,22 @@ export function RgbLnPanel({
 
   const createInvoice = () => {
     if (!receiverNodeId || !invoiceContractId) return;
-    const req: RgbLnInvoiceCreateRequest = {
+    const req = {
       contract_id: invoiceContractId.trim(),
-      asset_amount: u64(invoiceAssetAmount.trim()).toString(),
+      asset_amount: invoiceAssetAmount.trim(),
       description: invoiceDesc.trim(),
       expiry_secs: Number(invoiceExpiry.trim() || "600"),
-      btc_carrier_amount_msat: u64(invoiceCarrierMsat.trim()).toString(),
+      btc_carrier_amount_msat: invoiceCarrierMsat.trim(),
     };
     createInvoiceMutation.mutate({ nodeId: receiverNodeId, request: req });
   };
 
   const payInvoiceSubmit = () => {
     if (!payerNodeId) return;
-    const req: RgbLnPayRequest = {
+    const req = {
       invoice: payInvoice.trim(),
       contract_id: undefined,
-      asset_amount: null,
+      asset_amount: '',
     };
     payMutation.mutate({ nodeId: payerNodeId, request: req });
   };

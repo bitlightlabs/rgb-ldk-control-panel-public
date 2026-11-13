@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import AssetAvatar from "./AssetAvatar";
 import { useNodeRgbContractsQuery } from "../queries";
 import { useContextStore } from "../stores/contextStore";
-import type { RgbContractDto } from "@/lib/sdk/types";
 import { formatAddress } from "@/lib/utils";
+import { RgbContractDto } from "@/lib/sdk/generated-types";
 
 
 interface CustomAssetSelectProps {

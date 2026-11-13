@@ -4,13 +4,9 @@ import {
   nodeBolt12OfferDecode,
   nodeBolt12RefundDecode,
 } from "@/lib/commands";
-import type {
-  Bolt11DecodeResponse,
-  Bolt12OfferDecodeResponse,
-  Bolt12RefundDecodeResponse,
-} from "@/lib/sdk/types";
 import { queryKeys } from "./queryKeys";
 import { mergeNodeOptions } from "./internal";
+import type { Bolt11DecodeResponse, Bolt12OfferDecodeResponse, Bolt12RefundDecodeResponse } from "@/lib/sdk/generated-types";
 
 type NodeOptions<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn"> & {
   enabled?: boolean;

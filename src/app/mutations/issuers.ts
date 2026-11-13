@@ -4,8 +4,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { nodeRgbIssuersImport } from "@/lib/commands";
-import type { RgbContractsImportResponse } from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import { RgbContractsImportResponse } from "@/lib/sdk/generated-types";
 
 /**
  * Import an issuer archive. The caller is expected to read the file into a

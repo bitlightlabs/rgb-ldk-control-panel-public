@@ -61,6 +61,7 @@ export function CreateWallet() {
       <Field className="mt-8">
         <FieldLabel>Node Name (Optional)</FieldLabel>
         <Input
+          autoComplete="off"
           value={accountName}
           placeholder="Account Name"
           maxLength={12}

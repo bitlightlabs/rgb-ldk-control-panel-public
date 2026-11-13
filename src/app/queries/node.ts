@@ -20,18 +20,11 @@ import type {
   WalletNewAddressResponse,
 } from "@/lib/domain";
 import type {
-  BalancesDto,
   ChannelClosing,
-  ChannelDetailsExtendedDto,
-  ListeningAddressesResponse,
-  NodeIdResponse,
-  OkResponse,
-  PaymentDetailsDto,
-  PeerDetailsDto,
-  StatusDto,
 } from "@/lib/sdk/types";
 import { queryKeys } from "./queryKeys";
 import { mergeNodeOptions } from "./internal";
+import type { BalancesDto, ChannelDetailsExtendedDto, ListeningAddressesResponse, NodeIdResponse, OkResponse, PaymentDetailsDto, PeerDetailsDto, StatusDto } from "@/lib/sdk/generated-types";
 
 type NodeOptions<T> = Omit<UseQueryOptions<T>, "queryKey" | "queryFn"> & {
   enabled?: boolean;

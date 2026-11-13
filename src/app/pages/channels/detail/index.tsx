@@ -3,12 +3,11 @@ import { useNodeMainChannelsQuery } from "@/app/queries/node";
 import { useNodeRgbContractsQuery } from "@/app/queries/rgb";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
-import type { ChannelDetailsExtendedDto } from "@/lib/sdk/types";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import CloseDialog from "../CloseDialog";
 import { BITCOIN_MONTH_BLOCKS } from "@/app/config/constant";
-import { Mountain } from "lucide-react";
+import type { ChannelDetailsExtendedDto } from "@/lib/sdk/generated-types";
 
 type ChannelRgbBalance = {
   contractId: string;

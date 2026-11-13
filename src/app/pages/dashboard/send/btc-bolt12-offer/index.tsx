@@ -166,8 +166,8 @@ export default function SendBolt12OfferConfirm() {
                 request: {
                   offer: payload,
                   amount_msat: (BigInt(offerAmountSats) * 1000n).toString(),
-                  quantity: null,
-                  payer_note: offerDecodeQuery.data?.description ?? null,
+                  quantity: '',
+                  payer_note: offerDecodeQuery.data?.description ?? '',
                 },
               });
             }}

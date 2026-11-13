@@ -11,6 +11,18 @@ import type {
   WalletNewAddressResponse,
 } from "./domain";
 import type {
+  ChannelClosing,
+  LspPricing,
+  LspConnectionInfo,
+  LspOrderItem,
+  LspOrdersResponse,
+  LspOptions,
+  LspQuoteInfoResponse,
+} from "./sdk/types";
+import { tauriInvoke } from "./tauri";
+import type { RgbContractsExportBundle } from "./domain";
+import { uint8ArrayToBase64 } from "./utils";
+import type {
   BalancesDto,
   Bolt11DecodeRequest,
   Bolt11DecodeResponse,
@@ -36,6 +48,16 @@ import type {
   ChannelDetailsExtendedDto,
   CloseChannelRequest,
   ListeningAddressesResponse,
+  Lsps2InvoiceRequest,
+  Lsps2InvoiceResponse,
+  Lsps2OptionsDto,
+  Lsps2OptionsResponse,
+  Lsps2QuoteRequest,
+  Lsps2QuoteResponse,
+  Lsps2RgbInvoiceRequest,
+  Lsps2RgbInvoiceResponse,
+  Lsps2RgbQuoteRequest,
+  Lsps2RgbQuoteResponse,
   NodeIdResponse,
   OkResponse,
   OpenChannelRequest,
@@ -51,33 +73,39 @@ import type {
   RgbContractsIssueRequest,
   RgbContractsIssueResponse,
   RgbContractsResponse,
+  RgbDescriptorResponse,
+  RgbIssuersResponse,
   RgbLnInvoiceCreateRequest,
   RgbLnInvoiceResponse,
   RgbLnPayRequest,
-  SendResponse,
-  StatusDto as MainStatusResponse,
   RgbOnchainInvoiceCreateRequest,
   RgbOnchainInvoiceResponse,
-  RgbIssuersResponse,
-  RgbOnchainSendResponse,
   RgbOnchainPaymentsResponse,
-  RgbDescriptorResponse,
-  SignmessageRequest,
-  SignmessageResponse,
-  SwapInfo,
-  ChannelClosing,
+  RgbOnchainSendResponse,
+  RgbSignMessageRequest,
+  RgbSignMessageResponse,
+  RgbUtxoDto,
+  RgbUtxosFundRequest,
+  RgbUtxosFundResponse,
   RgbUtxosMergeStatusResponse,
-  LspPricing,
-  LspConnectionInfo,
-  LspQuoteData,
-  LspOrderItem,
-  LspOrdersResponse,
-  LspOptions,
-} from "./sdk/types";
-import { tauriInvoke } from "./tauri";
-import type { RgbContractsExportBundle } from "./domain";
-import { uint8ArrayToBase64 } from "./utils";
-import type { RgbUtxoDto, RgbUtxosFundRequest, RgbUtxosFundResponse, RgbUtxosReleaseRequest, RgbUtxosReleaseResponse, RgbUtxosReserveRequest, RgbUtxosReserveResponse, RgbUtxosSweepRequest, RgbUtxosSweepResponse, RgbUtxosTopUpRequest, RgbUtxosTopUpResponse, WalletSendAllRequest, WalletSendRequest, WalletSendResponse, WalletUtxosResponse } from "./sdk/generated-types";
+  RgbUtxosReleaseRequest,
+  RgbUtxosReleaseResponse,
+  RgbUtxosReserveRequest,
+  RgbUtxosReserveResponse,
+  RgbUtxosSweepRequest,
+  RgbUtxosSweepResponse,
+  RgbUtxosTopUpRequest,
+  RgbUtxosTopUpResponse,
+  SendResponse,
+  StatusDto,
+  SwapExecuteResponse,
+  SwapInfoDto,
+  SwapOfferResponse,
+  WalletSendAllRequest,
+  WalletSendRequest,
+  WalletSendResponse,
+  WalletUtxosResponse
+} from "./sdk/generated-types";
 
 export type UiLogLevel = "trace" | "debug" | "info" | "warn" | "error";
 
@@ -231,7 +259,7 @@ export async function contextsRemove(nodeId: string): Promise<void> {
   return tauriInvoke("contexts_remove", { nodeId: nodeId });
 }
 
-export async function nodeMainStatus(nodeId: string): Promise<MainStatusResponse> {
+export async function nodeMainStatus(nodeId: string): Promise<StatusDto> {
   return tauriInvoke("node_main_status", { nodeId: nodeId });
 }
 
@@ -474,11 +502,7 @@ export async function pluginWalletAssetExport(
 ): Promise<RgbContractsExportBundle> {
   // Get descriptor from node
   const descriptorData = await nodeRgbDescriptor(nodeId);
-  if (descriptorData.error) {
-    throw new Error(descriptorData.error);
-  }
-
-  const descriptor = descriptorData.derived_descriptors[0].descriptor;
+  const descriptor = descriptorData.derived_descriptors?.[0].descriptor;
 
   return tauriInvoke("plugin_wallet_asset_export", {
     nodeId,
@@ -510,11 +534,8 @@ export async function downloadTransferConsignmentFromLink(nodeId: string, fullLi
 
   // Get descriptor from node
   const descriptorData = await nodeRgbDescriptor(nodeId);
-  if (descriptorData.error) {
-    throw new Error(descriptorData.error);
-  }
 
-  const descriptor = descriptorData.derived_descriptors[0].descriptor;
+  const descriptor = descriptorData.derived_descriptors?.[0].descriptor;
   const link = url.protocol + "//" + url.host + url.pathname;
 
   return tauriInvoke("download_transfer_consignment_from_link", {
@@ -608,7 +629,7 @@ export async function nodeRgbDescriptor(nodeId: string): Promise<RgbDescriptorRe
   return tauriInvoke("node_rgb_descriptor", { nodeId: nodeId });
 }
 
-export async function nodeSignMessage(nodeId: string, body: SignmessageRequest): Promise<SignmessageResponse> {
+export async function nodeSignMessage(nodeId: string, body: RgbSignMessageRequest): Promise<RgbSignMessageResponse> {
   return tauriInvoke("node_rgb_sign_message", { nodeId: nodeId, request: body });
 }
 
@@ -960,17 +981,11 @@ export async function nodeRgbUtxoTopUp(nodeId: string, request: RgbUtxosTopUpReq
   return tauriInvoke("node_rgb_utxo_top_up", { nodeId, request });
 }
 
-export async function nodeSwapOffers(nodeId: string, request: any): Promise<{
-  swap_string: string
-  payment_hash: string
-  info: any
-}> {
+export async function nodeSwapOffers(nodeId: string, request: any): Promise<SwapOfferResponse> {
   return tauriInvoke("node_swap_offers", { nodeId, request });
 }
 
-export async function nodeSwapExecute(nodeId: string, request: {swap_string?: string, payment_hash?: string}): Promise<{
-  ok: boolean
-}> {
+export async function nodeSwapExecute(nodeId: string, request: {swap_string?: string, payment_hash?: string}): Promise<SwapExecuteResponse> {
   return tauriInvoke("node_swap_execute", { nodeId, request });
 }
 
@@ -983,7 +998,7 @@ export async function nodeSwapAccept(nodeId: string, swapString: string): Promis
   });
 }
 
-export async function nodeSwapDecode(nodeId: string, swapString: string): Promise<SwapInfo> {
+export async function nodeSwapDecode(nodeId: string, swapString: string): Promise<SwapInfoDto> {
   return tauriInvoke("node_swap_decode", {
     nodeId,
     request: {
@@ -992,23 +1007,23 @@ export async function nodeSwapDecode(nodeId: string, swapString: string): Promis
   });
 }
 
-export async function nodeSwapList(nodeId: string): Promise<any> {
+export async function nodeSwapList(nodeId: string): Promise<SwapInfoDto[]> {
   return tauriInvoke("node_swap_list", {
     nodeId,
   });
 }
 
-export async function nodeSwapInfo(nodeId: string, paymentHash: string): Promise<any> {
+export async function nodeSwapInfo(nodeId: string, executionId: string): Promise<any> {
   return tauriInvoke("node_swap_info", {
     nodeId,
-    paymentHash,
+    executionId,
   });
 }
 
-export async function nodeSwapDelete(nodeId: string, paymentHash: string): Promise<any> {
+export async function nodeSwapDelete(nodeId: string, executionId: string): Promise<any> {
   return tauriInvoke("node_swap_delete", {
     nodeId,
-    paymentHash,
+    executionId,
   });
 }
 
@@ -1050,14 +1065,14 @@ export async function nodeWalletSendAll(nodeId: string, request: WalletSendAllRe
   return tauriInvoke("node_wallet_send_all", { nodeId, request });
 }
 
-export async function nodeCurrentLsp(nodeId: string): Promise<LspConnectionInfo> {
-  return tauriInvoke("node_lsps1_lsp", { nodeId });
+export async function nodeCurrentLsps(nodeId: string): Promise<{lsps: LspConnectionInfo[]}> {
+  return tauriInvoke("node_lsps1_lsps", { nodeId });
 }
 export async function nodeUpdateCurrentLsp(nodeId: string, request: LspConnectionInfo) {
   return tauriInvoke("node_lsps1_lsp_update", { nodeId, request });
 }
-export async function nodeQueryLspQuote(nodeId: string): Promise<LspQuoteData> {
-  return tauriInvoke("node_lsps1_info", { nodeId });
+export async function nodeQueryLspQuote(nodeId: string, pubkey: string): Promise<LspQuoteInfoResponse> {
+  return tauriInvoke("node_lsps1_info", { nodeId, pubkey });
 }
 export async function nodeBuyBtcChannel(nodeId: string, request: any): Promise<LspOrdersResponse> {
   return tauriInvoke("node_lsps1_order", { nodeId, request });
@@ -1086,4 +1101,28 @@ export async function nodeLspOptions(nodeId: string): Promise<LspOptions> {
 }
 export async function nodeLspOptionsUpdate(nodeId: string, request: LspOptions): Promise<any> {
   return tauriInvoke("node_lsps1_options_update", { nodeId, request });
+}
+
+export async function nodeLspDelete(nodeId: string, lspPubkey: String): Promise<any> {
+  return tauriInvoke("node_lsps1_lsp_delete", { nodeId, lspPubkey });
+}
+
+// LSPS2 ======
+export async function nodeLsps2Quote(nodeId: string, request: Lsps2QuoteRequest): Promise<Lsps2QuoteResponse> {
+  return tauriInvoke("node_lsps2_quote", { nodeId, request });
+}
+export async function nodeLsps2Invoice(nodeId: string, request: Lsps2InvoiceRequest): Promise<Lsps2InvoiceResponse> {
+  return tauriInvoke("node_lsps2_invoice", { nodeId, request });
+}
+export async function nodeLsps2RgbQuote(nodeId: string, request: Lsps2RgbQuoteRequest): Promise<Lsps2RgbQuoteResponse> {
+  return tauriInvoke("node_lsps2_rgb_quote", { nodeId, request });
+}
+export async function nodeLsps2RgbInvoice(nodeId: string, request: Lsps2RgbInvoiceRequest): Promise<Lsps2RgbInvoiceResponse> {
+  return tauriInvoke("node_lsps2_rgb_invoice", { nodeId, request });
+}
+export async function nodeLsps2Options(nodeId: string): Promise<Lsps2OptionsResponse> {
+  return tauriInvoke("node_lsps2_options", { nodeId });
+}
+export async function nodeLsps2OptionsUpdate(nodeId: string, request: Lsps2OptionsDto): Promise<Lsps2OptionsResponse> {
+  return tauriInvoke("node_lsps2_options_update", { nodeId, request });
 }

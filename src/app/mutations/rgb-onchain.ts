@@ -12,13 +12,8 @@ import {
   nodeRgbOnchainTransferConsignmentAccept,
 } from "@/lib/commands";
 import type { RgbContractsExportBundle } from "@/lib/domain";
-import type {
-  RgbOnchainInvoiceCreateRequest,
-  RgbOnchainInvoiceResponse,
-  RgbOnchainPaymentsResponse,
-  RgbOnchainSendResponse,
-} from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import { RgbOnchainInvoiceCreateRequest, RgbOnchainInvoiceResponse, RgbOnchainPaymentsResponse, RgbOnchainSendResponse } from "@/lib/sdk/generated-types";
 
 function invalidateRgbOnchainState(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -149,7 +144,7 @@ export function useRgbOnchainPaymentLookupMutation(
   return useMutation({
     mutationFn: async ({ nodeId, invoice }) => {
       const data = await nodeRgbOnchainPayments(nodeId);
-      return data.payments.find((item) => item.invoice?.trim() === invoice) ?? null;
+      return data.payments.find((item: any) => item.invoice?.trim() === invoice) ?? null;
     },
     ...options,
   });

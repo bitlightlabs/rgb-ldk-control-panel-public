@@ -76,7 +76,7 @@ export function UnlockPage() {
 
       // Check if node locked
       const status = (await nodeStatusQuery.refetch()).data;
-      if (status?.locked) {
+      if (status && (status as any).locked) {
         await unlockMutation.mutateAsync(targetContext.node_id);
       }
 

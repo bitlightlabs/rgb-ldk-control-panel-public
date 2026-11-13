@@ -5,10 +5,8 @@ import { useSwapOffersMutation } from "@/app/mutations/swap";
 import { useContextStore } from "@/app/stores/contextStore";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-// import { Separator } from "@/components/ui/separator";
 import { errorToText } from "@/lib/errorToText";
 import { parseNumber } from "@/lib/number";
-import type { ChannelDetailsExtendedDto, RgbContractDto } from "@/lib/sdk/types";
 import { safeSubstring } from "@/lib/utils";
 import { Copy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -16,6 +14,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Store } from '@tauri-apps/plugin-store'
 import { LOCAL_SWAP_STRING } from "@/app/config/constant";
+import type { ChannelDetailsExtendedDto, RgbContractDto } from "@/lib/sdk/generated-types";
 
 interface IProps {
   payload: {
@@ -97,7 +96,7 @@ export default function ConfirmDialog(props: IProps) {
 
     const data = {
       "counterparty_node_id": channel.counterparty_node_id,
-      "channel_scid": channel.short_channel_id,
+      "channel_scid": channel.short_channel_id ?? channel.outbound_scid_alias ?? '',
       "contract_id": contract.contract_id,
       "asset_amount": assetAmount,
       "btc_amount_msat": btcAmountMsat,
@@ -111,7 +110,6 @@ export default function ConfirmDialog(props: IProps) {
       setPosting(true)
 
       const store = await Store.load(LOCAL_SWAP_STRING)
-
       const json = await swapOffersMutation.mutateAsync({
         nodeId: currentContext.node_id,
         request: data
@@ -119,7 +117,7 @@ export default function ConfirmDialog(props: IProps) {
 
       // Swap string only exists at creation time and cannot be obtained elsewhere
       // We store it locally so that the user can retrieve it later if needed
-      await store.set(json.payment_hash, json.swap_string)
+      await store.set(json.execution_id, json.swap_string)
       await store.save()
 
       setOfferResult(json);

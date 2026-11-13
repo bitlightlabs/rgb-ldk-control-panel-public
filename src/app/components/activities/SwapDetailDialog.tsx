@@ -1,7 +1,6 @@
 import { useNodeSwapExecuteMutation } from "@/app/mutations/swap"
 import { useNodeSwapInfoQuery } from "@/app/queries/swap"
 import { useContextStore } from "@/app/stores/contextStore"
-import type { RgbContractDto } from "@/lib/sdk/types"
 import { toast } from "sonner"
 import { errorToText } from "@/lib/errorToText"
 import { Store } from '@tauri-apps/plugin-store'
@@ -14,10 +13,12 @@ import { CopyTextInline } from "../CopyText"
 import AssetAvatar from "../AssetAvatar"
 import { Button } from "@/components/ui/button"
 import { parseSwapInfo } from "@/lib/swap"
+import type { RgbContractDto } from "@/lib/sdk/generated-types"
+
 
 export default function SwapDetailDialog(props: {
   contract?: RgbContractDto | null,
-  paymentHash: string,
+  executionId: string,
   onClose: () => void
   onRefresh: () => void
 }) {
@@ -25,8 +26,8 @@ export default function SwapDetailDialog(props: {
   const { currentContext } = useContextStore()
   const nodeid = currentContext?.node_id ?? ''
 
-  const query = useNodeSwapInfoQuery(nodeid, props.paymentHash, {
-    enabled: !!nodeid && !!props.paymentHash
+  const query = useNodeSwapInfoQuery(nodeid, props.executionId, {
+    enabled: !!nodeid && !!props.executionId
   })
 
   const executeMutation = useNodeSwapExecuteMutation()
@@ -44,10 +45,7 @@ export default function SwapDetailDialog(props: {
       await executeMutation.mutateAsync({
         nodeId: nodeid,
         request: {
-          // Swap string or Payment hash can be used to execute the swap.
-          // Here we are using the payment hash.
-          // swap_string '',
-          payment_hash: props.paymentHash
+          execution_id: props.executionId
         }
       })
 
@@ -62,7 +60,7 @@ export default function SwapDetailDialog(props: {
   const loadSwapString = async () => {
     try {
       const store = await Store.load(LOCAL_SWAP_STRING)
-      const str = await store.get<string>(props.paymentHash)
+      const str = await store.get<string>(props.executionId)
       if(str) {
         setSwapString(str)
       }
@@ -119,10 +117,10 @@ export default function SwapDetailDialog(props: {
 
         <div className="bg-background-3 rounded-3xl px-4 py-4 space-y-4">
           <Row
-            label="Payment ID"
+            label="Execution ID"
             value={
               <div>
-                <CopyTextInline buttonClassName="text-secondary-foreground" text={props.paymentHash} />
+                <CopyTextInline buttonClassName="text-secondary-foreground" text={props.executionId} />
               </div>
             }
           />

@@ -81,8 +81,8 @@ export const queryKeys = {
   // ---- swap ----
   nodeSwapOffers: (nodeId: string) => ["node_swap_offers", nodeId] as const,
   nodeSwapList: (nodeId: string) => ["node_swap_list", nodeId] as const,
-  nodeSwapInfo: (nodeId: string, paymentHash: string) =>
-    ["node_swap_info", nodeId, paymentHash] as const,
+  nodeSwapInfo: (nodeId: string, executionId: string) =>
+    ["node_swap_info", nodeId, executionId] as const,
   nodeSwapAccept: (nodeId: string, swapString: string) =>
     ["node_swap_accept", nodeId, swapString] as const,
   nodeSwapExecute: (nodeId: string) => ["node_swap_execute", nodeId] as const,
@@ -92,8 +92,8 @@ export const queryKeys = {
     ["node_current_lsp_pricing", nodeId] as const,
   nodeLspQuery: (nodeId: string) =>
     ["node_lsp_query", nodeId] as const,
-  nodeQueryLspQuote: (nodeId: string) =>
-    ["node_lsp_quote", nodeId] as const,
+  nodeQueryLspQuote: (nodeId: string, pubkey: string) =>
+    ["node_lsp_quote", nodeId, pubkey] as const,
   nodeCurrentLspOrders: (nodeId: string) =>
     ["node_current_lsp_orders", nodeId] as const,
   nodeBuyChannelDetail: (nodeId: string, orderId: string) =>
@@ -102,6 +102,8 @@ export const queryKeys = {
     ["node_current_lsp_orders_detail", nodeId, orderId] as const,
   nodeLspOptions: (nodeId: string) =>
     ["node_lsp_options", nodeId] as const,
+  nodeLsps2Options: (nodeId: string) =>
+    ["node_lsps2_options", nodeId] as const,
 } as const;
 
 export type QueryKey = ReturnType<

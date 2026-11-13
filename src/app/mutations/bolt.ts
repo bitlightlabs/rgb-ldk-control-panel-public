@@ -12,21 +12,8 @@ import {
   nodeBolt12RefundInitiate,
   nodeBolt12RefundRequestPayment,
 } from "@/lib/commands";
-import type {
-  Bolt11ReceiveRequest,
-  Bolt11ReceiveResponse,
-  Bolt11SendRequest,
-  Bolt12OfferReceiveRequest,
-  Bolt12OfferReceiveVarRequest,
-  Bolt12OfferResponse,
-  Bolt12OfferSendRequest,
-  Bolt12RefundInitiateRequest,
-  Bolt12RefundInitiateResponse,
-  Bolt12RefundRequestPaymentRequest,
-  Bolt12RefundRequestPaymentResponse,
-  SendResponse,
-} from "@/lib/sdk/types";
 import { queryKeys } from "@/app/queries/queryKeys";
+import type { Bolt11ReceiveRequest, Bolt11ReceiveResponse, Bolt11SendRequest, Bolt12OfferReceiveRequest, Bolt12OfferReceiveVarRequest, Bolt12OfferResponse, Bolt12OfferSendRequest, Bolt12RefundInitiateRequest, Bolt12RefundInitiateResponse, Bolt12RefundRequestPaymentRequest, Bolt12RefundRequestPaymentResponse, SendResponse } from "@/lib/sdk/generated-types";
 
 function invalidatePayments(nodeId: string) {
   // bolt operations eventually surface in the payments list
